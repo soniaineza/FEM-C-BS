@@ -1,0 +1,94 @@
+# FEM C@BS backend
+
+Node.js + Express + PostgreSQL REST API for the FEM C@BS passenger app.
+
+The current routes and schema use PostgreSQL. `MONGODB_URI` is reserved for a
+future migration and is not used by the current API; do not put a MongoDB URI
+in tracked source files. Store it in `server/.env` when the data layer is
+migrated deliberately.
+
+## Setup
+
+1. Have a PostgreSQL server running and create a database (or use an existing one).
+2. Copy `.env.example` to `.env` and set `DATABASE_URL`, e.g.:
+   ```
+   DATABASE_URL=postgres://postgres:postgres@localhost:5432/femcabs
+   ```
+3. Install dependencies and start:
+   ```
+   npm install
+   npm start
+   ```
+   The schema in `src/schema.sql` (tables + the vehicle catalogue seed) is applied
+   automatically on every start — it's idempotent, safe to run repeatedly.
+
+Once the server is up, point the Flutter app at it (see "Wiring up the app" below).
+
+## API summary
+
+All authenticated routes require `Authorization: Bearer <token>` (returned by
+signup/login). All responses are JSON; errors are `{ "error": "message" }`.
+
+- `POST /api/auth/signup` `{ fullName, phone, email, password }` → `{ passenger, token }`
+- `POST /api/auth/login` `{ identifier, password }` → `{ passenger, token }`
+- `POST /api/auth/verify-otp` `{ passengerId, code }`
+- `POST /api/auth/reset-password/request` `{ identifier }`
+- `POST /api/auth/reset-password/confirm` `{ identifier, code, newPassword }`
+- `GET /api/auth/me` (auth)
+- `PUT /api/auth/profile` (auth) `{ fullName?, phone?, email?, photoUrl?, emergencyContactName?, emergencyContactPhone? }`
+- `DELETE /api/auth/account` (auth)
+
+- `GET /api/vehicles` — the ride catalogue
+
+- `GET /api/places/saved` (auth)
+- `POST /api/places/saved` (auth) `{ type, name, address, latitude?, longitude? }`
+- `DELETE /api/places/saved/:id` (auth)
+
+- `POST /api/rides` (auth) `{ pickup: {address, latitude, longitude}, destination: {...}, vehicleId, paymentMethodId }`
+  — distance/duration/fare are always computed server-side. Kicks off a simulated
+  driver-matching lifecycle (see below).
+- `GET /api/rides` (auth) — ride history
+- `GET /api/rides/:id` (auth)
+- `GET /api/rides/:id/stream` (auth) — Server-Sent Events with live status pushes
+- `POST /api/rides/:id/cancel` (auth)
+- `POST /api/rides/:id/rate` (auth) `{ rating: 1-5, comment? }`
+
+- `POST /api/payments` (auth) `{ rideId, method: cash|mtn_momo|airtel_money|card }`
+
+- `GET /api/notifications` (auth)
+- `POST /api/notifications/:id/read` (auth)
+- `POST /api/notifications/device-token` (auth) `{ token, platform? }`
+
+- `POST /api/support` (auth) `{ category, subject, message }`
+- `GET /api/support` (auth)
+
+## The ride simulator
+
+There is no live driver fleet yet, so `src/services/rideSimulator.js` plays a
+requested ride forward through `searchingDriver → driverAssigned →
+driverArriving → inProgress → completed` using timers, picking from a small
+roster of fictional drivers. Pacing is controlled by `SIM_ACCEPT_DELAY`,
+`SIM_WAIT_AT_PICKUP` and `SIM_SECONDS_PER_KM` in `.env`. Swap this module out
+for real dispatch once there are actual drivers — every other route (history,
+cancel, rate, payments) already works against whatever is in the `rides` table
+regardless of who/what updates it.
+
+## Dev conveniences
+
+`DEV_REVEAL_CODES=1` (the default) returns OTP codes and payment references
+directly in API responses so the flows can be exercised without a real SMS/
+payment provider. Set it to `0` before shipping — codes must go out over real
+SMS and payment references must come from the real provider webhook instead.
+
+## Wiring up the app
+
+The Flutter services under `lib/services/` (`auth_service.dart`,
+`ride_service.dart`, `payment_service.dart`, `notification_service.dart`,
+`support_service.dart`) currently run a local, backend-disconnected preview
+mode gated by `AppConstants.backendConnected` in
+`lib/core/constants/app_constants.dart`. Pointing the app at this API means:
+add an HTTP client (e.g. `http` or `dio`) with the API base URL, replace each
+`TODO(backend)` call with the matching endpoint above, store the JWT
+(`flutter_secure_storage` recommended) and send it as `Authorization: Bearer
+<token>`, then flip `backendConnected` to `true`. Happy to do that wiring next
+if you'd like.

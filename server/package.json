@@ -1,0 +1,24 @@
+{
+  "name": "fem-cabs-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FEM C@BS ride-hailing backend (Node + Express + PostgreSQL)",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "db:init": "node src/db.js --init-only"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1"
+  }
+}
