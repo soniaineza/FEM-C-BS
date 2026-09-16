@@ -55,6 +55,12 @@ class _HomeScreenState extends State<HomeScreen> {
       const Duration(seconds: 15),
       (_) => _loadNearbyDrivers(),
     );
+    // Ask for location right away, on first open, instead of waiting for the
+    // passenger to tap a location field — mirrors what most ride-hailing
+    // apps do on launch.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _useCurrentLocation();
+    });
   }
 
   @override
