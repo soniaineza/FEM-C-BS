@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/utils/validators.dart';
 import '../../models/place.dart';
 import '../../models/saved_place.dart';
@@ -51,38 +52,40 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
   Future<void> _delete(SavedPlace place) async {
     await userService.deletePlace(place.id);
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${place.name} removed.')),
+      SnackBar(content: Text(l10n.placeRemoved(place.name))),
     );
     await _load();
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(title: const Text('Saved places')),
+      appBar: AppBar(title: Text(l10n.savedPlaces)),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: AppColors.white,
         onPressed: () => _addOrEdit(),
         icon: const Icon(Icons.add),
-        label: const Text('Add place'),
+        label: Text(l10n.addPlace),
       ),
       body: SafeArea(
         child: _places == null
             ? const Center(child: CircularProgressIndicator())
             : _places!.isEmpty
-                ? const EmptyState(
+                ? EmptyState(
                     icon: Icons.place_outlined,
-                    title: 'No saved places',
-                    subtitle:
-                        'Save Home, Work or other places to book them faster.',
+                    title: l10n.noSavedPlaces,
+                    subtitle: l10n.savePlacesHint,
                   )
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 88),
                     children: _places!.map((p) => _PlaceTile(
                           place: p,
+                          l10n: l10n,
                           onEdit: () => _addOrEdit(p),
                           onDelete: () => _delete(p),
                         )).toList(),
@@ -95,11 +98,13 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
 class _PlaceTile extends StatelessWidget {
   const _PlaceTile({
     required this.place,
+    required this.l10n,
     required this.onEdit,
     required this.onDelete,
   });
 
   final SavedPlace place;
+  final AppLocalizations l10n;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -129,7 +134,7 @@ class _PlaceTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${place.name} · ${place.typeLabel}',
+                    '${place.name} · ${place.typeLabelFor(l10n)}',
                     style: const TextStyle(
                       color: AppColors.black,
                       fontSize: 14,
@@ -153,13 +158,13 @@ class _PlaceTile extends StatelessWidget {
               onPressed: onEdit,
               icon: const Icon(Icons.edit_outlined,
                   color: AppColors.secondaryText, size: 20),
-              tooltip: 'Edit',
+              tooltip: l10n.editTooltip,
             ),
             IconButton(
               onPressed: onDelete,
               icon: const Icon(Icons.delete_outline,
                   color: AppColors.error, size: 20),
-              tooltip: 'Delete',
+              tooltip: l10n.deleteTooltip,
             ),
           ],
         ),
@@ -203,6 +208,7 @@ class _PlaceFormSheetState extends State<_PlaceFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -215,7 +221,7 @@ class _PlaceFormSheetState extends State<_PlaceFormSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _isEditing ? 'Edit place' : 'Add a place',
+            _isEditing ? l10n.editPlace : l10n.addAPlace,
             style: const TextStyle(
               color: AppColors.black,
               fontSize: 18,
@@ -226,9 +232,9 @@ class _PlaceFormSheetState extends State<_PlaceFormSheet> {
           Row(
             children: SavedPlaceType.values.map((type) {
               final label = switch (type) {
-                SavedPlaceType.home => 'Home',
-                SavedPlaceType.work => 'Work',
-                SavedPlaceType.other => 'Other',
+                SavedPlaceType.home => l10n.home,
+                SavedPlaceType.work => l10n.work,
+                SavedPlaceType.other => l10n.other,
               };
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
@@ -253,15 +259,15 @@ class _PlaceFormSheetState extends State<_PlaceFormSheet> {
               children: [
                 CustomTextField(
                   controller: _name,
-                  label: 'Place name',
-                  hintText: 'e.g. Home, Dad\'s house',
+                  label: l10n.placeName,
+                  hintText: l10n.placeNameHint,
                   validator: Validators.required,
                 ),
                 const SizedBox(height: 14),
                 CustomTextField(
                   controller: _address,
-                  label: 'Address',
-                  hintText: 'e.g. Kacyiru, Kigali',
+                  label: l10n.addressLabel,
+                  hintText: l10n.addressHint,
                   validator: Validators.required,
                   onFieldSubmitted: (_) => _save(),
                 ),
@@ -270,7 +276,7 @@ class _PlaceFormSheetState extends State<_PlaceFormSheet> {
           ),
           const SizedBox(height: 20),
           PrimaryButton(
-            label: _isEditing ? 'Save changes' : 'Save place',
+            label: _isEditing ? l10n.saveChanges : l10n.savePlace,
             onPressed: _save,
           ),
         ],

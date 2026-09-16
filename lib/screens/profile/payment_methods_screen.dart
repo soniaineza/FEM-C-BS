@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../models/payment.dart';
 import '../../services/payment_service.dart';
 
@@ -31,16 +32,17 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(title: const Text('Payment methods')),
+      appBar: AppBar(title: Text(l10n.paymentMethods)),
       body: SafeArea(
         child: _methods == null
             ? const Center(child: CircularProgressIndicator())
             : ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  ..._methods!.map((m) => _MethodTile(method: m)),
+                  ..._methods!.map((m) => _MethodTile(method: m, l10n: l10n)),
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(14),
@@ -49,17 +51,16 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.border),
                     ),
-                    child: const Row(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline,
+                        const Icon(Icons.info_outline,
                             color: AppColors.secondaryText, size: 18),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Default method and wallet verification will be '
-                            'managed here once the backend is connected.',
-                            style: TextStyle(
+                            l10n.paymentMethodsNote,
+                            style: const TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 12.5,
                               height: 1.4,
@@ -77,9 +78,18 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 }
 
 class _MethodTile extends StatelessWidget {
-  const _MethodTile({required this.method});
+  const _MethodTile({required this.method, required this.l10n});
 
   final PaymentMethod method;
+  final AppLocalizations l10n;
+
+  String get _detail => switch (method.name) {
+        'Cash' => l10n.payCashDetail,
+        'MTN Mobile Money' => l10n.payMomoDetail,
+        'Airtel Money' => l10n.payAirtelDetail,
+        'Card' => l10n.payCardDetail,
+        _ => method.detail,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +132,7 @@ class _MethodTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    method.detail,
+                    _detail,
                     style: const TextStyle(
                       color: AppColors.secondaryText,
                       fontSize: 12.5,

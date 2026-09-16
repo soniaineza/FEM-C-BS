@@ -8,6 +8,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../widgets/error_message.dart';
 import '../../widgets/primary_button.dart';
 import '../../core/utils/validators.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Help & support: contact and FAQ (step 38).
 class HelpSupportScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (_category == null) {
-      setState(() => _error = 'Please choose a topic first.');
+      setState(() => _error = AppLocalizations.of(context).chooseTopicFirst);
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -52,13 +53,13 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message sent. We will get back to you.')),
+        SnackBar(content: Text(AppLocalizations.of(context).messageSentConfirmation)),
       );
       Navigator.of(context).pop();
     } on AppException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'We could not send your message right now.');
+      setState(() => _error = AppLocalizations.of(context).messageSendFailed);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -66,26 +67,26 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(title: const Text('Help & support')),
+      appBar: AppBar(title: Text(l10n.helpSupportTitle)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const Text(
-              'How can we help?',
-              style: TextStyle(
+            Text(
+              l10n.howCanWeHelp,
+              style: const TextStyle(
                 color: AppColors.black,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
-              'Send us a message — our team typically responds within 24 '
-              'hours.',
-              style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+            Text(
+              l10n.helpIntro,
+              style: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
             ),
             const SizedBox(height: 16),
             Container(
@@ -98,9 +99,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Contact support',
-                    style: TextStyle(
+                  Text(
+                    l10n.contactSupport,
+                    style: const TextStyle(
                       color: AppColors.black,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -108,7 +109,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Email: ${AppConstants.supportEmail}',
+                    '${l10n.emailPrefix}: ${AppConstants.supportEmail}',
                     style: const TextStyle(
                       color: AppColors.secondaryText,
                       fontSize: 13.5,
@@ -117,7 +118,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                   if (AppConstants.supportPhone.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
-                      'Call: ${AppConstants.supportPhone}',
+                      '${l10n.callPrefix}: ${AppConstants.supportPhone}',
                       style: const TextStyle(
                         color: AppColors.secondaryText,
                         fontSize: 13.5,
@@ -128,7 +129,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            _TopicPicker(onChanged: (t) => setState(() => _category = t)),
+            _TopicPicker(l10n: l10n, onChanged: (t) => setState(() => _category = t)),
             if (_error != null) ...[
               const SizedBox(height: 12),
               ErrorMessage(message: _error!),
@@ -140,7 +141,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                 children: [
                   CustomTextField(
                     controller: _subject,
-                    label: 'Subject',
+                    label: l10n.subject,
                     textInputAction: TextInputAction.next,
                     validator: Validators.required,
                   ),
@@ -151,8 +152,8 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                     maxLines: 6,
                     validator: Validators.required,
                     decoration: InputDecoration(
-                      labelText: 'Tell us what happened',
-                      hintText: 'Describe your issue in a few sentences…',
+                      labelText: l10n.tellUsWhatHappened,
+                      hintText: l10n.describeIssueHint,
                       alignLabelWithHint: true,
                       filled: true,
                       fillColor: AppColors.white,
@@ -193,47 +194,24 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             ),
             const SizedBox(height: 16),
             PrimaryButton(
-              label: 'Send message',
+              label: l10n.sendMessage,
               loading: _submitting,
               onPressed: _submitting ? null : _submit,
             ),
             const SizedBox(height: 24),
-            const Text(
-              'FAQ',
-              style: TextStyle(
+            Text(
+              l10n.faqTitle,
+              style: const TextStyle(
                 color: AppColors.black,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 4),
-            const _FaqTile(
-              question: 'How long will my driver take to arrive?',
-              answer:
-                  'Once a driver accepts your request, you see an arrival '
-                  'estimate on the tracking screen. Timing depends on traffic '
-                  'and how close the driver is.',
-            ),
-            const _FaqTile(
-              question: 'How is the fare calculated?',
-              answer:
-                  'Fares are normally a combination of a pickup fee, distance '
-                  'and time. Today the app shows an honest distance-based '
-                  'estimate until the backend pricing is connected.',
-            ),
-            const _FaqTile(
-              question: 'Can I cancel a ride?',
-              answer:
-                  'Yes, from the confirm screen before a driver accepts. '
-                  'Cancellation fees will be shown when the backend is '
-                  'connected.',
-            ),
-            const _FaqTile(
-              question: 'What if I left something in the car?',
-              answer:
-                  'Open the ride in your history, tap "Get help", and we will '
-                  'contact the driver for you.',
-            ),
+            _FaqTile(question: l10n.faqArrivalQuestion, answer: l10n.faqArrivalAnswer),
+            _FaqTile(question: l10n.faqFareQuestion, answer: l10n.faqFareAnswer),
+            _FaqTile(question: l10n.faqCancelQuestion, answer: l10n.faqCancelAnswer),
+            _FaqTile(question: l10n.faqLostItemQuestion, answer: l10n.faqLostItemAnswer),
           ],
         ),
       ),
@@ -242,25 +220,25 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
 }
 
 class _TopicPicker extends StatelessWidget {
-  const _TopicPicker({required this.onChanged});
+  const _TopicPicker({required this.l10n, required this.onChanged});
 
+  final AppLocalizations l10n;
   final ValueChanged<String?> onChanged;
-
-  static const _topics = [
-    'Ride issue',
-    'Payment issue',
-    'Driver issue',
-    'Account issue',
-    'Safety concern',
-    'Other',
-  ];
 
   @override
   Widget build(BuildContext context) {
+    final topics = [
+      l10n.rideIssue,
+      l10n.paymentIssue,
+      l10n.driverIssue,
+      l10n.accountIssue,
+      l10n.safetyConcern,
+      l10n.otherTopic,
+    ];
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _topics.map((topic) {
+      children: topics.map((topic) {
         return FilterChip(
           label: Text(topic),
           onSelected: (_) => onChanged(topic),

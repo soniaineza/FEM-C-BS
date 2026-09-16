@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../models/notification_model.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/empty_state.dart';
@@ -33,19 +34,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(title: Text(l10n.notifications)),
       body: SafeArea(
         child: _notifications == null
             ? const Center(child: CircularProgressIndicator())
             : _notifications!.isEmpty
-                ? const EmptyState(
+                ? EmptyState(
                     icon: Icons.notifications_none,
-                    title: 'No notifications yet',
-                    subtitle:
-                        'Updates about your rides, payments and important '
-                        'account messages will appear here.',
+                    title: l10n.noNotificationsYet,
+                    subtitle: l10n.notificationsEmptySubtitle,
                   )
                 : RefreshIndicator(
                     onRefresh: _load,
@@ -118,7 +118,7 @@ class _NotificationTile extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            _timeAgo(item.createdAt),
+            _timeAgo(context, item.createdAt),
             style: const TextStyle(
               color: AppColors.secondaryText,
               fontSize: 11,
@@ -129,9 +129,9 @@ class _NotificationTile extends StatelessWidget {
     );
   }
 
-  String _timeAgo(DateTime date) {
+  String _timeAgo(BuildContext context, DateTime date) {
     final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 1) return AppLocalizations.of(context).timeNow;
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     if (diff.inHours < 24) return '${diff.inHours}h';
     return '${diff.inDays}d';

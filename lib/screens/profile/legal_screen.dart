@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Terms of Service (step 36).
 ///
@@ -11,20 +12,21 @@ class TermsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(title: const Text('Terms of Service')),
+      appBar: AppBar(title: Text(l10n.termsOfServiceTitle)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
-          children: const [
-            _Section(title: '1. Agreement', body: _agreement),
-            _Section(title: '2. Using the app', body: _usage),
-            _Section(title: '3. Rides and fares', body: _rides),
-            _Section(title: '4. Payments', body: _payments),
-            _Section(title: '5. Your account', body: _account),
-            _Section(title: '6. Limitation of liability', body: _liability),
-            _Section(title: '7. Changes to these terms', body: _changes),
+          children: [
+            _Section(title: l10n.termsSection1Title, body: l10n.termsSection1Body),
+            _Section(title: l10n.termsSection2Title, body: l10n.termsSection2Body),
+            _Section(title: l10n.termsSection3Title, body: l10n.termsSection3Body),
+            _Section(title: l10n.termsSection4Title, body: l10n.termsSection4Body),
+            _Section(title: l10n.termsSection5Title, body: l10n.termsSection5Body),
+            _Section(title: l10n.termsSection6Title, body: l10n.termsSection6Body),
+            _Section(title: l10n.termsSection7Title, body: l10n.termsSection7Body),
           ],
         ),
       ),
@@ -38,46 +40,21 @@ class PrivacyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(title: const Text('Privacy Policy')),
+      appBar: AppBar(title: Text(l10n.privacyPolicyTitle)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
-          children: const [
-            _Section(
-                title: '1. What we collect', body: 'Your name, phone number, '
-                    'email, precise location while requesting or taking a ride, '
-                    'trip history and payment data.'),
-            _Section(
-                title: '2. How we use it',
-                body: 'To create accounts, match you with drivers, track '
-                    'active rides, handle payments and provide support. We do '
-                    'not sell personal data.'),
-            _Section(
-                title: '3. Sharing',
-                body: 'Necessary trip details (pickup, destination, route) are '
-                    'shared with the driver who accepts your ride. Data is not '
-                    'shared with third parties for advertising.'),
-            _Section(
-                title: '4. Location',
-                body: 'Your precise location is used during an active ride or '
-                    'when you are finding a pickup point. It is not tracked in '
-                    'the background.'),
-            _Section(
-                title: '5. Data retention & your rights',
-                body: 'Trip data is kept for [12 months] and you may request '
-                    'access or deletion of your personal data at any time by '
-                    'contacting support.'),
-            _Section(
-                title: '6. Security',
-                body: 'Data is transmitted securely and stored with restricted '
-                    'access. You are responsible for keeping your login '
-                    'details safe.'),
-            _Section(
-                title: '7. Questions',
-                body: 'Contact privacy inquiries by email. Our current '
-                    'support email is shown under Help & support.'),
+          children: [
+            _Section(title: l10n.privacySection1Title, body: l10n.privacySection1Body),
+            _Section(title: l10n.privacySection2Title, body: l10n.privacySection2Body),
+            _Section(title: l10n.privacySection3Title, body: l10n.privacySection3Body),
+            _Section(title: l10n.privacySection4Title, body: l10n.privacySection4Body),
+            _Section(title: l10n.privacySection5Title, body: l10n.privacySection5Body),
+            _Section(title: l10n.privacySection6Title, body: l10n.privacySection6Body),
+            _Section(title: l10n.privacySection7Title, body: l10n.privacySection7Body),
           ],
         ),
       ),
@@ -126,37 +103,3 @@ class _Section extends StatelessWidget {
     );
   }
 }
-
-const _agreement =
-    'By creating an account or using FEM C@BS you agree to these Terms of '
-    'Service and our Privacy Policy. If you do not agree, do not use the '
-    'app. These terms are in draft form until finalised before launch.';
-
-const _usage =
-    'FEM C@BS provides passenger ride-hailing services. A passenger is at '
-    'least 18 years old. Accounts are personal, your details must be accurate, '
-    'and you must not misuse the app or interfere with other users.';
-
-const _rides =
-    'Ride prices are shown before booking based on distance. Final fares may '
-    'differ when the official price engine is connected. You may cancel '
-    'before a driver accepts; cancellation policies will be shown when they '
-    'become active.';
-
-const _payments =
-    'Payment is required for every completed ride. Accepted methods are '
-    'displayed at booking. Unpaid balances may block new rides until settled.';
-
-const _account =
-    'You are responsible for activity on your account. If you suspect '
-    'unauthorized use, contact support immediately. We may suspend accounts '
-    'that violate these terms.';
-
-const _liability =
-    'To the maximum extent permitted by law, FEM C@BS is not liable for '
-    'indirect or incidental damages. Rides are provided by independent '
-    'drivers on the platform at the time of travel.';
-
-const _changes =
-    'We may update these terms from time to time. Updated terms will be '
-    'available in the app and take effect when published.';

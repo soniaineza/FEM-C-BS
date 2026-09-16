@@ -73,7 +73,34 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const BrandMark(),
+                    Container(
+                      width: 132,
+                      height: 132,
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            AppColors.primaryGreen,
+                            AppColors.greenGradientEnd,
+                          ],
+                        ),
+                        boxShadow: AppShadows.tinted(
+                          AppColors.primaryGreen,
+                          opacity: 0.35,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/car_image.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const BrandMark(withIcon: false),
                     const SizedBox(height: 16),
                     Text(
                       AppConstants.tagline,
