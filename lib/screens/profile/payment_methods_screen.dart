@@ -83,13 +83,7 @@ class _MethodTile extends StatelessWidget {
   final PaymentMethod method;
   final AppLocalizations l10n;
 
-  String get _detail => switch (method.name) {
-        'Cash' => l10n.payCashDetail,
-        'MTN Mobile Money' => l10n.payMomoDetail,
-        'Airtel Money' => l10n.payAirtelDetail,
-        'Card' => l10n.payCardDetail,
-        _ => method.detail,
-      };
+  String get _detail => method.detailFor(l10n);
 
   @override
   Widget build(BuildContext context) {

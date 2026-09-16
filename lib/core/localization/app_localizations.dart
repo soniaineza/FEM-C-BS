@@ -137,10 +137,6 @@ class AppLocalizations {
   String get notificationsEmptySubtitle => _t(rw: 'Amakuru ku ngendo zawe, kwishyura n\'ubutumwa bwa konti bizagaragara hano.', fr: 'Les mises a jour sur vos trajets, paiements et messages importants de compte apparaitront ici.', en: 'Updates about your rides, payments and important account messages will appear here.');
   String get timeNow => _t(rw: 'nonaha', fr: 'maintenant', en: 'now');
   String get paymentMethodsNote => _t(rw: 'Uburyo nyabwo n\'igenzura rya wallet bizacungwa hano nyuma y\'uko seriveri ihujwe.', fr: 'La methode par defaut et la verification du portefeuille seront gerees ici une fois le backend connecte.', en: 'Default method and wallet verification will be managed here once the backend is connected.');
-  String get payCashDetail => _t(rw: 'Ishyura umushoferi ubwawe', fr: 'Payez le chauffeur directement', en: 'Pay the driver directly');
-  String get payMomoDetail => _t(rw: 'Ishyura na MoMo', fr: 'Payez avec MoMo', en: 'Pay with MoMo');
-  String get payAirtelDetail => _t(rw: 'Ishyura na Airtel Money', fr: 'Payez avec Airtel Money', en: 'Pay with Airtel Money');
-  String get payCardDetail => _t(rw: 'Ishyura na karita ya banki', fr: 'Payez avec une carte bancaire', en: 'Pay with a bank card');
   String get addPlace => _t(rw: 'Ongeraho ahantu', fr: 'Ajouter un lieu', en: 'Add place');
   String get addAPlace => _t(rw: 'Ongeraho ahantu', fr: 'Ajouter un lieu', en: 'Add a place');
   String get editPlace => _t(rw: 'Hindura ahantu', fr: 'Modifier le lieu', en: 'Edit place');

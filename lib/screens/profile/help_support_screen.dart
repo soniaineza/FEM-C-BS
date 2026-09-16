@@ -223,25 +223,29 @@ class _TopicPicker extends StatelessWidget {
   const _TopicPicker({required this.l10n, required this.onChanged});
 
   final AppLocalizations l10n;
+
+  /// Called with a stable backend category id (never the translated label),
+  /// so the request still resolves correctly no matter which language the
+  /// passenger is using.
   final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final topics = [
-      l10n.rideIssue,
-      l10n.paymentIssue,
-      l10n.driverIssue,
-      l10n.accountIssue,
-      l10n.safetyConcern,
-      l10n.otherTopic,
+    final topics = <(String id, String label)>[
+      ('general', l10n.rideIssue),
+      ('payment', l10n.paymentIssue),
+      ('report_driver', l10n.driverIssue),
+      ('app_issue', l10n.accountIssue),
+      ('general', l10n.safetyConcern),
+      ('billing', l10n.otherTopic),
     ];
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: topics.map((topic) {
         return FilterChip(
-          label: Text(topic),
-          onSelected: (_) => onChanged(topic),
+          label: Text(topic.$2),
+          onSelected: (_) => onChanged(topic.$1),
           selectedColor: AppColors.primaryGreen,
           labelStyle: const TextStyle(
             color: AppColors.black,
