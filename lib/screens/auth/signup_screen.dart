@@ -171,7 +171,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         size: 22,
                       ),
                       const SizedBox(width: 10),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           l10n.agreeTerms,
                           style: TextStyle(
@@ -202,7 +202,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
+                    Text(
                       l10n.existingAccount,
                       style: TextStyle(
                         color: AppColors.secondaryText,
@@ -212,7 +212,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     GestureDetector(
                       onTap: () =>
                           Navigator.of(context).pushReplacementNamed(AppRoutes.login),
-                      child: const Text(
+                      child: Text(
                         l10n.login,
                         style: TextStyle(
                           color: AppColors.primaryGreen,

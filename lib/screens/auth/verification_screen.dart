@@ -95,10 +95,23 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   Future<void> _resend() async {
     if (_resendSeconds > 0) return;
-    _startCountdown();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocalizations.of(context).newCodeRequested)),
-    );
+    try {
+      await authService.resendOtp();
+      if (!mounted) return;
+      _startCountdown();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).newCodeRequested)),
+      );
+    } on AppException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).verificationFailed)),
+      );
+    }
   }
 
   @override

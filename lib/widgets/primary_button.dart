@@ -6,7 +6,10 @@ import '../core/theme/app_theme.dart';
 /// The standard FEM C@BS full-width action button.
 ///
 /// Shows a spinner while [loading] is true and disables itself automatically.
-class PrimaryButton extends StatelessWidget {
+/// Lifts slightly off the page with a soft brand-tinted shadow, and gives a
+/// tactile little press-down animation so the app's main call-to-action feels
+/// a step above a flat, default Material button.
+class PrimaryButton extends StatefulWidget {
   const PrimaryButton({
     super.key,
     required this.label,
@@ -23,41 +26,73 @@ class PrimaryButton extends StatelessWidget {
   final bool destructive;
 
   @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null && !loading;
+  State<PrimaryButton> createState() => _PrimaryButtonState();
+}
 
-    return SizedBox(
-      width: double.infinity,
-      height: AppTheme.buttonHeight,
-      child: ElevatedButton(
-        style: destructive
-            ? ElevatedButton.styleFrom(
-                backgroundColor: AppColors.white,
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
-              )
-            : null,
-        onPressed: enabled ? onPressed : null,
-        child: loading
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  color: AppColors.white,
-                ),
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 20),
-                    const SizedBox(width: 8),
-                  ],
-                  Text(label),
-                ],
-              ),
+class _PrimaryButtonState extends State<PrimaryButton> {
+  bool _pressed = false;
+
+  bool get _enabled => widget.onPressed != null && !widget.loading;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shadow = !_enabled || widget.destructive
+        ? const <BoxShadow>[]
+        : AppShadows.tinted(AppColors.primaryGreen, opacity: _pressed ? 0.16 : 0.26);
+
+    return AnimatedScale(
+      scale: _pressed && _enabled ? 0.98 : 1.0,
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOut,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppTheme.radius),
+          boxShadow: shadow,
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: AppTheme.buttonHeight,
+          child: ElevatedButton(
+            style: widget.destructive
+                ? ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.white,
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.error),
+                  )
+                : ElevatedButton.styleFrom(elevation: 0),
+            onPressed: _enabled ? widget.onPressed : null,
+            child: Listener(
+              onPointerDown: (_) => _setPressed(true),
+              onPointerUp: (_) => _setPressed(false),
+              onPointerCancel: (_) => _setPressed(false),
+              child: widget.loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (widget.icon != null) ...[
+                          Icon(widget.icon, size: 20),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(widget.label),
+                      ],
+                    ),
+            ),
+          ),
+        ),
       ),
     );
   }

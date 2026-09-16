@@ -24,6 +24,15 @@ async function applySchema(url) {
   const sql = fs.readFileSync(schemaPath, 'utf8');
   await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
   await client.query(sql);
+
+  // Apply driver-side schema extensions (idempotent).
+  const driverSchemaPath = path.join(__dirname, 'driver-schema.sql');
+  if (fs.existsSync(driverSchemaPath)) {
+    const driverSql = fs.readFileSync(driverSchemaPath, 'utf8');
+    await client.query(driverSql);
+    console.log('[db] driver schema applied.');
+  }
+
   await client.end();
   console.log('[db] schema applied.');
 }

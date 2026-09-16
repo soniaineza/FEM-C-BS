@@ -21,9 +21,14 @@ class BrandMark extends StatelessWidget {
         if (withIcon) ...[
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryGreen,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.primaryGreen, AppColors.greenGradientEnd],
+              ),
               shape: BoxShape.circle,
+              boxShadow: AppShadows.tinted(AppColors.primaryGreen, opacity: 0.35),
             ),
             child: const Icon(
               Icons.directions_car_filled,

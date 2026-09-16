@@ -7,6 +7,7 @@ import '../../core/routes/app_routes.dart';
 import '../../models/payment.dart';
 import '../../models/place.dart';
 import '../../models/ride.dart';
+import '../../models/ride_type.dart';
 import '../../models/vehicle.dart';
 import '../../services/ride_service.dart';
 import '../../widgets/error_message.dart';
@@ -23,6 +24,7 @@ class ConfirmRideScreen extends StatefulWidget {
     required this.vehicle,
     required this.estimate,
     required this.paymentMethod,
+    required this.rideType,
   });
 
   final Place pickup;
@@ -30,6 +32,7 @@ class ConfirmRideScreen extends StatefulWidget {
   final Vehicle vehicle;
   final FareEstimate? estimate;
   final PaymentMethod paymentMethod;
+  final RideType rideType;
 
   @override
   State<ConfirmRideScreen> createState() => _ConfirmRideScreenState();
@@ -38,6 +41,13 @@ class ConfirmRideScreen extends StatefulWidget {
 class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
   bool _loading = false;
   String? _error;
+  final TextEditingController _noteController = TextEditingController();
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
 
   Future<void> _confirm() async {
     final fallbackError = AppLocalizations.of(context).signInFailed;
@@ -47,8 +57,9 @@ class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
     });
 
     String? requestError;
+    Ride? createdRide;
     try {
-      await rideService.requestRide(
+      createdRide = await rideService.requestRide(
         pickup: widget.pickup,
         destination: widget.destination,
         vehicle: widget.vehicle,
@@ -59,7 +70,12 @@ class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
               distanceKm: 0,
               durationMinutes: 0,
               estimatedFare: 0,
+              rideType: widget.rideType,
             ),
+        rideType: widget.rideType,
+        note: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
       );
     } on AppException catch (e) {
       requestError = e.message;
@@ -71,15 +87,22 @@ class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
 
     // Move to the driver search screen regardless: it shows the loading state
     // and, when no backend is connected, an honest "not available" notice.
+    // When the backend created the ride we pass it along so the search screen
+    // tracks the real ride by id.
     Navigator.of(context).pushReplacementNamed(
       AppRoutes.searchingDriver,
-      arguments: (
-        widget.pickup,
-        widget.destination,
-        widget.vehicle,
-        widget.paymentMethod,
-        widget.estimate,
-        requestError,
+      arguments: SearchingDriverArgs(
+        pickup: widget.pickup,
+        destination: widget.destination,
+        vehicle: widget.vehicle,
+        paymentMethod: widget.paymentMethod,
+        estimate: widget.estimate,
+        requestError: requestError,
+        rideType: widget.rideType,
+        rideNote: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
+        createdRide: createdRide,
       ),
     );
   }
@@ -110,6 +133,14 @@ class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
               ),
               child: Column(
                 children: [
+                  InfoRow(
+                    label: l10n.rideType,
+                    value: widget.rideType == RideType.shared
+                        ? l10n.shareRide
+                        : l10n.privateRide,
+                    bold: true,
+                  ),
+                  const Divider(),
                   InfoRow(label: l10n.vehicle, value: widget.vehicle.name, bold: true),
                   const Divider(),
                   InfoRow(
@@ -117,18 +148,33 @@ class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
                     value: widget.paymentMethod.name,
                     bold: true,
                   ),
+                  const Divider(),
+                  InfoRow(
+                    label: l10n.fare,
+                    value: '${widget.estimate?.estimatedFare.toStringAsFixed(0) ?? '--'} RWF',
+                    bold: true,
+                  ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: _RideNoteField(controller: _noteController, l10n: l10n),
             ),
             if (_error != null) ...[
               const SizedBox(height: 16),
               ErrorMessage(message: _error!),
             ],
             const SizedBox(height: 16),
-            const Text(
-              'By confirming, a nearby available driver is matched to your '
-              'trip. You can cancel at any time before the trip starts.',
-              style: TextStyle(
+            Text(
+              l10n.confirmRideNotice,
+              style: const TextStyle(
                 color: AppColors.secondaryText,
                 fontSize: 12.5,
                 height: 1.5,
@@ -148,7 +194,7 @@ class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               PrimaryButton(
-                label: 'Confirm ride',
+                label: l10n.requestRide,
                 loading: _loading,
                 onPressed: _loading ? null : _confirm,
               ),
@@ -157,7 +203,7 @@ class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
                 onPressed: _loading
                     ? null
                     : () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child: Text(l10n.cancel),
               ),
             ],
           ),
@@ -165,4 +211,54 @@ class _ConfirmRideScreenState extends State<ConfirmRideScreen> {
       ),
     );
   }
+}
+
+/// Optional note the passenger leaves for the driver.
+class _RideNoteField extends StatelessWidget {
+  const _RideNoteField({required this.controller, required this.l10n});
+
+  final TextEditingController controller;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      maxLines: 3,
+      maxLength: 200,
+      decoration: InputDecoration(
+        labelText: l10n.rideNoteOptional,
+        hintText: l10n.rideNoteHint,
+        border: InputBorder.none,
+        counterText: '',
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+      style: const TextStyle(fontSize: 15, height: 1.4),
+    );
+  }
+}
+
+/// Arguments handed from the confirmation screen to the driver search screen.
+class SearchingDriverArgs {
+  const SearchingDriverArgs({
+    required this.pickup,
+    required this.destination,
+    required this.vehicle,
+    required this.paymentMethod,
+    required this.estimate,
+    required this.requestError,
+    required this.rideType,
+    this.rideNote,
+    this.createdRide,
+  });
+
+  final Place pickup;
+  final Place destination;
+  final Vehicle vehicle;
+  final PaymentMethod paymentMethod;
+  final FareEstimate? estimate;
+  final String? requestError;
+  final RideType rideType;
+  final String? rideNote;
+  final Ride? createdRide;
 }

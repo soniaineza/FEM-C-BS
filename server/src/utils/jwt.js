@@ -3,15 +3,23 @@ const { config } = require('../config');
 
 /** Signs a session token for a passenger id. */
 function signToken(passengerId) {
-  return jwt.sign({ sub: passengerId }, config.jwtSecret, {
+  return jwt.sign({ sub: passengerId, role: 'passenger' }, config.jwtSecret, {
     expiresIn: config.jwtExpiresIn,
   });
 }
 
-/** Verifies a session token, returning the passenger id or throwing. */
-function verifyToken(token) {
-  const decoded = jwt.verify(token, config.jwtSecret);
-  return decoded.sub;
+/** Signs a session token for a driver id. */
+function signDriverToken(driverId) {
+  return jwt.sign({ sub: driverId, role: 'driver' }, config.jwtSecret, {
+    expiresIn: config.jwtExpiresIn,
+  });
 }
 
-module.exports = { signToken, verifyToken };
+/** Verifies a session token, returning { id, role } or throwing. */
+function verifyToken(token) {
+  const decoded = jwt.verify(token, config.jwtSecret);
+  if (!decoded.sub) throw new Error('missing subject');
+  return { id: decoded.sub, role: decoded.role || 'passenger' };
+}
+
+module.exports = { signToken, signDriverToken, verifyToken };

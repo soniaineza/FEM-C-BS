@@ -33,6 +33,30 @@ router.post(
   })
 );
 
+// POST /api/notifications/read-all — marks every notification as read.
+router.post(
+  '/read-all',
+  asyncHandler(async (req, res) => {
+    await getPool().query(
+      'UPDATE notifications SET read = TRUE WHERE passenger_id = $1 AND read = FALSE',
+      [req.passengerId]
+    );
+    res.json({ marked: true });
+  })
+);
+
+// GET /api/notifications/unread-count
+router.get(
+  '/unread-count',
+  asyncHandler(async (req, res) => {
+    const { rows } = await getPool().query(
+      'SELECT COUNT(*)::int AS count FROM notifications WHERE passenger_id = $1 AND read = FALSE',
+      [req.passengerId]
+    );
+    res.json({ count: rows[0].count });
+  })
+);
+
 // POST /api/notifications/device-token — registers this device for push
 // notifications (Firebase Cloud Messaging on the client side).
 router.post(

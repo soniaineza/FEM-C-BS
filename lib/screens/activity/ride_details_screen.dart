@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/routes/app_routes.dart';
 import '../../models/ride.dart';
 import '../../widgets/info_row.dart';
@@ -24,10 +25,11 @@ class RideDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final driver = ride.driver;
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(title: const Text('Ride details')),
+      appBar: AppBar(title: Text(l10n.rideDetails)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -40,49 +42,49 @@ class RideDetailsScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _DetailRow(label: 'Date', value: _formattedDate),
+                  _DetailRow(label: l10n.date, value: _formattedDate),
                   const Divider(),
-                  _DetailRow(label: 'Pickup', value: ride.pickup.address),
-                  const Divider(),
-                  _DetailRow(
-                      label: 'Destination', value: ride.destination.address),
+                  _DetailRow(label: l10n.pickup, value: ride.pickup.address),
                   const Divider(),
                   _DetailRow(
-                    label: 'Driver',
-                    value: driver?.name ?? 'Not assigned',
+                      label: l10n.destination, value: ride.destination.address),
+                  const Divider(),
+                  _DetailRow(
+                    label: l10n.driver,
+                    value: driver?.name ?? l10n.notAssigned,
                   ),
                   const Divider(),
                   _DetailRow(
-                    label: 'Vehicle',
+                    label: l10n.vehicle,
                     value: driver == null
                         ? ride.vehicle.name
                         : '${driver.vehicleModel} · ${driver.licensePlate}',
                   ),
                   const Divider(),
                   _DetailRow(
-                    label: 'Distance',
+                    label: l10n.distance,
                     value: '${ride.distanceKm.toStringAsFixed(1)} km',
                   ),
                   const Divider(),
                   _DetailRow(
-                    label: 'Duration',
+                    label: l10n.duration,
                     value: '${ride.durationMinutes} min',
                   ),
                   const Divider(),
                   _DetailRow(
-                    label: 'Fare',
+                    label: l10n.fare,
                     value: formatFare(ride.finalFare ?? ride.estimatedFare),
                     bold: true,
                   ),
                   const Divider(),
                   _DetailRow(
-                    label: 'Payment method',
+                    label: l10n.paymentMethod,
                     value: ride.paymentMethod.name,
                   ),
                   const Divider(),
                   _DetailRow(
-                    label: 'Rating',
-                    value: ride.rating == null ? 'Not rated' : _stars(ride.rating!),
+                    label: l10n.rating,
+                    value: ride.rating == null ? l10n.notRated : _stars(ride.rating!),
                   ),
                 ],
               ),
@@ -94,7 +96,7 @@ class RideDetailsScreen extends StatelessWidget {
                 onPressed: () => Navigator.of(context)
                     .pushNamed(AppRoutes.helpSupport),
                 icon: const Icon(Icons.support_agent, color: AppColors.primaryGreen),
-                label: const Text('Get help'),
+                label: Text(l10n.getHelp),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.black,
                 ),

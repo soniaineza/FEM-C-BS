@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/routes/app_routes.dart';
 import '../../models/payment.dart';
 import '../../models/place.dart';
 import '../../models/ride.dart';
+import '../../models/ride_type.dart';
 import '../../models/vehicle.dart';
 import '../../services/payment_service.dart';
 import '../../widgets/primary_button.dart';
@@ -22,12 +24,14 @@ class PaymentMethodScreen extends StatefulWidget {
     required this.destination,
     required this.vehicle,
     required this.estimate,
+    required this.rideType,
   });
 
   final Place pickup;
   final Place destination;
   final Vehicle vehicle;
   final FareEstimate? estimate;
+  final RideType rideType;
 
   @override
   State<PaymentMethodScreen> createState() => _PaymentMethodScreenState();
@@ -50,20 +54,22 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         widget.vehicle,
         widget.estimate,
         _selected,
+        widget.rideType,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(title: const Text('Payment method')),
+      appBar: AppBar(title: Text(l10n.paymentMethod)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const SectionTitle('How would you like to pay?'),
+            SectionTitle(l10n.howPay),
             const SizedBox(height: 12),
             ..._methods.map(
               (m) => _PaymentTile(
@@ -73,11 +79,8 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Payments are processed securely by the backend with your '
-              'provider. This app never stores card or PIN details. '
-              'Integration with MTN Mobile Money, Airtel Money and cards '
-              'will be added with the backend.',
+            Text(
+              l10n.paymentSecurityNotice,
               style: TextStyle(
                 color: AppColors.secondaryText,
                 fontSize: 12.5,
@@ -92,7 +95,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
           color: AppColors.white,
           child: PrimaryButton(
-            label: 'Continue',
+            label: l10n.continueLabel,
             onPressed: _continue,
           ),
         ),
@@ -114,6 +117,7 @@ class _PaymentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -140,7 +144,7 @@ class _PaymentTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        method.name,
+                        l10n.paymentName(method),
                         style: const TextStyle(
                           color: AppColors.black,
                           fontSize: 14,

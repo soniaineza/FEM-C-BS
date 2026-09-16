@@ -5,6 +5,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/routes/app_routes.dart';
 import '../../models/place.dart';
 import '../../models/ride.dart';
+import '../../models/ride_type.dart';
 import '../../models/vehicle.dart';
 import '../../services/ride_service.dart';
 import '../../widgets/primary_button.dart';
@@ -15,15 +16,18 @@ import '../../widgets/trip_route_card.dart';
 ///
 /// Fares and vehicle data are development placeholders served by
 /// [RideService] and labeled as such. The backend will replace them.
+/// The chosen [RideType] (private or shared) discounts shared fares.
 class VehicleSelectionScreen extends StatefulWidget {
   const VehicleSelectionScreen({
     super.key,
     required this.pickup,
     required this.destination,
+    required this.rideType,
   });
 
   final Place pickup;
   final Place destination;
+  final RideType rideType;
 
   @override
   State<VehicleSelectionScreen> createState() => _VehicleSelectionScreenState();
@@ -43,6 +47,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
       vehicle: anyVehicle,
       pickup: widget.pickup,
       destination: widget.destination,
+      rideType: widget.rideType,
     );
     setState(() {
       _routeEstimate = estimate;
@@ -52,6 +57,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
             vehicle: v,
             pickup: widget.pickup,
             destination: widget.destination,
+            rideType: widget.rideType,
           ),
       };
       _selectedId = _vehicles.first.id;
@@ -64,7 +70,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     final vehicle = _vehicles.firstWhere((v) => v.id == _selectedId);
     Navigator.of(context).pushNamed(
       AppRoutes.fareEstimate,
-      arguments: (widget.pickup, widget.destination, vehicle),
+      arguments: (widget.pickup, widget.destination, vehicle, widget.rideType),
     );
   }
 
@@ -87,15 +93,15 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                     distanceKm: _routeEstimate?.distanceKm,
                     durationMinutes: _routeEstimate?.durationMinutes,
                   ),
+                  const SizedBox(height: 12),
+                  _RideTypeBanner(rideType: widget.rideType),
                   const SizedBox(height: 20),
                   SectionTitle(l10n.vehicleOptions),
                   const SizedBox(height: 4),
                   if (!_hasEstimate)
-                    const Text(
-                      'Select these points on the map to see fares. '
-                      'You can still book and the driver will agree the fare '
-                      'before the trip.',
-                      style: TextStyle(
+                    Text(
+                      l10n.noEstimateNote,
+                      style: const TextStyle(
                         color: AppColors.secondaryText,
                         fontSize: 13,
                         height: 1.4,
@@ -149,6 +155,7 @@ class _VehicleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -205,7 +212,7 @@ class _VehicleCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '${vehicle.capacity} seats',
+                            l10n.seatsLabel(vehicle.capacity),
                             style: const TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 12,
@@ -219,7 +226,7 @@ class _VehicleCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Arrives in ~${vehicle.etaMinutes} min',
+                            l10n.arrivesInMin(vehicle.etaMinutes),
                             style: const TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 12,
@@ -234,6 +241,55 @@ class _VehicleCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RideTypeBanner extends StatelessWidget {
+  const _RideTypeBanner({required this.rideType});
+
+  final RideType rideType;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isShared = rideType == RideType.shared;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isShared
+            ? AppColors.primaryGreen.withValues(alpha: 0.08)
+            : AppColors.lightGray,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isShared ? AppColors.primaryGreen : AppColors.border,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isShared ? Icons.groups_outlined : Icons.person_outline,
+            size: 18,
+            color: isShared
+                ? AppColors.primaryGreen
+                : AppColors.secondaryText,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isShared
+                  ? '${l10n.shareRide} — ${l10n.saveUpTo} ${rideType.discountPercent}%. ${l10n.shareRideNote}'
+                  : '${l10n.privateRide} — ${l10n.privateRideNote}',
+              style: const TextStyle(
+                color: AppColors.black,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

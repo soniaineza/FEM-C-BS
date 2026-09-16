@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/error_message.dart';
 import '../../widgets/primary_button.dart';
@@ -33,8 +34,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'We could not delete your account right now. '
-            'Please try again.';
+        _error = AppLocalizations.of(context).deleteFailed;
       });
       return;
     } finally {
@@ -44,9 +44,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppBar(title: const Text('Delete account')),
+      appBar: AppBar(title: Text(l10n.deleteAccount)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -57,8 +58,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               const Icon(Icons.warning_amber_rounded,
                   color: AppColors.error, size: 48),
               const SizedBox(height: 16),
-              const Text(
-                'Delete your account',
+              Text(
+                l10n.deleteYourAccount,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.black,
@@ -67,10 +68,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
-                'This will permanently close your account and remove your '
-                'personal data, saved places and trip history. This action '
-                'cannot be undone.',
+              Text(
+                l10n.deleteAccountBody,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.secondaryText,
@@ -85,8 +84,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
                 activeColor: AppColors.error,
-                title: const Text(
-                  'I understand that this cannot be undone.',
+                title: Text(
+                  l10n.deleteConfirm,
                   style: TextStyle(
                     color: AppColors.black,
                     fontSize: 13.5,
@@ -100,7 +99,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               ],
               const Spacer(),
               PrimaryButton(
-                label: 'Delete my account',
+                label: l10n.deleteMyAccount,
                 loading: _deleting,
                 onPressed: _confirmed && !_deleting ? _delete : null,
               ),
@@ -109,7 +108,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                 onPressed: _deleting
                     ? null
                     : () => Navigator.of(context).pop(),
-                child: const Text('Keep my account'),
+                child: Text(l10n.keepMyAccount),
               ),
             ],
           ),

@@ -4,6 +4,7 @@ import '../../models/payment.dart';
 import '../../models/passenger.dart';
 import '../../models/place.dart';
 import '../../models/ride.dart';
+import '../../models/ride_type.dart';
 import '../../models/vehicle.dart';
 import '../../screens/activity/ride_details_screen.dart';
 import '../../screens/auth/forgot_password_screen.dart';
@@ -22,6 +23,7 @@ import '../../screens/passenger/payment_method_screen.dart';
 import '../../screens/passenger/pickup_screen.dart';
 import '../../screens/passenger/ride_completed_screen.dart';
 import '../../screens/passenger/ride_tracking_screen.dart';
+import '../../screens/passenger/ride_type_screen.dart';
 import '../../screens/passenger/safety_screen.dart';
 import '../../screens/passenger/searching_driver_screen.dart';
 import '../../screens/passenger/vehicle_selection_screen.dart';
@@ -108,45 +110,59 @@ class RootRouter extends StatelessWidget {
         AppRoutes.pickup => const PickupScreen(),
         AppRoutes.destination =>
           DestinationScreen(pickup: args as Place),
+        AppRoutes.rideType => _unwrap(
+            (args as (Place, Place)),
+            (a) => RideTypeScreen(
+                  pickup: a.$1,
+                  destination: a.$2,
+                )),
         AppRoutes.vehicleSelection =>
-          _unwrap((args as (Place, Place)), (a) => VehicleSelectionScreen(
-                pickup: a.$1,
-                destination: a.$2,
-              )),
+          _unwrap((args as (Place, Place, RideType)),
+              (a) => VehicleSelectionScreen(
+                    pickup: a.$1,
+                    destination: a.$2,
+                    rideType: a.$3,
+                  )),
         AppRoutes.fareEstimate =>
-          _unwrap((args as (Place, Place, Vehicle)),
+          _unwrap((args as (Place, Place, Vehicle, RideType)),
               (a) => FareEstimateScreen(
                     pickup: a.$1,
                     destination: a.$2,
                     vehicle: a.$3,
+                    rideType: a.$4,
                   )),
         AppRoutes.paymentMethod => _unwrap(
-            (args as (Place, Place, Vehicle, FareEstimate?)),
+            (args as (Place, Place, Vehicle, FareEstimate?, RideType)),
             (a) => PaymentMethodScreen(
                   pickup: a.$1,
                   destination: a.$2,
                   vehicle: a.$3,
                   estimate: a.$4,
+                  rideType: a.$5,
                 )),
         AppRoutes.confirmRide => _unwrap(
-            (args as (Place, Place, Vehicle, FareEstimate?, PaymentMethod)),
+            (args as (Place, Place, Vehicle, FareEstimate?, PaymentMethod,
+                RideType)),
             (a) => ConfirmRideScreen(
                   pickup: a.$1,
                   destination: a.$2,
                   vehicle: a.$3,
                   estimate: a.$4,
                   paymentMethod: a.$5,
+                  rideType: a.$6,
                 )),
         AppRoutes.searchingDriver => _unwrap(
-            (args as (Place, Place, Vehicle, PaymentMethod, FareEstimate,
-                String?)),
+            (args as SearchingDriverArgs),
             (a) => SearchingDriverScreen(
-                  pickup: a.$1,
-                  destination: a.$2,
-                  vehicle: a.$3,
-                  paymentMethod: a.$4,
-                  estimate: a.$5,
-                  requestError: a.$6,
+                  pickup: a.pickup,
+                  destination: a.destination,
+                  vehicle: a.vehicle,
+                  paymentMethod: a.paymentMethod,
+                  estimate: a.estimate,
+                  requestError: a.requestError,
+                  rideType: a.rideType,
+                  rideNote: a.rideNote,
+                  createdRide: a.createdRide,
                 )),
         AppRoutes.driverAccepted =>
           DriverAcceptedScreen(ride: args as Ride),

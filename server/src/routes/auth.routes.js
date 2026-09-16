@@ -5,11 +5,17 @@ const { getPool } = require('../db');
 const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { signToken } = require('../utils/jwt');
-const { generateCode, hashCode, compareCode, expiryDate } = require('../utils/otp');
+const { issueCode, verifyCode } = require('../utils/otp');
+const { sendOtp } = require('../services/otpSender');
 const { passengerToJson } = require('../utils/serialize');
 const { requireAuth } = require('../middleware/auth');
+const { apiLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
+
+// ---- Rate limiting for the public, brute-force-prone endpoints. ----
+const authLimiter = apiLimiter();
+const otpLimiter = apiLimiter({ max: config.rateLimitMax * 2 });
 
 function devPayload(code) {
   return config.devRevealCodes ? { devCode: code } : {};
@@ -23,9 +29,23 @@ async function findByIdentifier(identifier) {
   return rows[0] || null;
 }
 
+// Sets req.identityKey so both the phone/email AND the IP count towards the
+// rate limit (prevents bypassing by rotating IPs for one account).
+function bindIdentity(req, _res, next) {
+  const identifier = String(
+    (req.body && (req.body.identifier || req.body.email || req.body.phone)) || ''
+  )
+    .trim()
+    .toLowerCase();
+  if (identifier.includes('@')) req.identityKey = identifier;
+  next();
+}
+
 // POST /api/auth/signup
 router.post(
   '/signup',
+  authLimiter,
+  bindIdentity,
   asyncHandler(async (req, res) => {
     const { fullName, phone, email, password } = req.body || {};
     if (!fullName || !phone || !email || !password) {
@@ -39,17 +59,19 @@ router.post(
     const { rows } = await getPool().query(
       `INSERT INTO passengers (full_name, phone, email, password_hash)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [String(fullName).trim(), String(phone).trim(), String(email).trim().toLowerCase(), passwordHash]
+      [
+        String(fullName).trim(),
+        String(phone).trim(),
+        String(email).trim().toLowerCase(),
+        passwordHash,
+      ]
     );
     const passenger = rows[0];
 
-    const code = generateCode();
-    const codeHash = await hashCode(code);
-    await getPool().query(
-      `INSERT INTO verification_codes (passenger_id, code_hash, purpose, expires_at)
-       VALUES ($1, $2, 'signup', $3)`,
-      [passenger.id, codeHash, expiryDate()]
-    );
+    const code = await issueCode(getPool(), {
+      passengerId: passenger.id,
+      purpose: 'signup',
+    });
 
     const token = signToken(passenger.id);
     res.status(201).json({
@@ -57,12 +79,15 @@ router.post(
       token,
       ...devPayload(code),
     });
+    sendOtp(passenger, { code, purpose: 'signup' });
   })
 );
 
 // POST /api/auth/login
 router.post(
   '/login',
+  authLimiter,
+  bindIdentity,
   asyncHandler(async (req, res) => {
     const { identifier, password } = req.body || {};
     if (!identifier || !password) {
@@ -79,9 +104,72 @@ router.post(
   })
 );
 
+// POST /api/auth/logout — stateless JWT: the client discards the token.
+router.post('/logout', requireAuth, (req, res) => res.status(204).end());
+
+// POST /api/auth/refresh — re-issues a token for a currently valid session.
+router.post(
+  '/refresh',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { rows } = await getPool().query('SELECT * FROM passengers WHERE id = $1', [
+      req.passengerId,
+    ]);
+    if (!rows[0]) throw new ApiError(404, 'Account not found.');
+    res.json({
+      passenger: passengerToJson(rows[0]),
+      token: signToken(rows[0].id),
+    });
+  })
+);
+
+// POST /api/auth/resend-otp — newest code for the account, respecting a short
+// cooldown. Protected route because the passenger is already signed in.
+router.post(
+  '/resend-otp',
+  requireAuth,
+  otpLimiter,
+  asyncHandler(async (req, res) => {
+    const { purpose = 'signup' } = req.body || {};
+    if (!['signup', 'reset'].includes(purpose)) {
+      throw new ApiError(400, 'Unknown OTP purpose.');
+    }
+    const { rows } = await getPool().query(
+      `SELECT * FROM verification_codes
+        WHERE passenger_id = $1 AND purpose = $2 AND used_at IS NULL
+        ORDER BY id DESC LIMIT 1`,
+      [req.passengerId, purpose]
+    );
+    const last = rows[0];
+    if (last) {
+      const ageMs = Date.now() - new Date(last.created_at).getTime();
+      if (ageMs < config.otpResendCooldownSeconds * 1000) {
+        const wait = Math.ceil(
+          (config.otpResendCooldownSeconds * 1000 - ageMs) / 1000
+        );
+        throw new ApiError(429, `Please wait ${wait}s before requesting a new code.`);
+      }
+    }
+
+    const code = await issueCode(getPool(), {
+      passengerId: req.passengerId,
+      purpose,
+    });
+    const { rows: passengerRows } = await getPool().query(
+      'SELECT * FROM passengers WHERE id = $1',
+      [req.passengerId]
+    );
+    const passenger = passengerRows[0];
+    sendOtp(passenger, { code, purpose });
+    res.json({ ...devPayload(code), message: 'A new verification code was sent.' });
+  })
+);
+
 // POST /api/auth/reset-password/request
 router.post(
   '/reset-password/request',
+  authLimiter,
+  bindIdentity,
   asyncHandler(async (req, res) => {
     const { identifier } = req.body || {};
     if (!identifier) throw new ApiError(400, 'Enter your email or phone number.');
@@ -90,13 +178,11 @@ router.post(
     // Always respond the same way whether or not the account exists, so the
     // endpoint cannot be used to probe for registered accounts.
     if (passenger) {
-      const code = generateCode();
-      const codeHash = await hashCode(code);
-      await getPool().query(
-        `INSERT INTO verification_codes (passenger_id, code_hash, purpose, expires_at)
-         VALUES ($1, $2, 'reset', $3)`,
-        [passenger.id, codeHash, expiryDate()]
-      );
+      const code = await issueCode(getPool(), {
+        passengerId: passenger.id,
+        purpose: 'reset',
+      });
+      sendOtp(passenger, { code, purpose: 'reset' });
       res.json({
         message: `We sent a verification code to ${identifier}.`,
         ...devPayload(code),
@@ -110,6 +196,8 @@ router.post(
 // POST /api/auth/reset-password/confirm
 router.post(
   '/reset-password/confirm',
+  otpLimiter,
+  bindIdentity,
   asyncHandler(async (req, res) => {
     const { identifier, code, newPassword } = req.body || {};
     if (!identifier || !code || !newPassword) {
@@ -118,26 +206,19 @@ router.post(
     const passenger = await findByIdentifier(String(identifier).trim().toLowerCase());
     if (!passenger) throw new ApiError(400, 'Invalid or expired code.');
 
-    const { rows } = await getPool().query(
-      `SELECT * FROM verification_codes
-       WHERE passenger_id = $1 AND purpose = 'reset' AND used_at IS NULL AND expires_at > now()
-       ORDER BY id DESC LIMIT 1`,
-      [passenger.id]
-    );
-    const record = rows[0];
-    if (!record || !(await compareCode(String(code), record.code_hash))) {
-      throw new ApiError(400, 'Invalid or expired code.');
-    }
+    const result = await verifyCode(getPool(), {
+      passengerId: passenger.id,
+      purpose: 'reset',
+      code,
+    });
+    if (!result.ok) throw new ApiError(400, 'Invalid or expired code.');
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await getPool().query('UPDATE passengers SET password_hash = $1 WHERE id = $2', [
       passwordHash,
       passenger.id,
     ]);
-    await getPool().query('UPDATE verification_codes SET used_at = now() WHERE id = $1', [
-      record.id,
-    ]);
-
+    await result.processCode();
     res.json({ message: 'Password updated. You can now log in.' });
   })
 );
@@ -145,23 +226,18 @@ router.post(
 // POST /api/auth/verify-otp
 router.post(
   '/verify-otp',
+  otpLimiter,
   asyncHandler(async (req, res) => {
     const { passengerId, code } = req.body || {};
     if (!passengerId || !code) throw new ApiError(400, 'Missing passengerId or code.');
 
-    const { rows } = await getPool().query(
-      `SELECT * FROM verification_codes
-       WHERE passenger_id = $1 AND purpose = 'signup' AND used_at IS NULL AND expires_at > now()
-       ORDER BY id DESC LIMIT 1`,
-      [passengerId]
-    );
-    const record = rows[0];
-    if (!record || !(await compareCode(String(code), record.code_hash))) {
-      throw new ApiError(400, 'Invalid or expired verification code.');
-    }
-    await getPool().query('UPDATE verification_codes SET used_at = now() WHERE id = $1', [
-      record.id,
-    ]);
+    const result = await verifyCode(getPool(), {
+      passengerId,
+      purpose: 'signup',
+      code,
+    });
+    if (!result.ok) throw new ApiError(400, 'Invalid or expired verification code.');
+    await result.processCode();
     res.json({ verified: true });
   })
 );
@@ -189,19 +265,24 @@ router.put(
       phone,
       email,
       photoUrl,
+      preferredLanguage,
       emergencyContactName,
       emergencyContactPhone,
     } = req.body || {};
 
+    // A profile is complete when the essential fields are present; do not
+    // blindly mark incomplete profiles as complete.
     const { rows } = await getPool().query(
       `UPDATE passengers SET
          full_name = COALESCE($2, full_name),
          phone = COALESCE($3, phone),
          email = COALESCE($4, email),
          photo_url = COALESCE($5, photo_url),
-         emergency_contact_name = COALESCE($6, emergency_contact_name),
-         emergency_contact_phone = COALESCE($7, emergency_contact_phone),
-         is_profile_complete = TRUE
+         preferred_language = COALESCE($6, preferred_language),
+         emergency_contact_name = COALESCE($7, emergency_contact_name),
+         emergency_contact_phone = COALESCE($8, emergency_contact_phone),
+         is_profile_complete =
+           (COALESCE($2, full_name) <> '' AND COALESCE($3, phone) <> '')
        WHERE id = $1
        RETURNING *`,
       [
@@ -210,6 +291,7 @@ router.put(
         phone,
         email,
         photoUrl,
+        preferredLanguage,
         emergencyContactName,
         emergencyContactPhone,
       ]

@@ -1,63 +1,87 @@
 const express = require('express');
-const crypto = require('crypto');
 
 const { getPool } = require('../db');
-const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
+const { paymentToJson } = require('../utils/serialize');
 const { requireAuth } = require('../middleware/auth');
+const {
+  createPaymentForRide,
+  chargePayment,
+  refreshPaymentStatus,
+  confirmCashPayment,
+} = require('../services/payments');
 
 const router = express.Router();
 router.use(requireAuth);
 
-const VALID_METHODS = new Set(['cash', 'mtn_momo', 'airtel_money', 'card']);
-
-function generateReference() {
-  return `FEM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+async function loadOwnedPayment(paymentId, passengerId) {
+  const { rows } = await getPool().query(
+    'SELECT * FROM payments WHERE id = $1 AND passenger_id = $2',
+    [paymentId, passengerId]
+  );
+  return rows[0] || null;
 }
 
-// POST /api/payments — charges the fare for a ride.
-//
-// This simulates provider settlement (MTN MoMo / Airtel Money / card) since
-// no real payment gateway is wired up yet. Cash is recorded immediately as
-// "pending" (settled by the driver in person); other methods are recorded as
-// "completed" with a generated reference.
+// POST /api/payments — (re)initiates payment for a ride. Duplicate rides are
+// rejected via the idempotency key so a retry can never double-charge.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { rideId, method } = req.body || {};
-    if (!rideId || !VALID_METHODS.has(method)) {
-      throw new ApiError(400, 'A valid rideId and payment method are required.');
-    }
-
-    const { rows: rideRows } = await getPool().query(
+    const { rideId } = req.body || {};
+    if (!rideId) throw new ApiError(400, 'rideId is required.');
+    const { rows } = await getPool().query(
       'SELECT * FROM rides WHERE id = $1 AND passenger_id = $2',
       [rideId, req.passengerId]
     );
-    const ride = rideRows[0];
+    const ride = rows[0];
     if (!ride) throw new ApiError(404, 'Ride not found.');
+    if (ride.status !== 'paymentPending') {
+      throw new ApiError(400, 'Payment can only be initiated for an arrived ride.');
+    }
 
-    const amount = ride.final_fare != null ? ride.final_fare : ride.estimated_fare;
-    const status = method === 'cash' ? 'pending' : 'completed';
-    const reference = generateReference();
-
-    const { rows } = await getPool().query(
-      `INSERT INTO payments (ride_id, passenger_id, amount, method, status, reference)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [ride.id, req.passengerId, amount, method, status, reference]
+    const existing = await getPool().query(
+      `SELECT * FROM payments WHERE ride_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [rideId]
     );
-    const payment = rows[0];
+    if (existing.rows[0]) {
+      return res.json({ payment: paymentToJson(existing.rows[0]) });
+    }
 
-    res.status(201).json({
-      payment: {
-        id: payment.id,
-        rideId: payment.ride_id,
-        amount: Number(payment.amount),
-        method: payment.method,
-        status: payment.status,
-        createdAt: payment.created_at,
-        ...(config.devRevealCodes ? { reference: payment.reference } : {}),
-      },
-    });
+    const payment = await createPaymentForRide(ride);
+    await chargePayment(payment, ride);
+    res.status(201).json({ payment: paymentToJson(payment) });
+  })
+);
+
+// GET /api/payments/:id — current state.
+router.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const payment = await loadOwnedPayment(req.params.id, req.passengerId);
+    if (!payment) throw new ApiError(404, 'Payment not found.');
+    res.json({ payment: paymentToJson(payment) });
+  })
+);
+
+// POST /api/payments/:id/refresh — ask the gateway for the latest status.
+router.post(
+  '/:id/refresh',
+  asyncHandler(async (req, res) => {
+    const payment = await loadOwnedPayment(req.params.id, req.passengerId);
+    if (!payment) throw new ApiError(404, 'Payment not found.');
+    const updated = await refreshPaymentStatus(payment);
+    res.json({ payment: paymentToJson(updated) });
+  })
+);
+
+// POST /api/payments/:id/confirm-cash — passenger confirms they paid in cash.
+router.post(
+  '/:id/confirm-cash',
+  asyncHandler(async (req, res) => {
+    const payment = await loadOwnedPayment(req.params.id, req.passengerId);
+    if (!payment) throw new ApiError(404, 'Payment not found.');
+    const settled = await confirmCashPayment(payment);
+    res.json({ payment: paymentToJson(settled) });
   })
 );
 

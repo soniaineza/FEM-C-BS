@@ -27,6 +27,26 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _checkExistingSession();
+  }
+
+  Future<void> _checkExistingSession() async {
+    final passenger = authService.currentUser.value;
+    if (passenger != null && mounted) {
+      if (passenger.isProfileComplete) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      } else {
+        Navigator.of(context).pushReplacementNamed(
+          AppRoutes.profileSetup,
+          arguments: passenger,
+        );
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _identifier.dispose();
     _password.dispose();

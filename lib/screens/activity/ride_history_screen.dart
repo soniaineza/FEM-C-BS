@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/routes/app_routes.dart';
 import '../../models/ride.dart';
 import '../../services/ride_service.dart';
@@ -59,16 +60,17 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
               child: Text(
-                'Ride history',
+                l10n.rideHistory,
                 style: TextStyle(
                   color: AppColors.black,
                   fontSize: 20,
@@ -91,14 +93,14 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> {
   }
 
   Widget _buildBody() {
+    final l10n = AppLocalizations.of(context);
     if (_error) {
       return Center(
         child: EmptyState(
           icon: Icons.error_outline,
-          title: 'Could not load your rides',
-          subtitle: 'Ride history will be available when the backend is '
-              'connected.',
-          actionLabel: 'Try again',
+            title: l10n.rideHistory,
+            subtitle: l10n.backendUnavailable,
+            actionLabel: l10n.tryAgain,
           onAction: _load,
           compact: true,
         ),
@@ -111,17 +113,17 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> {
 
     final rides = _visible;
     if (rides.isEmpty && _rides!.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.history,
-        title: 'No rides yet',
-        subtitle: 'Your completed trips will appear here.',
+        title: l10n.noRidesYet,
+        subtitle: l10n.completedTrips,
       );
     }
     if (rides.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.filter_alt_off_outlined,
-        title: 'Nothing here',
-        subtitle: 'No rides match this filter.',
+        title: l10n.nothingHere,
+        subtitle: l10n.noRidesMatch,
         compact: true,
       );
     }
@@ -160,19 +162,19 @@ class _FilterBar extends StatelessWidget {
     return Row(
       children: [
         _FilterChip(
-          label: 'All',
+          label: AppLocalizations.of(context).all,
           selected: filter == _HistoryFilter.all,
           onTap: () => onChanged(_HistoryFilter.all),
         ),
         const SizedBox(width: 8),
         _FilterChip(
-          label: 'Completed',
+          label: AppLocalizations.of(context).completed,
           selected: filter == _HistoryFilter.completed,
           onTap: () => onChanged(_HistoryFilter.completed),
         ),
         const SizedBox(width: 8),
         _FilterChip(
-          label: 'Cancelled',
+          label: AppLocalizations.of(context).cancelled,
           selected: filter == _HistoryFilter.cancelled,
           onTap: () => onChanged(_HistoryFilter.cancelled),
         ),

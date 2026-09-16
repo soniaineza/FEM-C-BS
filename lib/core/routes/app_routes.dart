@@ -17,6 +17,7 @@ class AppRoutes {
 
   static const String pickup = '/pickup';
   static const String destination = '/destination';
+  static const String rideType = '/ride-type';
   static const String vehicleSelection = '/vehicle-selection';
   static const String fareEstimate = '/fare-estimate';
   static const String paymentMethod = '/payment-method';

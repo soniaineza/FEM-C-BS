@@ -40,6 +40,20 @@ function savedPlaceToJson(row) {
   };
 }
 
+function driverToJson(row) {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    phone: row.phone,
+    licenseNumber: row.license_number,
+    verified: row.verified,
+    status: row.status,
+    vehicleId: row.current_vehicle_id,
+    rating: row.rating == null ? null : Number(row.rating),
+    totalTrips: row.total_trips,
+  };
+}
+
 function driverFromRide(row) {
   if (!row.driver_name) return null;
   return {
@@ -55,6 +69,8 @@ function driverFromRide(row) {
 function rideToJson(row) {
   return {
     id: row.id,
+    rideType: row.ride_type || 'private',
+    note: row.ride_note || null,
     pickup: {
       address: row.pickup_address,
       latitude: row.pickup_latitude,
@@ -73,6 +89,13 @@ function rideToJson(row) {
     estimatedFare: Number(row.estimated_fare),
     finalFare: row.final_fare == null ? null : Number(row.final_fare),
     driver: driverFromRide(row),
+    pin: row.ride_pin || null,
+    cancellationReason: row.cancellation_reason || null,
+    cancelledBy: row.cancelled_by || null,
+    scheduledFor: row.scheduled_for || null,
+    appliedDiscount: row.applied_discount == null ? null : Number(row.applied_discount),
+    poolGroupId: row.pool_group_id || null,
+    isPooled: !!row.pool_group_id,
     createdAt: row.created_at,
     acceptedAt: row.accepted_at,
     arrivedAt: row.arrived_at,
@@ -81,6 +104,52 @@ function rideToJson(row) {
     cancelledAt: row.cancelled_at,
     rating: row.rating,
     ratingComment: row.rating_comment,
+  };
+}
+
+function paymentToJson(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    rideId: row.ride_id,
+    amount: Number(row.amount),
+    method: row.method,
+    status: row.status,
+    state: row.state || row.status,
+    provider: row.provider || null,
+    reference: row.reference,
+    externalReference: row.external_reference || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function receiptToJson(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    receiptNumber: row.receipt_number,
+    paymentId: row.payment_id,
+    rideId: row.ride_id,
+    amount: Number(row.amount),
+    method: row.method,
+    paidAt: row.paid_at,
+    createdAt: row.created_at,
+  };
+}
+
+function promotionToJson(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    code: row.code,
+    title: row.title,
+    description: row.description,
+    discountType: row.discount_type,
+    discountValue: Number(row.discount_value),
+    minFare: Number(row.min_fare),
+    maxDiscount: row.max_discount == null ? null : Number(row.max_discount),
+    endsAt: row.ends_at,
   };
 }
 
@@ -99,6 +168,10 @@ module.exports = {
   passengerToJson,
   vehicleToJson,
   savedPlaceToJson,
+  driverToJson,
   rideToJson,
   notificationToJson,
+  paymentToJson,
+  receiptToJson,
+  promotionToJson,
 };

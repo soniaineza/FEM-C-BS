@@ -8,6 +8,7 @@ import '../../core/routes/app_routes.dart';
 import '../../models/payment.dart';
 import '../../models/place.dart';
 import '../../models/ride.dart';
+import '../../models/ride_type.dart';
 import '../../models/vehicle.dart';
 import '../../services/ride_service.dart';
 import '../../widgets/empty_state.dart';
@@ -30,6 +31,9 @@ class SearchingDriverScreen extends StatefulWidget {
     required this.paymentMethod,
     required this.estimate,
     this.requestError,
+    required this.rideType,
+    this.rideNote,
+    this.createdRide,
   });
 
   final Place pickup;
@@ -38,6 +42,11 @@ class SearchingDriverScreen extends StatefulWidget {
   final PaymentMethod paymentMethod;
   final FareEstimate? estimate;
   final String? requestError;
+  final RideType rideType;
+  final String? rideNote;
+
+  /// The ride returned by the backend when the request succeeded.
+  final Ride? createdRide;
 
   @override
   State<SearchingDriverScreen> createState() => _SearchingDriverScreenState();
@@ -47,12 +56,15 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
   StreamSubscription<Ride>? _subscription;
 
   late final Ride _draft = Ride(
-    id: 'draft_${DateTime.now().millisecondsSinceEpoch}',
+    id: widget.createdRide?.id ??
+        'draft_${DateTime.now().millisecondsSinceEpoch}',
     pickup: widget.pickup,
     destination: widget.destination,
     vehicle: widget.vehicle,
     paymentMethod: widget.paymentMethod,
     status: RideStatus.searchingDriver,
+    rideType: widget.rideType,
+    note: widget.rideNote,
     estimatedFare: widget.estimate?.estimatedFare ?? 0,
     distanceKm: widget.estimate?.distanceKm ?? 0,
     durationMinutes: widget.estimate?.durationMinutes ?? 0,
@@ -80,19 +92,26 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
 
   void _onRideUpdate(Ride ride) {
     if (!mounted) return;
+
+    void go(String route) {
+      Navigator.of(context).pushReplacementNamed(route, arguments: ride);
+    }
+
     switch (ride.status) {
+      case RideStatus.scheduled:
       case RideStatus.searchingDriver:
         return; // still looking, keep the loading state
       case RideStatus.driverAssigned:
-        Navigator.of(context)
-            .pushReplacementNamed(AppRoutes.driverAccepted, arguments: ride);
+        go(AppRoutes.driverAccepted);
       case RideStatus.driverArriving:
+      case RideStatus.driverArrived:
+      case RideStatus.pinVerified:
       case RideStatus.inProgress:
-        Navigator.of(context)
-            .pushReplacementNamed(AppRoutes.rideTracking, arguments: ride);
+        go(AppRoutes.rideTracking);
+      case RideStatus.arrived:
+      case RideStatus.paymentPending:
       case RideStatus.completed:
-        Navigator.of(context)
-            .pushReplacementNamed(AppRoutes.rideCompleted, arguments: ride);
+        go(AppRoutes.rideCompleted);
       case RideStatus.cancelled:
         Navigator.of(context)
             .pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
@@ -209,7 +228,7 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(horizontal: 40),
                     child: Text(
                       l10n.matchingDriver,
@@ -228,12 +247,26 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
+                  _RideTypeLabel(rideType: widget.rideType),
+                  const SizedBox(height: 12),
                   TripRouteCard(
                     pickup: widget.pickup,
                     destination: widget.destination,
                     distanceKm: widget.estimate?.distanceKm,
                     durationMinutes: widget.estimate?.durationMinutes,
                   ),
+                  if (widget.rideNote != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      '${l10n.rideNoteSelected}${widget.rideNote}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12.5,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -243,7 +276,7 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
                         foregroundColor: AppColors.error,
                         side: const BorderSide(color: AppColors.error),
                       ),
-                      child: const Text('Cancel ride'),
+                      child: Text(l10n.cancelRide),
                     ),
                   ),
                 ],
@@ -251,6 +284,52 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RideTypeLabel extends StatelessWidget {
+  const _RideTypeLabel({required this.rideType});
+
+  final RideType rideType;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isShared = rideType == RideType.shared;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isShared
+            ? AppColors.primaryGreen.withValues(alpha: 0.1)
+            : AppColors.lightGray,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isShared ? Icons.groups_outlined : Icons.person_outline,
+            size: 15,
+            color: isShared
+                ? AppColors.primaryGreen
+                : AppColors.secondaryText,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isShared
+                ? '${l10n.shareRide} — ${l10n.saveUpTo} ${rideType.discountPercent}%'
+                : l10n.privateRide,
+            style: TextStyle(
+              color: isShared
+                  ? AppColors.primaryGreen
+                  : AppColors.secondaryText,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

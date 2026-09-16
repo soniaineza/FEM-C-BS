@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/utils/debouncer.dart';
 import '../../models/place.dart';
 import '../../models/saved_place.dart';
 import '../../services/location_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/section_title.dart';
+import 'pickup_screen.dart';
 
 /// Destination search. Pops back with the chosen [Place].
 ///
-/// Suggestions come from the mapping service when one is connected. Until
-/// then the passenger picks a saved/recent place or types an address
-/// manually — no fake locations are generated.
+/// Typing runs a debounced live search against the mapping service when one is
+/// connected, showing all matches as suggestions (the user picks one — nothing
+/// is selected for them). Saved and recent places stay available, the typed
+/// address can still be confirmed manually, and no fake locations are
+/// generated when the mapping service is offline.
 class DestinationScreen extends StatefulWidget {
   const DestinationScreen({super.key, required this.pickup});
 
@@ -24,10 +28,15 @@ class DestinationScreen extends StatefulWidget {
 
 class _DestinationScreenState extends State<DestinationScreen> {
   final _controller = TextEditingController();
+  final _debouncer = Debouncer();
 
   bool _searching = false;
   bool _searched = false;
 
+  /// Bumped on every query so a slow, superseded search result is ignored.
+  int _querySeq = 0;
+
+  List<Place> _results = [];
   List<SavedPlace> _savedPlaces = [];
   List<Place> _recentPlaces = [];
 
@@ -39,6 +48,7 @@ class _DestinationScreenState extends State<DestinationScreen> {
 
   @override
   void dispose() {
+    _debouncer.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -53,12 +63,19 @@ class _DestinationScreenState extends State<DestinationScreen> {
     });
   }
 
-  Future<void> _search(String query) async {
+  void _onQueryChanged(String query) {
+    setState(() {});
+    _debouncer.call(() => _runSearch(query));
+  }
+
+  /// Runs the live search and shows every match; the passenger chooses.
+  Future<void> _runSearch(String query) async {
     final text = query.trim();
     if (text.isEmpty) {
       setState(() {
         _searching = false;
         _searched = false;
+        _results = [];
       });
       return;
     }
@@ -67,21 +84,15 @@ class _DestinationScreenState extends State<DestinationScreen> {
       _searching = true;
       _searched = false;
     });
+    final seq = ++_querySeq;
     final results = await locationService.searchLocations(text);
-    if (!mounted) return;
+    if (!mounted || seq != _querySeq) return;
 
     setState(() {
       _searching = false;
       _searched = true;
+      _results = results.take(6).toList();
     });
-
-    if (results.isEmpty && !locationService.hasSearchProvider) {
-      // Manual entry: user selects the typed address below.
-      return;
-    }
-    if (results.isNotEmpty) {
-      _select(results.first);
-    }
   }
 
   void _select(Place place) {
@@ -95,9 +106,21 @@ class _DestinationScreenState extends State<DestinationScreen> {
     _select(Place(address: text));
   }
 
+  void _clear() {
+    _debouncer.cancel();
+    _querySeq++;
+    _controller.clear();
+    setState(() {
+      _searching = false;
+      _searched = false;
+      _results = [];
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final query = _controller.text.trim();
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(title: Text(l10n.whereGoing)),
@@ -110,7 +133,8 @@ class _DestinationScreenState extends State<DestinationScreen> {
                 controller: _controller,
                 autofocus: true,
                 textInputAction: TextInputAction.search,
-                onSubmitted: _search,
+                onChanged: _onQueryChanged,
+                onSubmitted: _runSearch,
                 decoration: InputDecoration(
                   hintText: l10n.searchDestination,
                   prefixIcon: const Icon(
@@ -120,13 +144,7 @@ class _DestinationScreenState extends State<DestinationScreen> {
                   suffixIcon: _controller.text.isEmpty
                       ? null
                       : IconButton(
-                          onPressed: () {
-                            _controller.clear();
-                            setState(() {
-                              _searching = false;
-                              _searched = false;
-                            });
-                          },
+                          onPressed: _clear,
                           icon: const Icon(
                             Icons.close,
                             color: AppColors.secondaryText,
@@ -141,58 +159,99 @@ class _DestinationScreenState extends State<DestinationScreen> {
                     ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 children: [
-                  if (_searching)
-                    const _SearchingTile()
-                  else if (_searched &&
-                      _controller.text.trim().isNotEmpty &&
-                      !locationService.hasSearchProvider)
-                    const _SearchUnavailableNote()
+                  if (query.isEmpty)
+                    ..._buildIdle(l10n)
                   else ...[
-                    if (_controller.text.trim().isNotEmpty)
-                      _ManualSelectTile(
-                        label: _controller.text.trim(),
-                        onTap: _confirmManual,
-                      ),
-                    if (_savedPlaces.isNotEmpty) ...[
-                      SectionTitle(l10n.savedPlaces),
-                      const SizedBox(height: 8),
-                      ..._savedPlaces.map(
-                        (p) => _PlaceTile(
-                          icon: _iconFor(p.type),
-                          title: p.name,
-                          subtitle: p.place.address,
-                          onTap: () => _select(p.place),
+                    if (_searching) const _SearchingTile(),
+                    if (_results.isNotEmpty)
+                      ..._results.map(
+                        (place) => _PlaceTile(
+                          icon: Icons.place_outlined,
+                          title: place.address,
+                          onTap: () => _select(place),
                         ),
                       ),
-                    ],
-                    if (_recentPlaces.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      SectionTitle(l10n.recentPlaces),
-                      const SizedBox(height: 8),
-                      ..._recentPlaces.map(
-                        (p) => _PlaceTile(
-                          icon: Icons.history,
-                          title: p.address,
-                          onTap: () => _select(p),
-                        ),
+                    if (_searched &&
+                        _results.isEmpty &&
+                        locationService.hasSearchProvider)
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(top: 2, bottom: 12),
+                        child: _CenteredNote(text: l10n.noLocationsFound),
                       ),
-                    ],
-                      if (_savedPlaces.isEmpty && _recentPlaces.isEmpty)
-                        Padding(
-                          padding: EdgeInsets.only(top: 12),
-                          child: Center(
-                            child: Text(
-                              l10n.typeAddress,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppColors.secondaryText,
-                                fontSize: 13.5,
-                                height: 1.5,
-                              ),
-                            ),
+                    if (_searched &&
+                        _results.isEmpty &&
+                        !locationService.hasSearchProvider)
+                      const _SearchUnavailableNote(),
+                    _ManualSelectTile(
+                      label: query,
+                      onTap: _confirmManual,
+                    ),
+                    _PickOnMapTile(
+                      onTap: () async {
+                        final place = await Navigator.of(context).push<Place>(
+                          MaterialPageRoute(
+                            builder: (_) => const PickupScreen(isPickup: false),
+                          ),
+                        );
+                        if (place != null && mounted) _select(place);
+                      },
+                    ),
+                  ],
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 2, 4, 14),
+                    child: Text(
+                      l10n.moveMapHint,
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12.5,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  if (query.isEmpty &&
+                      _savedPlaces.isNotEmpty) ...[
+                    SectionTitle(l10n.savedPlaces),
+                    const SizedBox(height: 8),
+                    ..._savedPlaces.map(
+                      (p) => _PlaceTile(
+                        icon: _iconFor(p.type),
+                        title: p.name,
+                        subtitle: p.place.address,
+                        onTap: () => _select(p.place),
+                      ),
+                    ),
+                  ],
+                  if (query.isEmpty &&
+                      _recentPlaces.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    SectionTitle(l10n.recentPlaces),
+                    const SizedBox(height: 8),
+                    ..._recentPlaces.map(
+                      (p) => _PlaceTile(
+                        icon: Icons.history,
+                        title: p.address,
+                        onTap: () => _select(p),
+                      ),
+                    ),
+                  ],
+                  if (query.isEmpty &&
+                      _savedPlaces.isEmpty &&
+                      _recentPlaces.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Center(
+                        child: Text(
+                          l10n.typeAddress,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 13.5,
+                            height: 1.5,
                           ),
                         ),
-                  ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -202,6 +261,50 @@ class _DestinationScreenState extends State<DestinationScreen> {
     );
   }
 
+  List<Widget> _buildIdle(AppLocalizations l10n) {
+    return [
+      if (_savedPlaces.isNotEmpty) ...[
+        SectionTitle(l10n.savedPlaces),
+        const SizedBox(height: 8),
+        ..._savedPlaces.map(
+          (p) => _PlaceTile(
+            icon: _iconFor(p.type),
+            title: p.name,
+            subtitle: p.place.address,
+            onTap: () => _select(p.place),
+          ),
+        ),
+      ],
+      if (_recentPlaces.isNotEmpty) ...[
+        const SizedBox(height: 20),
+        SectionTitle(l10n.recentPlaces),
+        const SizedBox(height: 8),
+        ..._recentPlaces.map(
+          (p) => _PlaceTile(
+            icon: Icons.history,
+            title: p.address,
+            onTap: () => _select(p),
+          ),
+        ),
+      ],
+      if (_savedPlaces.isEmpty && _recentPlaces.isEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Center(
+            child: Text(
+              l10n.typeAddress,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 13.5,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ),
+    ];
+  }
+
   IconData _iconFor(SavedPlaceType type) => switch (type) {
         SavedPlaceType.home => Icons.home_outlined,
         SavedPlaceType.work => Icons.business_outlined,
@@ -209,17 +312,92 @@ class _DestinationScreenState extends State<DestinationScreen> {
       };
 }
 
+class _CenteredNote extends StatelessWidget {
+  const _CenteredNote({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: AppColors.secondaryText,
+          fontSize: 13.5,
+          height: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _PickOnMapTile extends StatelessWidget {
+  const _PickOnMapTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppColors.primaryGreen.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primaryGreen),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.map_outlined,
+                  color: AppColors.primaryGreen,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.selectOnMap,
+                    style: const TextStyle(
+                      color: AppColors.black,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.secondaryText,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SearchingTile extends StatelessWidget {
   const _SearchingTile();
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 24),
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(
+          const SizedBox(
             width: 18,
             height: 18,
             child: CircularProgressIndicator(
@@ -227,10 +405,10 @@ class _SearchingTile extends StatelessWidget {
               color: AppColors.primaryGreen,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Text(
-            'Searching…',
-            style: TextStyle(color: AppColors.secondaryText, fontSize: 14),
+            l10n.searching,
+            style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
           ),
         ],
       ),
@@ -243,14 +421,14 @@ class _SearchUnavailableNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 12, bottom: 12),
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 12),
       child: Center(
         child: Text(
-          'Live search is not connected yet. '
-          'Type the address and confirm it below, or choose a saved place.',
+          l10n.liveSearchUnavailable,
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             color: AppColors.secondaryText,
             fontSize: 13.5,
             height: 1.5,
@@ -269,10 +447,11 @@ class _ManualSelectTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return _PlaceTile(
       icon: Icons.add_location_alt_outlined,
       title: label,
-      subtitle: 'Use this address',
+      subtitle: l10n.useThisAddress,
       onTap: onTap,
       highlight: true,
     );

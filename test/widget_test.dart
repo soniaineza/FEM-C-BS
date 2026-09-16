@@ -8,6 +8,7 @@ import 'package:fem_cabs/core/localization/app_localizations.dart';
 import 'package:fem_cabs/models/passenger.dart';
 import 'package:fem_cabs/services/auth_service.dart';
 import 'package:fem_cabs/widgets/brand_mark.dart';
+import 'package:fem_cabs/widgets/primary_button.dart';
 
 void main() {
   setUpAll(() {
@@ -47,7 +48,9 @@ void main() {
     await tester.tap(find.text(l10n.getStarted));
     await tester.pumpAndSettle();
 
-    expect(find.text('Create account'), findsOneWidget);
+    // The signup form is shown (its heading and button share the same label).
+    expect(find.text(l10n.fullName), findsOneWidget);
+    expect(find.text(l10n.createAccount), findsWidgets);
   });
 
   testWidgets('login validates empty fields', (WidgetTester tester) async {
@@ -98,11 +101,11 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextFormField).at(1), '0788');
-    await tester.ensureVisible(find.text('Create account'));
-    await tester.tap(find.text('Create account'));
+    await tester.ensureVisible(find.widgetWithText(PrimaryButton, l10n.createAccount));
+    await tester.tap(find.widgetWithText(PrimaryButton, l10n.createAccount));
     await tester.pumpAndSettle();
 
-    expect(find.text('Enter a valid phone number'), findsOneWidget);
+    expect(find.text(l10n.phoneInvalid), findsOneWidget);
   });
 
   testWidgets('a completed session opens the main passenger home',

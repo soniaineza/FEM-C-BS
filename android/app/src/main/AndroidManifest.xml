@@ -1,7 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Networking + location for ride-hailing features. -->
+    <!-- Networking + location for ride-hailing features.
+         Only ACCESS_FINE_LOCATION is declared on purpose: geolocator reads the
+         permissions declared here and requests them together. Requesting both
+         FINE and COARSE in one System dialog makes geolocator_android's
+         PermissionManager crash on devices that return a single permission in
+         onRequestPermissionsResult (ArrayIndexOutOfBoundsException, index -1).
+         FINE alone is what a precise pickup fix needs; the OS grants COARSE
+         alongside FINE automatically. -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="FEM C@BS"

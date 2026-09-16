@@ -49,4 +49,47 @@ router.delete(
   })
 );
 
+// GET /api/places/recent — recently used destinations (server-tracked).
+router.get(
+  '/recent',
+  asyncHandler(async (req, res) => {
+    const { rows } = await getPool().query(
+      `SELECT address, latitude, longitude, times_used, last_used_at
+         FROM recent_destinations WHERE passenger_id = $1
+        ORDER BY last_used_at DESC LIMIT 20`,
+      [req.passengerId]
+    );
+    res.json({
+      recent: rows.map((r) => ({
+        address: r.address,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        timesUsed: r.times_used,
+        lastUsedAt: r.last_used_at,
+      })),
+    });
+  })
+);
+
+// POST /api/places/recent — records a used destination (called on booking).
+router.post(
+  '/recent',
+  asyncHandler(async (req, res) => {
+    const { address, latitude, longitude } = req.body || {};
+    if (!address || typeof latitude !== 'number' || typeof longitude !== 'number') {
+      throw new ApiError(400, 'Address and coordinates are required.');
+    }
+    await getPool().query(
+      `INSERT INTO recent_destinations (passenger_id, address, latitude, longitude)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (passenger_id, address)
+       DO UPDATE SET times_used = recent_destinations.times_used + 1,
+                     last_used_at = now()
+       RETURNING id`,
+      [req.passengerId, address, latitude, longitude]
+    );
+    res.status(204).end();
+  })
+);
+
 module.exports = router;

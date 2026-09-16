@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/validators.dart';
 import '../../services/auth_service.dart';
@@ -73,9 +74,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppBar(title: const Text('Edit profile')),
+      appBar: AppBar(title: Text(l10n.editProfile)),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -88,10 +90,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 8),
                 Center(child: _Avatar(name: _name.text)),
                 const SizedBox(height: 10),
-                const Center(
+                Center(
                   child: Text(
-                    'Profile photos can be uploaded when the backend is '
-                    'connected.',
+                    l10n.profilePhotoBackend,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.secondaryText,
@@ -102,7 +103,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 24),
                 CustomTextField(
                   controller: _name,
-                  label: 'Full name',
+                  label: l10n.fullName,
                   textInputAction: TextInputAction.next,
                   validator: Validators.fullName,
                   prefixIcon: Icons.person_outline,
@@ -110,7 +111,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 16),
                 CustomTextField(
                   controller: _phone,
-                  label: 'Phone number',
+                  label: l10n.phoneNumber,
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.next,
                   validator: Validators.phone,
@@ -119,7 +120,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 16),
                 CustomTextField(
                   controller: _email,
-                  label: 'Email',
+                  label: l10n.email,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.done,
                   validator: Validators.email,
@@ -132,7 +133,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ],
                 const SizedBox(height: 24),
                 PrimaryButton(
-                  label: 'Save changes',
+                  label: l10n.saveChanges,
                   loading: _loading,
                   onPressed: _loading ? null : _save,
                 ),

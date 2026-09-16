@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/routes/app_routes.dart';
 import '../../models/passenger.dart';
 import '../../services/auth_service.dart';
@@ -14,24 +15,25 @@ class ProfileScreen extends StatelessWidget {
   final VoidCallback? onOpenHistory;
 
   Future<void> _confirmLogout(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.white,
-        title: const Text('Log out?',
+        title: Text(l10n.logoutQuestion,
             style: TextStyle(fontWeight: FontWeight.w800)),
-        content: const Text(
-          'You can log back in anytime with your phone number or email.',
+        content: Text(
+          l10n.identifierRequired,
           style: TextStyle(color: AppColors.secondaryText),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Stay'),
+            child: Text(l10n.stay),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Log out'),
+            child: Text(l10n.logout),
           ),
         ],
       ),
@@ -43,6 +45,7 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final p = passenger;
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
@@ -50,8 +53,8 @@ class ProfileScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
-            const Text(
-              'Profile',
+            Text(
+              l10n.profile,
               style: TextStyle(
                 color: AppColors.black,
                 fontSize: 20,
@@ -69,15 +72,14 @@ class ProfileScreen extends StatelessWidget {
                   color: AppColors.lightGray,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
                     Icon(Icons.info_outline,
                         size: 18, color: AppColors.secondaryText),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Preview session. Account data is stored on this '
-                        'device until the backend is connected.',
+                        l10n.previewSession,
                         style: TextStyle(
                           color: AppColors.secondaryText,
                           fontSize: 12.5,
@@ -90,73 +92,73 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 20),
-            const SectionTitle('Account'),
+            SectionTitle(l10n.account),
             const SizedBox(height: 8),
             _MenuTile(
               icon: Icons.person_outline,
-              label: 'Edit profile',
+              label: l10n.editProfile,
               onTap: () => Navigator.of(context).pushNamed(AppRoutes.editProfile),
             ),
             _MenuTile(
               icon: Icons.place_outlined,
-              label: 'Saved places',
+              label: l10n.savedPlaces,
               onTap: () =>
                   Navigator.of(context).pushNamed(AppRoutes.savedPlaces),
             ),
             _MenuTile(
               icon: Icons.payments_outlined,
-              label: 'Payment methods',
+              label: l10n.paymentMethods,
               onTap: () =>
                   Navigator.of(context).pushNamed(AppRoutes.paymentMethods),
             ),
             _MenuTile(
               icon: Icons.history,
-              label: 'Ride history',
+              label: l10n.rideHistory,
               onTap: () => onOpenHistory?.call(),
             ),
             _MenuTile(
               icon: Icons.notifications_outlined,
-              label: 'Notifications',
+              label: l10n.notifications,
               onTap: () =>
                   Navigator.of(context).pushNamed(AppRoutes.notifications),
             ),
             const SizedBox(height: 20),
-            const SectionTitle('Support'),
+            SectionTitle(l10n.support),
             const SizedBox(height: 8),
             _MenuTile(
               icon: Icons.support_agent,
-              label: 'Help & support',
+              label: l10n.helpSupport,
               onTap: () =>
                   Navigator.of(context).pushNamed(AppRoutes.helpSupport),
             ),
             _MenuTile(
               icon: Icons.description_outlined,
-              label: 'Terms of Service',
+              label: l10n.termsOfService,
               onTap: () => Navigator.of(context).pushNamed(AppRoutes.terms),
             ),
             _MenuTile(
               icon: Icons.privacy_tip_outlined,
-              label: 'Privacy Policy',
+              label: l10n.privacyPolicy,
               onTap: () => Navigator.of(context).pushNamed(AppRoutes.privacy),
             ),
             _MenuTile(
               icon: Icons.settings_outlined,
-              label: 'Settings',
+              label: l10n.settings,
               onTap: () => Navigator.of(context).pushNamed(AppRoutes.settings),
             ),
             const SizedBox(height: 20),
-            const SectionTitle('Account actions'),
+            SectionTitle(l10n.accountActions),
             const SizedBox(height: 8),
             _MenuTile(
               icon: Icons.delete_outline,
-              label: 'Delete account',
+              label: l10n.deleteAccount,
               destructive: true,
               onTap: () =>
                   Navigator.of(context).pushNamed(AppRoutes.deleteAccount),
             ),
             _MenuTile(
               icon: Icons.logout,
-              label: 'Log out',
+              label: l10n.logout,
               onTap: () => _confirmLogout(context),
             ),
           ],

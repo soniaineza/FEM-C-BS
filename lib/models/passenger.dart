@@ -76,6 +76,10 @@ class Passenger {
         isProfileComplete: json['isProfileComplete'] as bool? ?? false,
       );
 
+  /// Parses a passenger returned by the FEM C@BS backend.
+  factory Passenger.fromBackendJson(Object? json) =>
+      Passenger.fromJson(json as Map<String, dynamic>);
+
   String toJsonString() => jsonEncode(toJson());
 
   static Passenger? fromJsonString(String raw, {bool isDevPreview = false}) {

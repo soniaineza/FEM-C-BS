@@ -47,4 +47,19 @@ class Vehicle {
       isMock: isMock ?? this.isMock,
     );
   }
+
+  /// Parses a vehicle returned by the FEM C@BS backend.
+  factory Vehicle.fromBackendJson(Object? json) {
+    final map = json as Map<String, dynamic>;
+    return Vehicle(
+      id: map['id'] as String,
+      name: map['name'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      capacity: (map['capacity'] as num?)?.toInt() ?? 4,
+      baseFare: (map['baseFare'] as num?)?.toDouble() ?? 0,
+      farePerKm: (map['farePerKm'] as num?)?.toDouble() ?? 0,
+      etaMinutes: (map['etaMinutes'] as num?)?.toInt() ?? 5,
+      isMock: map['isMock'] as bool? ?? false,
+    );
+  }
 }

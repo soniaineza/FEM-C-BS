@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/routes/app_routes.dart';
 import '../../models/ride.dart';
@@ -17,24 +18,23 @@ class SafetyScreen extends StatelessWidget {
   final Ride ride;
 
   Future<void> _onEmergency(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
     final phone = supportService.supportPhone;
     if (phone.trim().isEmpty) {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: AppColors.white,
-          title: const Text('Emergency assistance',
+          title: Text(l10n.emergencyAssistance,
               style: TextStyle(fontWeight: FontWeight.w800)),
-          content: const Text(
-            'Emergency calling will be enabled once FEM C@BS configures the '
-            'national emergency contacts and backend integration. '
-            'In a real emergency, call the local emergency number directly.',
+          content: Text(
+            l10n.emergencyBody,
             style: TextStyle(color: AppColors.secondaryText, height: 1.5),
           ),
           actions: [
             FilledButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              child: Text(l10n.ok),
             ),
           ],
         ),
@@ -50,9 +50,10 @@ class SafetyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppBar(title: const Text('Safety')),
+      appBar: AppBar(title: Text(l10n.safety)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -63,14 +64,13 @@ class SafetyScreen extends StatelessWidget {
                 color: AppColors.black,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.shield, color: AppColors.white, size: 28),
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Your safety is our priority.\n'
-                      'Tools below help you control your trip.',
+                      l10n.safetyPriority,
                       style: TextStyle(
                         color: AppColors.white,
                         fontSize: 14,
