@@ -1,44 +1,54 @@
 import { useState } from 'react';
-import { View, Text, SafeAreaView, Pressable, Modal } from 'react-native';
+import { View, Text, SafeAreaView, Pressable, Modal, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 
+import { MenuTile } from '../../../components/MenuTile';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { Locale } from '../../../locales';
 
-function Row({ label, value, onPress }: { label: string; value?: string; onPress: () => void }) {
-  return (
-    <Pressable className="flex-row items-center justify-between border-b border-border py-4" onPress={onPress}>
-      <Text className="text-base text-ink">{label}</Text>
-      <Text className="text-text-secondary">{value ?? '>'}</Text>
-    </Pressable>
-  );
-}
-
+// Direct port of settings_screen.dart: the same icon+chevron MenuTile
+// pattern as profile_screen.dart, with trailing value text for
+// language/appearance, and native alerts for the informational dialogs
+// (location/security) matching the original's AlertDialog usage.
 export default function SettingsScreen() {
   const { t, locale, setLocale, languageNames } = useTranslation();
   const [langModalOpen, setLangModalOpen] = useState(false);
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-6">
+    <SafeAreaView className="flex-1 bg-bg-light">
+      <ScrollView contentContainerClassName="px-5 pb-6 pt-4">
         <Text className="text-xl font-bold text-ink">{t('settings')}</Text>
 
         <View className="mt-4">
-          <Row label={t('language')} value={languageNames[locale]} onPress={() => setLangModalOpen(true)} />
-          <Row label={t('appearance')} onPress={() => {}} />
-          <Row label={t('security')} onPress={() => {}} />
-          <Row label={t('termsOfService')} onPress={() => router.push('/(main)/settings/terms')} />
-          <Row label={t('privacyPolicy')} onPress={() => router.push('/(main)/settings/privacy')} />
-          <Row label={t('deleteAccount')} onPress={() => router.push('/(main)/settings/delete-account')} />
+          <MenuTile icon="notifications-outline" label={t('notifications')} onPress={() => router.push('/(main)/settings/notifications')} />
+          <MenuTile
+            icon="location-outline"
+            label={t('locationPermission')}
+            onPress={() => Alert.alert(t('locationDialogTitle'), t('locationDialogBody'))}
+          />
+          <MenuTile
+            icon="language-outline"
+            label={t('language')}
+            trailing={languageNames[locale]}
+            onPress={() => setLangModalOpen(true)}
+          />
+          <MenuTile
+            icon="color-palette-outline"
+            label={t('appearance')}
+            trailing={t('light')}
+            onPress={() => Alert.alert(t('appearance'), t('appearanceNotice'))}
+          />
+          <MenuTile icon="lock-closed-outline" label={t('security')} onPress={() => Alert.alert(t('securityTitle'), t('securityBody'))} />
+          <MenuTile icon="shield-checkmark-outline" label={t('privacyPolicy')} onPress={() => router.push('/(main)/settings/privacy')} />
+          <MenuTile icon="document-text-outline" label={t('termsOfService')} onPress={() => router.push('/(main)/settings/terms')} />
         </View>
 
-        <Text className="mt-6 text-xs text-text-secondary">{t('appearanceNotice')}</Text>
-        <Text className="mt-2 text-xs text-text-secondary">{t('securityBody')}</Text>
-      </View>
+        <Text className="mt-3 text-xs leading-5 text-text-secondary">{t('locationNotice')}</Text>
+      </ScrollView>
 
       <Modal visible={langModalOpen} animationType="slide" transparent>
         <View className="flex-1 items-center justify-center bg-black/40 px-6">
-          <View className="w-full rounded bg-white p-6">
+          <View className="w-full rounded-2xl bg-white p-6">
             <Text className="text-lg font-bold text-ink">{t('chooseLanguage')}</Text>
             {(['rw', 'fr', 'en'] as Locale[]).map((l) => (
               <Pressable

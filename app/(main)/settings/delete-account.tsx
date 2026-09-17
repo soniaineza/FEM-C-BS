@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { View, Text, SafeAreaView, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../../components/Button';
+import { ErrorMessage } from '../../../components/ErrorMessage';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { ApiError } from '../../../services/api-client';
@@ -34,17 +36,21 @@ export default function DeleteAccountScreen() {
         <Text className="text-xl font-bold text-error">{t('deleteYourAccount')}</Text>
         <Text className="mt-3 text-text-secondary">{t('deleteAccountBody')}</Text>
 
-        <Pressable className="mt-6 flex-row items-center gap-3" onPress={() => setConfirmed((v) => !v)}>
-          <View className={`h-5 w-5 rounded border ${confirmed ? 'border-error bg-error' : 'border-border'}`} />
-          <Text className="flex-1 text-sm text-ink">{t('deleteConfirm')}</Text>
+        <Pressable className="mt-6 flex-row items-start" onPress={() => setConfirmed((v) => !v)}>
+          <Ionicons name={confirmed ? 'checkbox' : 'checkbox-outline'} size={22} color={confirmed ? '#DC2626' : '#6B7280'} />
+          <Text className="ml-2.5 flex-1 text-sm leading-5 text-ink">{t('deleteConfirm')}</Text>
         </Pressable>
 
-        {error ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
+        {error ? (
+          <View className="mt-4">
+            <ErrorMessage message={error} />
+          </View>
+        ) : null}
 
         <View className="mt-8">
           <Button
             title={t('deleteMyAccount')}
-            className="bg-error"
+            destructive
             onPress={handleDelete}
             loading={loading}
             disabled={!confirmed}

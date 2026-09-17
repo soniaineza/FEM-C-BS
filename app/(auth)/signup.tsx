@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { View, Text, SafeAreaView, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { ErrorMessage } from '../../components/ErrorMessage';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { validators } from '../../utils/validators';
@@ -18,6 +20,7 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
 
@@ -29,6 +32,7 @@ export default function SignupScreen() {
     const confirmError = validators.confirmPassword(confirmPassword, password);
     const firstError = nameError || phoneError || emailError || passwordError || confirmError;
     if (firstError) return setError(firstError);
+    if (!acceptedTerms) return setError(t('agreeTerms'));
 
     setError(undefined);
     setLoading(true);
@@ -49,18 +53,54 @@ export default function SignupScreen() {
         <Text className="mt-1 text-text-secondary">{t('lessThanMinute')}</Text>
 
         <View className="mt-8 gap-4">
-          <Input label={t('fullName')} value={fullName} onChangeText={setFullName} autoCapitalize="words" />
-          <Input label={t('phoneNumber')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-          <Input label={t('email')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-          <Input label={t('password')} value={password} onChangeText={setPassword} secureTextEntry />
+          <Input
+            label={t('fullName')}
+            value={fullName}
+            onChangeText={setFullName}
+            autoCapitalize="words"
+            prefixIcon="person-outline"
+          />
+          <Input
+            label={t('phoneNumber')}
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            prefixIcon="call-outline"
+          />
+          <Input
+            label={t('email')}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            prefixIcon="mail-outline"
+          />
+          <Input
+            label={t('password')}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            prefixIcon="lock-closed-outline"
+          />
           <Input
             label={t('confirmPassword')}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
+            prefixIcon="lock-closed-outline"
           />
           <Text className="text-xs text-text-secondary">{t('passwordHint')}</Text>
-          {error ? <Text className="text-sm text-error">{error}</Text> : null}
+
+          <Pressable className="flex-row items-start" onPress={() => setAcceptedTerms((v) => !v)}>
+            <Ionicons
+              name={acceptedTerms ? 'checkbox' : 'checkbox-outline'}
+              size={22}
+              color={acceptedTerms ? '#16A34A' : '#6B7280'}
+            />
+            <Text className="ml-2.5 flex-1 text-sm leading-5 text-ink">{t('agreeTerms')}</Text>
+          </Pressable>
+
+          {error ? <ErrorMessage message={error} /> : null}
         </View>
 
         <View className="mt-8">

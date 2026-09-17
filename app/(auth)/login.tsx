@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { ErrorMessage } from '../../components/ErrorMessage';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { validators } from '../../utils/validators';
@@ -49,9 +50,16 @@ export default function LoginScreen() {
             onChangeText={setIdentifier}
             autoCapitalize="none"
             keyboardType="email-address"
+            prefixIcon="person-outline"
           />
-          <Input label={t('password')} value={password} onChangeText={setPassword} secureTextEntry />
-          {error ? <Text className="text-sm text-error">{error}</Text> : null}
+          <Input
+            label={t('password')}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            prefixIcon="lock-closed-outline"
+          />
+          {error ? <ErrorMessage message={error} /> : null}
           <Pressable onPress={() => router.push('/(auth)/forgot-password')}>
             <Text className="text-right text-sm text-primary">{t('forgotPassword')}</Text>
           </Pressable>

@@ -40,9 +40,11 @@ export default function DestinationScreen() {
   }
 
   function choosePlace(place: Place) {
+    // Matches home_screen.dart's _openDestination(): a sub-screen pushed
+    // from home that returns a Place — home is the hub, so go back to it.
     setDestination(place);
     recordRecentPlace(place);
-    router.push('/(main)/request/ride-type');
+    router.back();
   }
 
   const list = query.trim().length >= 2 ? results : recent.map((r) => ({ address: r.address, latitude: r.latitude, longitude: r.longitude }));

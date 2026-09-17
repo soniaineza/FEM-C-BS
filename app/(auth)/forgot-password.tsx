@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { View, Text, SafeAreaView, Pressable } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { ErrorMessage } from '../../components/ErrorMessage';
 import { useTranslation } from '../../hooks/useTranslation';
 import { resetPassword, confirmResetPassword } from '../../services/auth-service';
 import { validators } from '../../utils/validators';
@@ -59,11 +61,17 @@ export default function ForgotPasswordScreen() {
           <>
             <Text className="text-2xl font-bold text-ink">{t('forgotPassword')}</Text>
             <Text className="mt-1 text-text-secondary">{t('forgotPasswordDescription')}</Text>
-            <View className="mt-8 gap-4">
-              <Input label={t('emailOrPhone')} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" />
-              {error ? <Text className="text-sm text-error">{error}</Text> : null}
+            <View className="mt-6 gap-4">
+              <Input
+                label={t('emailOrPhone')}
+                value={identifier}
+                onChangeText={setIdentifier}
+                autoCapitalize="none"
+                prefixIcon="at-outline"
+              />
+              {error ? <ErrorMessage message={error} /> : null}
             </View>
-            <View className="mt-8">
+            <View className="mt-6">
               <Button title={t('sendVerification')} onPress={handleRequest} loading={loading} />
             </View>
           </>
@@ -71,20 +79,37 @@ export default function ForgotPasswordScreen() {
 
         {stage === 'confirm' && (
           <>
-            <Text className="text-2xl font-bold text-ink">{t('setNewPassword')}</Text>
-            <Text className="mt-1 text-text-secondary">{t('checkPhoneOrEmail')}</Text>
-            <View className="mt-8 gap-4">
-              <Input label={t('resetCodeLabel')} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} />
-              <Input label={t('newPassword')} value={newPassword} onChangeText={setNewPassword} secureTextEntry />
+            <View className="items-center">
+              <Ionicons name="mail-open-outline" size={56} color="#16A34A" />
+            </View>
+            <Text className="mt-4 text-2xl font-bold text-ink">{t('codeArrivalHint')}</Text>
+            <Text className="mt-2 leading-relaxed text-text-secondary">{t('checkPhoneOrEmail')}</Text>
+            <View className="mt-6 gap-4">
+              <Input
+                label={t('resetCodeLabel')}
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                maxLength={6}
+                prefixIcon="keypad-outline"
+              />
+              <Input
+                label={t('newPassword')}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                prefixIcon="lock-closed-outline"
+              />
               <Input
                 label={t('confirmPasswordShort')}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
+                prefixIcon="lock-closed-outline"
               />
-              {error ? <Text className="text-sm text-error">{error}</Text> : null}
+              {error ? <ErrorMessage message={error} /> : null}
             </View>
-            <View className="mt-8">
+            <View className="mt-6">
               <Button title={t('setNewPassword')} onPress={handleConfirm} loading={loading} />
             </View>
           </>
@@ -92,9 +117,16 @@ export default function ForgotPasswordScreen() {
 
         {stage === 'done' && (
           <>
-            <Text className="text-2xl font-bold text-ink">{t('passwordResetDone')}</Text>
-            <View className="mt-8">
-              <Button title={t('backToLogin')} onPress={() => router.replace('/(auth)/login')} />
+            <View className="items-center pt-6">
+              <Ionicons name="checkmark-circle-outline" size={64} color="#16A34A" />
+            </View>
+            <Text className="mt-5 text-center text-xl font-bold text-ink">{t('passwordResetDone')}</Text>
+            <View className="mt-7">
+              <Button
+                title={t('backToLogin')}
+                icon="arrow-back-outline"
+                onPress={() => router.replace('/(auth)/login')}
+              />
             </View>
           </>
         )}

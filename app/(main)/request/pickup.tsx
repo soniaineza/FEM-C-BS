@@ -39,8 +39,11 @@ export default function PickupScreen() {
   }
 
   function choosePlace(place: Place) {
+    // Matches home_screen.dart's _openPickup(): pickup is a sub-screen
+    // pushed from home that returns a Place, not a forward step in a
+    // linear wizard — home is the hub, so we go back to it.
     setPickup(place);
-    router.push('/(main)/request/destination');
+    router.back();
   }
 
   async function useCurrentLocation() {
