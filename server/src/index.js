@@ -66,7 +66,12 @@ async function main() {
   app.use('/api/share', shareRoutes);
   app.use('/api/wallet', walletRoutes);
 
-  const webBuildPath = path.join(__dirname, '..', '..', '..', 'build', 'web');
+  // `npx expo export --platform web` (replacing `flutter build web`) outputs
+  // to dist/ at the Expo project root, which is now also the repo root:
+  // server/src -> server -> repo root, two levels up (not three — the
+  // previous `build/web` path here was off by one and pointed above the
+  // repo root; verified against the actual directory layout).
+  const webBuildPath = path.join(__dirname, '..', '..', 'dist');
   app.use(express.static(webBuildPath));
 
   app.get('*', (req, res) => {
