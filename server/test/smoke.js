@@ -85,6 +85,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     `status=${ride.status} ${JSON.stringify(ride.data?.ride)}`);
   const rideId = ride.data.ride.id;
 
+  // 8b. duplicate-request guard: while rideId is active, a second booking
+  // must be rejected with 409 — passengers cannot stack rides.
+  const dupRide = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd, Kigali', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'CBD', latitude: -1.9509, longitude: 30.0595 },
+    vehicleId: 'fem_economy', paymentMethodId: 'cash', rideType: 'private',
+  }, token);
+  check('duplicate ride blocked (409)', dupRide.status === 409, `status=${dupRide.status}`);
+
   // 9. recent destination recorded on booking? (we call the endpoint directly)
   const recent = await api('POST', '/places/recent', { address: 'Nyamirambo', latitude: -1.9586, longitude: 30.0205 }, token);
   check('record recent dest', recent.status === 204, `status=${recent.status}`);
@@ -157,12 +166,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pay = await api('POST', '/payments', { rideId }, token);
   check('payment re-init idempotent', pay.status === 200 && pay.data.payment, `status=${pay.status}`);
 
-  // switch to cash route: create a NEW cash ride and settle it via pay-cash
+  // 11b. rideId is still paymentPending (momo, provider unconfigured) — its
+  // payment must NOT be marked paid by any client action.
+  const ride1Check = await api('GET', `/rides/${rideId}`, null, token);
+  check('unpaid momo ride still paymentPending (never falsely paid)',
+    ride1Check.data.ride.status === 'paymentPending',
+    `status=${ride1Check.data.ride.status}`);
+
+  // switch to cash route: create a NEW cash ride and settle it via pay-cash.
+  // (rideId is cancelled first — a passenger can hold only one active ride.)
+  const ride1Cancel = await api('POST', `/rides/${rideId}/cancel`, { reason: 'smoke: switching to cash ride' }, token);
+  check('cancel momo ride to free the passenger', ride1Cancel.status === 200 && ride1Cancel.data.ride.status === 'cancelled',
+    `status=${ride1Cancel.status}`);
+
   const ride2 = await api('POST', '/rides', {
     pickup: { address: 'KN 5 Rd, Kigali', latitude: -1.9441, longitude: 30.0619 },
     destination: { address: 'Gisozi', latitude: -1.9333, longitude: 30.0712 },
     vehicleId: 'fem_economy', paymentMethodId: 'cash', rideType: 'private',
   }, token);
+  check('cash ride created after cancel (guard released)', ride2.status === 201, `status=${ride2.status}`);
   const ride2Id = ride2.data.ride.id;
   let ride2assigned = null;
   for (let i = 0; i < 12; i++) {
@@ -222,13 +244,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const thread = await api('GET', `/support/${ticket.data.ticket.id}`, null, token);
   check('support thread has 2 messages', thread.status === 200 && thread.data.messages.length === 2, `n=${thread.data.messages?.length}`);
 
-  // 17. emergency + share
+  // 17. emergency + share. rideId was cancelled at step 11b — sharing only
+  // applies to ACTIVE rides, so use ride2Id (completed? no — completed also
+  // rejected). Create a fresh active ride for the share check.
   const sos = await api('POST', '/emergency', { rideId, latitude: -1.9441, longitude: 30.0619, address: 'KN 5 Rd', details: 'Passenger needs help' }, token);
   check('emergency event', sos.status === 201 && sos.data.emergency.status === 'pending', `status=${sos.status}`);
-  const share = await api('POST', '/share', { rideId }, token);
-  check('trip share token', share.status === 201 && share.data.share.token, `status=${share.status}`);
-  const shareView = await api('GET', `/share/${share.data.share.token}`);
-  check('public share view', shareView.status === 200 && shareView.data.trip.status, `status=${shareView.status}`);
+
+  // free the passenger (ride2 completed at this point — terminal, fine), then
+  // book a throwaway ride to share.
+  const shareRide = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'Remera', latitude: -1.9494, longitude: 30.1067 },
+    vehicleId: 'fem_economy', paymentMethodId: 'cash', rideType: 'private',
+  }, token);
+  const shareRideId = shareRide.data.ride.id;
+  const share = await api('POST', '/share', { rideId: shareRideId }, token);
+  check('trip share token (active ride)', share.status === 201 && share.data.share.token, `status=${share.status} ${JSON.stringify(share.data)}`);
+  if (share.data.share?.token) {
+    const shareView = await api('GET', `/share/${share.data.share.token}`);
+    check('public share view', shareView.status === 200 && shareView.data.trip.status, `status=${shareView.status}`);
+  }
+  await api('POST', `/rides/${shareRideId}/cancel`, { reason: 'smoke cleanup' }, token);
 
   // 17b. Real shared-ride pooling: two different passengers, both booking a
   // 'shared' ride heading the same way, should be matched to the SAME
