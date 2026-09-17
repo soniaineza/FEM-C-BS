@@ -7,6 +7,7 @@ import { Button } from '../../../components/Button';
 import { LocationField } from '../../../components/LocationField';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
+import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
 import { getCurrentPlace } from '../../../services/location-service';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
@@ -26,6 +27,12 @@ export default function HomeScreen() {
 
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
 
+  // Restores an active ride after app restart and blocks duplicate booking:
+  // while a ride is live, Home shows a resume banner and the Find Ride flow
+  // is disabled. Spec: "do not allow the passenger to accidentally request
+  // another ride while an active ride exists" + restart recovery.
+  const { activeRide, checking, canRequestRide } = useActiveRideRestore();
+
   useFocusEffect(
     useCallback(() => {
       getSavedPlaces()
@@ -44,6 +51,7 @@ export default function HomeScreen() {
   }, []);
 
   function findRide() {
+    if (!canRequestRide) return;
     if (!pickup || !destination) return;
     router.push('/(main)/request/vehicle-selection');
   }
@@ -69,6 +77,22 @@ export default function HomeScreen() {
       </View>
 
       <ScrollView className="-mt-5 flex-1 rounded-t-[28px] bg-bg-light" contentContainerClassName="px-5 pb-6 pt-5">
+        {activeRide ? (
+          <Pressable
+            className="mb-4 flex-row items-center rounded-2xl border border-primary bg-white p-4"
+            onPress={() => router.push({ pathname: '/(main)/ride/tracking', params: { rideId: activeRide.id } })}
+          >
+            <View className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
+              <Ionicons name="navigate" size={20} color="#16A34A" />
+            </View>
+            <View className="ml-3 flex-1">
+              <Text className="text-[15px] font-bold text-ink">{t('activeRideTitle')}</Text>
+              <Text numberOfLines={1} className="text-[13px] text-text-secondary">{activeRide.destination.address}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+          </Pressable>
+        ) : null}
+
         <View className="flex-row items-center">
           <Ionicons name="location-outline" size={20} color="#111111" />
           <Text className="ml-2 text-[17px] font-bold text-ink">{t('whereGoing')}</Text>
@@ -127,7 +151,13 @@ export default function HomeScreen() {
         </View>
 
         <View className="mt-5">
-          <Button title={t('findRide')} icon="arrow-forward" onPress={findRide} disabled={!pickup || !destination} />
+          <Button
+            title={t('findRide')}
+            icon="arrow-forward"
+            onPress={findRide}
+            disabled={!pickup || !destination || !canRequestRide}
+          />
+          {checking ? <Text className="mt-2 text-center text-xs text-text-secondary">{t('checkingActiveRide')}</Text> : null}
         </View>
       </ScrollView>
     </SafeAreaView>

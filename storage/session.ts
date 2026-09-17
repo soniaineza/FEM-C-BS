@@ -1,5 +1,28 @@
-// Platform-specific implementations: Metro resolves `session.native.ts` on
-// iOS/Android and `session.web.ts` on web automatically. This file only
-// exists so plain TypeScript tooling (tsc, editors) has a module to resolve
-// against — it is never the file actually bundled.
-export * from './session.web';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// expo-secure-store has no web implementation. Since the web export is this
+// app's initial deployment target, browser storage (via AsyncStorage's web
+// shim, backed by localStorage) is the realistic ceiling for a client-side
+// token here anyway.
+const TOKEN_KEY = 'auth_token';
+const PASSENGER_ID_KEY = 'auth_passenger_id';
+
+export async function getToken(): Promise<string | null> {
+  return AsyncStorage.getItem(TOKEN_KEY);
+}
+
+export async function setToken(token: string): Promise<void> {
+  await AsyncStorage.setItem(TOKEN_KEY, token);
+}
+
+export async function getPassengerId(): Promise<string | null> {
+  return AsyncStorage.getItem(PASSENGER_ID_KEY);
+}
+
+export async function setPassengerId(id: string): Promise<void> {
+  await AsyncStorage.setItem(PASSENGER_ID_KEY, id);
+}
+
+export async function clearSession(): Promise<void> {
+  await AsyncStorage.multiRemove([TOKEN_KEY, PASSENGER_ID_KEY]);
+}

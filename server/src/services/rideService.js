@@ -88,6 +88,20 @@ async function createRide(passengerId, body) {
   }
   const type = rideType === 'shared' ? 'shared' : 'private';
 
+  // Duplicate-request guard: a passenger with a live (non terminal) ride
+  // must not be able to stack another booking — the driver matcher, simulator
+  // and wallet flows all assume at most one active ride per passenger.
+  const { rows: activeRows } = await getPool().query(
+    `SELECT id FROM rides
+      WHERE passenger_id = $1
+        AND status NOT IN ('completed', 'cancelled')
+      LIMIT 1`,
+    [passengerId]
+  );
+  if (activeRows[0]) {
+    throw new ApiError(409, 'You already have an active ride. Complete or cancel it before requesting another.');
+  }
+
   const { rows: vehicleRows } = await getPool().query('SELECT * FROM vehicles WHERE id = $1', [
     vehicleId,
   ]);

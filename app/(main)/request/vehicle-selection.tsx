@@ -23,18 +23,32 @@ export default function VehicleSelectionScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | undefined>();
+
+  function load() {
+    setLoading(true);
+    setLoadError(undefined);
+    fetchVehicles()
+      .then((list) => {
+        setVehicles(list);
+        setSelectedId(list[0]?.id ?? null);
+      })
+      .catch((err) => {
+        setVehicles([]);
+        // Server-authoritative catalogue failed — surface it, never fall
+        // back to fake vehicles/prices.
+        setLoadError(err?.message ?? t('noVehicles'));
+      })
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
     if (!pickup || !destination) {
       router.replace('/(main)/(tabs)');
       return;
     }
-    fetchVehicles()
-      .then((list) => {
-        setVehicles(list);
-        setSelectedId(list[0]?.id ?? null);
-      })
-      .finally(() => setLoading(false));
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup, destination]);
 
   function proceed() {
@@ -63,6 +77,13 @@ export default function VehicleSelectionScreen() {
 
         {loading ? (
           <ActivityIndicator className="mt-8" color="#16A34A" />
+        ) : loadError ? (
+          <View className="mt-4">
+            <Text className="text-text-secondary">{loadError}</Text>
+            <View className="mt-3 self-start">
+              <Button title={t('retryLabel')} variant="outline" onPress={load} />
+            </View>
+          </View>
         ) : vehicles.length === 0 ? (
           <Text className="mt-4 text-text-secondary">{t('noVehicles')}</Text>
         ) : (

@@ -1,7 +1,7 @@
 import { apiClient } from './api-client';
 import { Place } from '../types/place';
-import { PaymentMethod, DEFAULT_PAYMENT_METHODS } from '../types/payment';
-import { Vehicle, MOCK_VEHICLES, vehicleFromBackendJson } from '../types/vehicle';
+import { PaymentMethod, DEFAULT_PAYMENT_METHODS, BOOKABLE_PAYMENT_METHOD_IDS } from '../types/payment';
+import { Vehicle, vehicleFromBackendJson } from '../types/vehicle';
 import {
   Ride,
   RideType,
@@ -82,17 +82,23 @@ export async function fetchServerEstimate(params: {
   };
 }
 
+// Server-authoritative vehicle catalogue. No fake fallback: if the backend
+// is unreachable the UI shows an explicit error/empty state instead of
+// pretending mock vehicles (with mock prices) are bookable — the spec
+// forbids fake data in production flows.
 export async function fetchVehicles(): Promise<Vehicle[]> {
-  try {
-    const json = await apiClient.get<{ vehicles: any[] }>('/vehicles');
-    return json.vehicles.map(vehicleFromBackendJson);
-  } catch {
-    return MOCK_VEHICLES;
-  }
+  const json = await apiClient.get<{ vehicles: any[] }>('/vehicles');
+  return json.vehicles.map(vehicleFromBackendJson);
 }
 
 export function getAvailablePaymentMethods(): PaymentMethod[] {
   return DEFAULT_PAYMENT_METHODS;
+}
+
+// Only methods the backend can actually charge today (see
+// BOOKABLE_PAYMENT_METHOD_IDS — 'card' excluded until a processor exists).
+export function getBookablePaymentMethods(): PaymentMethod[] {
+  return DEFAULT_PAYMENT_METHODS.filter((m) => BOOKABLE_PAYMENT_METHOD_IDS.includes(m.id));
 }
 
 async function ridesCatalogues(): Promise<{ vehicles: Vehicle[]; paymentMethods: PaymentMethod[] }> {

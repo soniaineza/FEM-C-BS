@@ -418,5 +418,12 @@
   "work": "Akazi",
   "youAreOffline": "Uri hanze y'amikorere",
   "youAreOnline": "Uri mu buryo bw'amikorere",
-  "yourOnWay": "Uri mu nzira"
+  "yourOnWay": "Uri mu nzira",
+  "retryLabel": "Gerageza",
+  "activeRideTitle": "Urugendo rurakora — kanda kuryakurikirana",
+  "checkingActiveRide": "Turatunganya urugendo ruriho…",
+  "insufficientWalletBalance": "Amafaranga yo muri wallet ntiyari bihagije",
+  "walletBalanceLabel": "Amafaranga muri wallet",
+  "checkingWalletBalance": "Turatunganya amafaranga muri wallet…",
+  "addMoney": "Ongeraho amafaranga"
 }

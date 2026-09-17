@@ -23,9 +23,8 @@ interface RideMapProps {
 }
 
 // Web map: react-leaflet over raw OpenStreetMap tiles — same tile source
-// the old Flutter app used via flutter_map, deliberately keyless. See
-// RideMap.native.tsx for the native counterpart (WebView + bundled Leaflet
-// HTML, same visual stack, built out in Phase 5).
+// the old Flutter app used via flutter_map, deliberately keyless. Metro
+// resolves this file on web and RideMap.native.tsx on iOS/Android.
 const ICON_COLORS: Record<RideMapMarker['icon'], string> = {
   pickup: '#16A34A',
   destination: '#DC2626',

@@ -418,5 +418,12 @@
   "work": "Travail",
   "youAreOffline": "Vous etes hors ligne",
   "youAreOnline": "Vous etes en ligne",
-  "yourOnWay": "Vous etes en route"
+  "yourOnWay": "Vous etes en route",
+  "retryLabel": "Réessayer",
+  "activeRideTitle": "Course en cours — touchez pour suivre",
+  "checkingActiveRide": "Vérification d'une course active…",
+  "insufficientWalletBalance": "Solde du portefeuille insuffisant",
+  "walletBalanceLabel": "Solde du portefeuille",
+  "checkingWalletBalance": "Vérification du solde…",
+  "addMoney": "Ajouter de l'argent"
 }

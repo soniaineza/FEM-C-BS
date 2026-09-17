@@ -418,5 +418,12 @@
   "work": "Work",
   "youAreOffline": "You are offline",
   "youAreOnline": "You are online",
-  "yourOnWay": "You’re on your way"
+  "yourOnWay": "You’re on your way",
+  "retryLabel": "Try again",
+  "activeRideTitle": "Ride in progress — tap to track",
+  "checkingActiveRide": "Checking for an active ride…",
+  "insufficientWalletBalance": "Insufficient wallet balance",
+  "walletBalanceLabel": "Wallet balance",
+  "checkingWalletBalance": "Checking wallet balance…",
+  "addMoney": "Add money"
 }

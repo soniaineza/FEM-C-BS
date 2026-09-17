@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Button } from '../../../components/Button';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
-import { getAvailablePaymentMethods } from '../../../services/ride-service';
+import { getBookablePaymentMethods } from '../../../services/ride-service';
 import { PaymentMethod } from '../../../types/payment';
 
 export default function PaymentMethodScreen() {
@@ -12,7 +12,8 @@ export default function PaymentMethodScreen() {
   const paymentMethod = useRideWizardStore((s) => s.paymentMethod);
   const setPaymentMethod = useRideWizardStore((s) => s.setPaymentMethod);
 
-  const methods = getAvailablePaymentMethods();
+  // Only methods the backend can actually charge (no 'card' placeholder).
+  const methods = getBookablePaymentMethods();
 
   function choose(method: PaymentMethod) {
     setPaymentMethod(method);

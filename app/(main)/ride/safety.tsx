@@ -28,8 +28,8 @@ export default function SafetyScreen() {
     if (!rideId) return;
     setShareLoading(true);
     try {
-      const { token } = await createTripShare(rideId);
-      await Share.share({ message: `Follow my FEM C@BS trip: https://fem-cabs-api.onrender.com/share/${token}` });
+      const { url } = await createTripShare(rideId);
+      await Share.share({ message: `Follow my FEM C@BS trip: ${url}` });
     } finally {
       setShareLoading(false);
     }
