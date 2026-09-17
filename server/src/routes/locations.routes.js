@@ -1,5 +1,6 @@
 const express = require('express');
 
+const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 
@@ -78,6 +79,37 @@ router.get(
       address: features.length ? labelFor(properties) : 'Current location',
       latitude: lat,
       longitude: lng,
+    });
+  })
+);
+
+// GET /api/locations/route?fromLat=&fromLng=&toLat=&toLng= — turn-by-turn
+// route (polyline points, distance, duration) for the ride-request fare
+// estimate. Proxied through the backend's OSRM_URL for the same reason
+// search/reverse are proxied: the RN client should never call a public
+// third-party geo service directly (consistency, and outage/rate-limit
+// behavior for the public OSRM demo server is controlled in one place).
+router.get(
+  '/route',
+  asyncHandler(async (req, res) => {
+    const fromLat = Number(req.query.fromLat);
+    const fromLng = Number(req.query.fromLng);
+    const toLat = Number(req.query.toLat);
+    const toLng = Number(req.query.toLng);
+    if (![fromLat, fromLng, toLat, toLng].every(Number.isFinite)) {
+      throw new ApiError(400, 'fromLat, fromLng, toLat and toLng are required.');
+    }
+    const url = `${config.osrmUrl}/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+    const res2 = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res2.ok) throw new ApiError(502, 'Routing service unavailable.');
+    const data = await res2.json();
+    const route = Array.isArray(data.routes) ? data.routes[0] : null;
+    if (!route) throw new ApiError(502, 'No route found.');
+    const coords = route.geometry?.coordinates ?? [];
+    res.json({
+      points: coords.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
+      distanceMeters: route.distance,
+      durationSeconds: route.duration,
     });
   })
 );

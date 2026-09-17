@@ -1,0 +1,191 @@
+import { apiClient } from './api-client';
+import { Place } from '../types/place';
+import { PaymentMethod, DEFAULT_PAYMENT_METHODS } from '../types/payment';
+import { Vehicle, MOCK_VEHICLES, vehicleFromBackendJson } from '../types/vehicle';
+import {
+  Ride,
+  RideType,
+  RideCompanion,
+  RoutePoint,
+  FareEstimate,
+  rideCompanionFromBackendJson,
+  routePointFromBackendJson,
+  resolveRideFromBackendJson,
+  rideTypeFareFactor,
+} from '../types/ride';
+
+// Direct TS port of lib/services/ride_service.dart's REST calls. Response
+// envelopes verified against server/src/routes/rides.routes.js. Departure
+// from the Dart original: fare estimation now always calls the backend's
+// GET /rides/estimate (server-authoritative — "the client's estimate is
+// never trusted", per rideService.js's own comment) instead of relying
+// purely on a duplicated local formula, so the number shown before booking
+// can never drift from what's actually charged. straightLineKm/
+// estimateDurationMinutesLocal are kept only for instant per-vehicle price
+// list UI (vehicle-selection screen) before a network round trip is worth it.
+
+const AVG_SPEED_KMH = 25;
+
+export function straightLineKm(from: Place, to: Place): number {
+  if (!from.latitude || !from.longitude || !to.latitude || !to.longitude) return 0;
+  const R = 6371.0;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(to.latitude - from.latitude);
+  const dLng = toRad(to.longitude - from.longitude);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(from.latitude)) * Math.cos(toRad(to.latitude)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function estimateDurationMinutesLocal(distanceKm: number): number {
+  const minutes = Math.round((distanceKm / AVG_SPEED_KMH) * 60);
+  return Math.min(600, Math.max(2, minutes));
+}
+
+// Local, instant preview only — mirrors server/src/utils/distance.js exactly
+// so the two never visibly disagree, but the confirm-ride screen always
+// re-fetches the authoritative number via fetchServerEstimate() before
+// requesting the ride.
+export function estimateFareLocal(vehicle: Vehicle, distanceKm: number, rideType: RideType): FareEstimate {
+  const base = vehicle.baseFare + distanceKm * vehicle.farePerKm;
+  const estimatedFare = base * rideTypeFareFactor(rideType);
+  return {
+    vehicle,
+    distanceKm,
+    durationMinutes: estimateDurationMinutesLocal(distanceKm),
+    estimatedFare,
+    rideType,
+    isEstimate: true,
+  };
+}
+
+export async function fetchServerEstimate(params: {
+  pickup: Place;
+  destination: Place;
+  vehicle: Vehicle;
+  rideType: RideType;
+}): Promise<FareEstimate> {
+  const { pickup, destination, vehicle, rideType } = params;
+  const json = await apiClient.get<{ estimate: { distanceKm: number; durationMinutes: number; estimatedFare: number } }>(
+    `/rides/estimate?vehicleId=${vehicle.id}&rideType=${rideType}` +
+      `&pickup=${pickup.latitude},${pickup.longitude}&destination=${destination.latitude},${destination.longitude}`
+  );
+  return {
+    vehicle,
+    distanceKm: json.estimate.distanceKm,
+    durationMinutes: json.estimate.durationMinutes,
+    estimatedFare: json.estimate.estimatedFare,
+    rideType,
+    isEstimate: false,
+  };
+}
+
+export async function fetchVehicles(): Promise<Vehicle[]> {
+  try {
+    const json = await apiClient.get<{ vehicles: any[] }>('/vehicles');
+    return json.vehicles.map(vehicleFromBackendJson);
+  } catch {
+    return MOCK_VEHICLES;
+  }
+}
+
+export function getAvailablePaymentMethods(): PaymentMethod[] {
+  return DEFAULT_PAYMENT_METHODS;
+}
+
+async function ridesCatalogues(): Promise<{ vehicles: Vehicle[]; paymentMethods: PaymentMethod[] }> {
+  return { vehicles: await fetchVehicles(), paymentMethods: DEFAULT_PAYMENT_METHODS };
+}
+
+export async function requestRide(params: {
+  pickup: Place;
+  destination: Place;
+  vehicle: Vehicle;
+  paymentMethod: PaymentMethod;
+  rideType: RideType;
+  note?: string;
+  promotionCode?: string;
+  scheduledFor?: string;
+}): Promise<Ride> {
+  const body = {
+    pickup: { address: params.pickup.address, latitude: params.pickup.latitude, longitude: params.pickup.longitude },
+    destination: {
+      address: params.destination.address,
+      latitude: params.destination.latitude,
+      longitude: params.destination.longitude,
+    },
+    vehicleId: params.vehicle.id,
+    paymentMethodId: params.paymentMethod.id,
+    rideType: params.rideType,
+    rideNote: params.note,
+    promotionCode: params.promotionCode,
+    scheduledFor: params.scheduledFor,
+  };
+  const json = await apiClient.post<{ ride: any }>('/rides', body);
+  const catalogues = await ridesCatalogues();
+  return resolveRideFromBackendJson(json.ride, catalogues);
+}
+
+export async function getCurrentRide(): Promise<Ride | null> {
+  const json = await apiClient.get<{ ride: any | null }>('/rides/current');
+  if (!json.ride) return null;
+  return resolveRideFromBackendJson(json.ride, await ridesCatalogues());
+}
+
+export async function getRideDetails(rideId: string): Promise<Ride> {
+  const json = await apiClient.get<{ ride: any }>(`/rides/${rideId}`);
+  return resolveRideFromBackendJson(json.ride, await ridesCatalogues());
+}
+
+export async function getRideHistory(): Promise<Ride[]> {
+  const json = await apiClient.get<{ rides: any[] }>('/rides');
+  const catalogues = await ridesCatalogues();
+  return json.rides.map((r) => resolveRideFromBackendJson(r, catalogues));
+}
+
+export async function cancelRide(rideId: string, reason?: string): Promise<Ride> {
+  const json = await apiClient.post<{ ride: any }>(`/rides/${rideId}/cancel`, { reason });
+  return resolveRideFromBackendJson(json.ride, await ridesCatalogues());
+}
+
+export async function changeDestination(rideId: string, destination: Place): Promise<Ride> {
+  const json = await apiClient.post<{ ride: any }>(`/rides/${rideId}/change-destination`, { destination });
+  return resolveRideFromBackendJson(json.ride, await ridesCatalogues());
+}
+
+export async function rateRide(rideId: string, rating: number, comment?: string): Promise<Ride> {
+  const json = await apiClient.post<{ ride: any }>(`/rides/${rideId}/rate`, { rating, comment });
+  return resolveRideFromBackendJson(json.ride, await ridesCatalogues());
+}
+
+export interface DriverLocation {
+  latitude: number;
+  longitude: number;
+  heading: number | null;
+  recordedAt: string;
+}
+
+export async function getDriverLocation(rideId: string): Promise<DriverLocation | null> {
+  const json = await apiClient.get<{ location: DriverLocation | null }>(`/rides/${rideId}/driver-location`);
+  return json.location;
+}
+
+export async function getRideRoute(rideId: string): Promise<RoutePoint[]> {
+  const json = await apiClient.get<{ points: any[] }>(`/rides/${rideId}/route`);
+  return json.points.map(routePointFromBackendJson);
+}
+
+export async function getRideCompanions(rideId: string): Promise<RideCompanion[]> {
+  const json = await apiClient.get<{ companions: any[] }>(`/rides/${rideId}/companions`);
+  return json.companions.map(rideCompanionFromBackendJson);
+}
+
+export async function getNearbyDrivers(params: {
+  latitude: number;
+  longitude: number;
+}): Promise<{ latitude: number; longitude: number; vehicleId: string }[]> {
+  const json = await apiClient.get<{ drivers: any[] }>(`/drivers/nearby?lat=${params.latitude}&lng=${params.longitude}`);
+  return json.drivers;
+}
