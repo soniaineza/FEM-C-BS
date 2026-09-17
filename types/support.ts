@@ -1,0 +1,53 @@
+export interface SupportTicket {
+  id: string;
+  rideId?: string;
+  category: string;
+  subject: string;
+  message: string;
+  status: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export function isTicketResolved(t: SupportTicket): boolean {
+  return t.status === 'resolved' || t.status === 'closed';
+}
+
+export function supportTicketFromBackendJson(json: any): SupportTicket {
+  return {
+    id: json.id,
+    rideId: json.rideId ?? json.ride_id ?? undefined,
+    category: json.category,
+    subject: json.subject,
+    message: json.message,
+    status: json.status,
+    createdAt: json.createdAt ?? json.created_at,
+    updatedAt: json.updatedAt ?? json.updated_at ?? undefined,
+  };
+}
+
+export interface SupportMessage {
+  id: string;
+  senderRole: string;
+  message: string;
+  createdAt: string;
+}
+
+export function supportMessageFromBackendJson(json: any): SupportMessage {
+  return {
+    id: json.id,
+    senderRole: json.senderRole ?? json.sender_role,
+    message: json.message ?? json.content,
+    createdAt: json.createdAt ?? json.created_at,
+  };
+}
+
+// Maps friendly UI topic labels to backend category ids (lib/services/support_service.dart).
+export const SUPPORT_CATEGORY_IDS: Record<string, string> = {
+  rideIssue: 'general',
+  paymentIssue: 'payment',
+  driverIssue: 'report_driver',
+  accountIssue: 'app_issue',
+  safetyConcern: 'billing',
+  otherTopic: 'general',
+};

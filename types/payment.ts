@@ -1,0 +1,60 @@
+export type PaymentMethodType = 'cash' | 'mobileMoney' | 'card';
+
+export interface PaymentMethod {
+  id: string;
+  name: string;
+  type: PaymentMethodType;
+  detail: string;
+}
+
+// lib/models/payment.dart's PaymentMethod.defaults.
+export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = [
+  { id: 'cash', name: 'Cash', type: 'cash', detail: '' },
+  { id: 'mtn_momo', name: 'MTN MoMo', type: 'mobileMoney', detail: '' },
+  { id: 'airtel_money', name: 'Airtel Money', type: 'mobileMoney', detail: '' },
+  { id: 'card', name: 'Card', type: 'card', detail: '' },
+];
+
+export type PaymentStatus = 'pending' | 'processing' | 'succeeded' | 'failed' | 'refunded';
+
+export function paymentStatusFromId(id: string): PaymentStatus {
+  return (['pending', 'processing', 'succeeded', 'failed', 'refunded'] as const).includes(id as PaymentStatus)
+    ? (id as PaymentStatus)
+    : 'pending';
+}
+
+export function isPaymentSettled(status: PaymentStatus): boolean {
+  return status === 'succeeded' || status === 'refunded';
+}
+
+export interface PaymentRecord {
+  id: string;
+  rideId: string;
+  amount: number;
+  method: string;
+  status: PaymentStatus;
+  createdAt: string;
+  provider?: string;
+  reference?: string;
+  externalReference?: string;
+  updatedAt?: string;
+}
+
+export function paymentRecordFromBackendJson(json: any): PaymentRecord {
+  return {
+    id: json.id,
+    rideId: json.rideId ?? json.ride_id,
+    amount: json.amount,
+    method: json.method,
+    status: paymentStatusFromId(json.status),
+    createdAt: json.createdAt ?? json.created_at,
+    provider: json.provider ?? undefined,
+    reference: json.reference ?? undefined,
+    externalReference: json.externalReference ?? json.external_reference ?? undefined,
+    updatedAt: json.updatedAt ?? json.updated_at ?? undefined,
+  };
+}
+
+export function isProviderNotConfigured(record: PaymentRecord): boolean {
+  return record.provider === 'provider_not_configured';
+}

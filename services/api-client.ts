@@ -58,7 +58,11 @@ async function send<T>(
 
   const json = await safeJson(res);
   if (!res.ok) {
-    const message = typeof json?.message === 'string' ? json.message : 'Something went wrong. Please try again.';
+    // server/src/middleware/errorHandler.js always responds
+    // { error: message } — verified live against the running backend.
+    // (The old Flutter client read json['message'] here, which never
+    // matched a real response field; that bug is not ported forward.)
+    const message = typeof json?.error === 'string' ? json.error : 'Something went wrong. Please try again.';
     throw new ApiError(message, res.status);
   }
   return json as T;
