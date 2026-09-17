@@ -22,7 +22,6 @@ const emergencyRoutes = require('./routes/emergency.routes');
 const shareRoutes = require('./routes/share.routes');
 const walletRoutes = require('./routes/wallet.routes');
 const webhookRoutes = require('./routes/webhooks.routes');
-const adminSeedRoutes = require('./routes/adminSeed.routes');
 
 async function main() {
   ensureEmbeddedReady();
@@ -66,7 +65,6 @@ async function main() {
   app.use('/api/emergency', emergencyRoutes);
   app.use('/api/share', shareRoutes);
   app.use('/api/wallet', walletRoutes);
-  app.use('/api/admin-seed', adminSeedRoutes);
 
   const webBuildPath = path.join(__dirname, '..', '..', '..', 'build', 'web');
   app.use(express.static(webBuildPath));

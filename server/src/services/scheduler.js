@@ -35,14 +35,13 @@ async function sweepStaleAssignments() {
   );
   for (const ride of rows) {
     try {
-      if (ride.driver_id) {
-        await driverMatcher.releaseDriver(ride.driver_id);
-        await getPool().query(
-          `INSERT INTO ride_events (ride_id, event_type, payload)
-           VALUES ($1, 'acceptTimeout', $2)`,
-          [ride.id, JSON.stringify({ expiredDriverId: ride.driver_id }) ]
-        );
-      }
+      const expiredDriverId = ride.driver_id;
+      // Clear this ride's own driver assignment BEFORE releasing the driver:
+      // releaseDriver() checks whether the driver has any other ride still in
+      // an active status, and until this row itself is cleared/transitioned
+      // away from 'driverAssigned', that check always finds THIS ride and
+      // wrongly concludes the driver is still busy, leaving them stranded at
+      // status='busy' forever with nothing assigned to them.
       await getPool().query(
         `UPDATE rides SET driver_id = NULL, accepted_at = NULL,
                 driver_name = NULL, driver_phone = NULL, driver_rating = NULL,
@@ -52,6 +51,15 @@ async function sweepStaleAssignments() {
         [ride.id]
       );
       await transitionRide(ride.id, 'searchingDriver', { changedBy: 'scheduler', reason: 'driver_accept_timeout' });
+
+      if (expiredDriverId) {
+        await driverMatcher.releaseDriver(expiredDriverId);
+        await getPool().query(
+          `INSERT INTO ride_events (ride_id, event_type, payload)
+           VALUES ($1, 'acceptTimeout', $2)`,
+          [ride.id, JSON.stringify({ expiredDriverId }) ]
+        );
+      }
       await matchAndAssign(ride.id);
     } catch (err) {
       console.error(`[scheduler] stale-assignment handling failed for ${ride.id}:`, err.message);
