@@ -43,11 +43,15 @@ export function supportMessageFromBackendJson(json: any): SupportMessage {
 }
 
 // Maps friendly UI topic labels to backend category ids (lib/services/support_service.dart).
-export const SUPPORT_CATEGORY_IDS: Record<string, string> = {
+// No type annotation here deliberately — it lets TS infer the literal key
+// union (keyof typeof SUPPORT_CATEGORY_IDS) instead of widening to `string`,
+// which is what help-support.tsx needs to pass a topic key straight into
+// the strictly-typed useTranslation() t().
+export const SUPPORT_CATEGORY_IDS = {
   rideIssue: 'general',
   paymentIssue: 'payment',
   driverIssue: 'report_driver',
   accountIssue: 'app_issue',
   safetyConcern: 'billing',
   otherTopic: 'general',
-};
+} as const;
