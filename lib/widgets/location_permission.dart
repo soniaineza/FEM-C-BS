@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../core/constants/app_colors.dart';
+import '../core/diagnostics/app_logger.dart';
 import '../core/localization/app_localizations.dart';
 import '../services/location_service.dart';
 
@@ -16,29 +17,38 @@ enum LocationOutcome { granted, denied, deniedForever, servicesDisabled, cancell
 Future<LocationOutcome> ensureLocationPermission(BuildContext context) async {
   final service = locationService;
 
-  if (!await service.isServiceEnabled()) {
+  final serviceEnabled = await service.isServiceEnabled();
+  AppLogger.event('LOCATION_SERVICE_STATUS', serviceEnabled ? 'enabled' : 'disabled');
+  if (!serviceEnabled) {
     return LocationOutcome.servicesDisabled;
   }
 
   final current = await service.checkPermission();
   if (current == LocationPermission.whileInUse ||
       current == LocationPermission.always) {
+    AppLogger.event('LOCATION_PERMISSION_RESULT', 'already granted ($current)');
     return LocationOutcome.granted;
   }
   if (current == LocationPermission.deniedForever) {
+    AppLogger.event('LOCATION_PERMISSION_RESULT', 'deniedForever');
     return LocationOutcome.deniedForever;
   }
 
   if (!context.mounted) return LocationOutcome.cancelled;
 
+  AppLogger.event('LOCATION_PERMISSION_REQUESTED');
   final proceed = await showDialog<bool>(
     context: context,
     builder: (context) => const _LocationExplanationDialog(),
   );
 
-  if (proceed != true) return LocationOutcome.cancelled;
+  if (proceed != true) {
+    AppLogger.event('LOCATION_PERMISSION_RESULT', 'explanation dialog declined');
+    return LocationOutcome.cancelled;
+  }
 
   final requested = await service.requestPermission();
+  AppLogger.event('LOCATION_PERMISSION_RESULT', '$requested');
   return switch (requested) {
     LocationPermission.whileInUse ||
     LocationPermission.always =>

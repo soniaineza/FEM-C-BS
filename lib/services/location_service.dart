@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+
+import '../core/diagnostics/app_logger.dart';
 
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -58,14 +61,34 @@ class LocationService {
     Position position;
     try {
       position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          // Without a time limit, a poor/no GPS fix (common indoors, in a
+          // basement, or right after permission is freshly granted before
+          // GPS/Wi-Fi positioning warms up on some Android OEM skins) makes
+          // this Future hang forever — the screen's loading spinner never
+          // clears because the try/finally around this call never gets a
+          // chance to run. Ten seconds is enough for a normal outdoor fix
+          // while still failing fast enough that the app never looks frozen.
+          timeLimit: Duration(seconds: 10),
+        ),
       );
     } on LocationServiceDisabledException {
       throw const AppException('Location services are turned off on this device.');
     } on PermissionDeniedException {
       throw const AppException('Location permission was not granted.');
+    } on TimeoutException {
+      AppLogger.event('LOCATION_ACQUIRED', 'timed out waiting for GPS fix');
+      throw const AppException(
+        "Couldn't get a GPS fix. Try again outdoors or with a clearer view of the sky, "
+        'or enter your pickup location manually.',
+      );
     }
 
+    AppLogger.event(
+      'LOCATION_ACQUIRED',
+      'accuracy=${position.accuracy.toStringAsFixed(0)}m',
+    );
     return Place(
       address: await _currentAddressFor(position),
       latitude: position.latitude,

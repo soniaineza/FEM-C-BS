@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/diagnostics/app_logger.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/app_routes.dart';
 import '../../models/place.dart';
@@ -165,6 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     switch (outcome) {
       case LocationOutcome.granted:
+        AppLogger.event('LOADING_STATE_START', '_locating (home)');
         setState(() => _locating = true);
         try {
           final place = await locationService.getCurrentPlace();
@@ -172,13 +174,15 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() => _pickup = place);
           _loadNearbyDrivers();
           _loadRoute();
-        } catch (_) {
+        } catch (error) {
+          AppLogger.exception('_useCurrentLocation', error);
           if (mounted) {
             _showSnack(
               AppLocalizations.of(context).couldNotReadLocationSetManual,
             );
           }
         } finally {
+          AppLogger.event('LOADING_STATE_END', '_locating (home)');
           if (mounted) setState(() => _locating = false);
         }
       case LocationOutcome.cancelled:
@@ -572,6 +576,7 @@ class _HomeMapState extends State<_HomeMap> {
                   padding: const EdgeInsets.fromLTRB(30, 30, 30, 30),
                 )
               : null,
+          onMapReady: () => AppLogger.event('MAP_INITIALIZED', 'home map'),
         ),
         children: [
           TileLayer(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, HapticFeedback;
@@ -6,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/diagnostics/app_logger.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/app_routes.dart';
 import '../../models/place.dart';
@@ -39,13 +42,25 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   late Ride _ride = widget.ride;
   bool _changingDestination = false;
   List<RideCompanion> _companions = const [];
+  // The 2s polling loop behind subscribeToRide() only stops when this
+  // subscription is cancelled (see ride_service.dart's onCancel). Previously
+  // this return value was discarded, so every visit to this screen started
+  // an orphaned network-polling loop that ran for the rest of the app
+  // process's life, even after navigating away — stacking with every ride,
+  // competing for CPU/network with whatever the user did next, and looking
+  // exactly like the app "getting stuck" over time, especially since this is
+  // the screen that also renders the live map.
+  StreamSubscription<Ride>? _rideSubscription;
 
   @override
   void initState() {
     super.initState();
-    rideService
+    AppLogger.event('NAVIGATION_EVENT', 'RideTrackingScreen opened ride=${_ride.id}');
+    _rideSubscription = rideService
         .subscribeToRide(_ride.id)
-        .listen(_onUpdate, onError: (Object _) {});
+        .listen(_onUpdate, onError: (Object error) {
+      AppLogger.exception('subscribeToRide', error);
+    });
     if (_ride.isPooled) _loadCompanions();
   }
 
@@ -61,6 +76,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
   @override
   void dispose() {
+    _rideSubscription?.cancel();
     super.dispose();
   }
 

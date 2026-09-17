@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+
+import '../core/diagnostics/app_logger.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -95,16 +98,30 @@ class ApiClient {
     final uri = _uri(path);
     final encoded = body == null ? null : jsonEncode(body);
 
+    // Every request gets a hard time limit. Without one, a slow/cold-starting
+    // server or a flaky mobile connection leaves the awaited call pending
+    // forever — no exception, no timeout, just a spinner that never clears
+    // and a screen that looks frozen. 20s comfortably covers Render's free-tier
+    // cold start (a sleeping instance can take several seconds to wake) while
+    // still failing fast enough that the app never looks stuck.
+    const requestTimeout = Duration(seconds: 20);
+    AppLogger.event('API_REQUEST_START', '$method $path');
     http.Response response;
     try {
-      response = switch (method) {
-        'GET' => await _client.get(uri, headers: headers),
-        'POST' => await _client.post(uri, headers: headers, body: encoded),
-        'PUT' => await _client.put(uri, headers: headers, body: encoded),
-        'DELETE' => await _client.delete(uri, headers: headers),
+      response = await switch (method) {
+        'GET' => _client.get(uri, headers: headers),
+        'POST' => _client.post(uri, headers: headers, body: encoded),
+        'PUT' => _client.put(uri, headers: headers, body: encoded),
+        'DELETE' => _client.delete(uri, headers: headers),
         _ => throw UnsupportedError('Method $method is not supported.'),
-      };
-    } catch (_) {
+      }.timeout(requestTimeout);
+    } on TimeoutException {
+      AppLogger.event('API_REQUEST_FAILURE', '$method $path timed out after ${requestTimeout.inSeconds}s');
+      throw const AppException(
+        'The FEM C@BS servers are taking too long to respond. Please try again.',
+      );
+    } catch (error) {
+      AppLogger.event('API_REQUEST_FAILURE', '$method $path (${error.runtimeType})');
       throw const AppException(
         'We could not reach the FEM C@BS servers. Check your connection and try again.',
       );
@@ -120,10 +137,12 @@ class ApiClient {
       }
     }
     if (!ok) {
+      AppLogger.event('API_REQUEST_FAILURE', '$method $path -> ${response.statusCode}');
       final message = json?['message'] as String? ??
           'Something went wrong. Please try again.';
       throw AppException(message);
     }
+    AppLogger.event('API_REQUEST_SUCCESS', '$method $path -> ${response.statusCode}');
     return json ?? {};
   }
 }

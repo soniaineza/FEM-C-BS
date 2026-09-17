@@ -6,6 +6,7 @@ import '../../models/place.dart';
 import '../../models/ride.dart';
 import '../../models/ride_type.dart';
 import '../../models/vehicle.dart';
+import '../diagnostics/app_logger.dart';
 import '../../screens/activity/ride_details_screen.dart';
 import '../../screens/auth/forgot_password_screen.dart';
 import '../../screens/auth/login_screen.dart';
@@ -73,6 +74,8 @@ class RootRouter extends StatelessWidget {
             ),
           );
         }
+        AppLogger.event('AUTH_SUCCESS', 'passenger=${passenger.id}');
+        AppLogger.event('HOME_LOADED');
         return Navigator(
           key: const PageStorageKey('main_navigator'),
           initialRoute: AppRoutes.home,
