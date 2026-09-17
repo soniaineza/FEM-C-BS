@@ -2,6 +2,18 @@
 module.exports = {
   content: ['./app/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
+  // The app is light-only by design (matches the original Flutter app —
+  // no dark theme was ever built). Left at NativeWind's default
+  // `darkMode: 'media'`, some dependency in the tree (React Navigation's
+  // theme provider, wired in automatically by expo-router's Stack/Tabs)
+  // calls Appearance.setColorScheme() during init, which react-native-css-
+  // interop only permits under 'class' mode — under 'media' it throws
+  // "Cannot manually set color scheme, as dark mode is type 'media'" and
+  // aborts rendering entirely (this crashed the whole app on real devices).
+  // 'class' mode allows manual scheme calls to pass through harmlessly;
+  // since nothing here ever toggles a 'dark' class, the app stays light-only
+  // regardless.
+  darkMode: 'class',
   theme: {
     extend: {
       // Brand tokens ported 1:1 from the Flutter app's AppColors/AppTheme
