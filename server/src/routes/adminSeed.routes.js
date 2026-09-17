@@ -57,4 +57,22 @@ router.post(
   })
 );
 
+// GET /api/admin-seed/debug/ride/:id — temporary raw-row inspector to
+// diagnose a matching bug. Remove alongside the rest of this file.
+router.get(
+  '/debug/ride/:id',
+  asyncHandler(async (req, res) => {
+    const key = req.header('x-seed-key');
+    if (!process.env.SEED_KEY || key !== process.env.SEED_KEY) {
+      throw new ApiError(403, 'Forbidden.');
+    }
+    const { rows } = await getPool().query('SELECT * FROM rides WHERE id = $1', [req.params.id]);
+    const { rows: historyRows } = await getPool().query(
+      'SELECT * FROM ride_status_history WHERE ride_id = $1 ORDER BY changed_at ASC',
+      [req.params.id]
+    );
+    res.json({ ride: rows[0] || null, history: historyRows });
+  })
+);
+
 module.exports = router;
