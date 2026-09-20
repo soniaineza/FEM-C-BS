@@ -2,6 +2,7 @@ import { View, Text, SafeAreaView, FlatList, Pressable } from 'react-native';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { getBookablePaymentMethods } from '../../../services/ride-service';
@@ -25,8 +26,9 @@ export default function PaymentMethodScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-6">
-        <Text className="text-xl font-bold text-ink">{t('paymentMethod')}</Text>
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <Text className="mt-1 text-xl font-bold text-ink">{t('paymentMethod')}</Text>
 
         <FlatList
           className="mt-4"

@@ -42,6 +42,12 @@ const config = {
   // Production must send them through the configured SMS/email gateway.
   devRevealCodes: process.env.DEV_REVEAL_CODES === '1',
 
+  // When true, a driver created via POST /api/drivers/register is
+  // immediately verified=TRUE so the new driver app can be exercised
+  // end-to-end without a separate admin-verification tool (which doesn't
+  // exist yet). Real KYC review must gate this in production.
+  devAutoVerifyDrivers: process.env.DEV_AUTO_VERIFY_DRIVERS === '1',
+
   // Rate limiting (express-rate-limit): per-identity window for auth routes.
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
   rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 20),
@@ -82,9 +88,19 @@ const config = {
   ridePinLength: Number(process.env.RIDE_PIN_LENGTH || 4),
   tripShareTtlHours: Number(process.env.TRIP_SHARE_TTL_HOURS || 24),
 
+  // The FEM C@BS call center the app's SOS button dials (server/src/routes/
+  // emergency.routes.js). Server-side so it can be rotated without an app
+  // release. In production this MUST be set to the real call-center number.
+  emergencyCallCenterPhone: process.env.EMERGENCY_CALL_CENTER_PHONE || '',
+
   // A driver who does not accept within this many seconds is released and the
   // ride goes back to searchingDriver for another match.
   assignAcceptTimeoutSeconds: Number(process.env.ASSIGN_ACCEPT_TIMEOUT_SECONDS || 120),
+
+  // Platform commission taken from each settled fare before crediting the
+  // driver's earnings ledger (server/src/services/payments.js's
+  // settleSucceededPayment()). 0.15 = 15%, a typical rideshare take rate.
+  driverCommissionRate: Number(process.env.DRIVER_COMMISSION_RATE || 0.15),
 
   // Dependency-free development simulator. Replaced entirely by the real
   // driver-matching service — kept only for local UI previews.
@@ -107,6 +123,7 @@ function ensureConfig() {
   if (isProduction) {
     if (!config.jwtSecret) problems.push('JWT_SECRET');
     if (config.devRevealCodes) problems.push('DEV_REVEAL_CODES (must be "0")');
+    if (config.devAutoVerifyDrivers) problems.push('DEV_AUTO_VERIFY_DRIVERS (must be "0")');
   }
   if (problems.length) {
     console.error(

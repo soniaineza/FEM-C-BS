@@ -45,12 +45,23 @@ function driverToJson(row) {
     id: row.id,
     fullName: row.full_name,
     phone: row.phone,
+    email: row.email ?? null,
+    photoUrl: row.photo_url ?? null,
     licenseNumber: row.license_number,
     verified: row.verified,
     status: row.status,
     vehicleId: row.current_vehicle_id,
     rating: row.rating == null ? null : Number(row.rating),
     totalTrips: row.total_trips,
+    isProfileComplete: row.is_profile_complete ?? false,
+    emergencyContactName: row.emergency_contact_name ?? null,
+    emergencyContactPhone: row.emergency_contact_phone ?? null,
+    preferredLanguage: row.preferred_language ?? 'en',
+    vehicleMake: row.vehicle_make ?? null,
+    vehicleModel: row.vehicle_model ?? null,
+    vehicleYear: row.vehicle_year ?? null,
+    vehicleColor: row.vehicle_color ?? null,
+    vehiclePlate: row.vehicle_plate ?? null,
   };
 }
 
@@ -63,6 +74,26 @@ function driverFromRide(row) {
     vehicleModel: row.driver_vehicle_model,
     vehicleColor: row.driver_vehicle_color,
     licensePlate: row.driver_license_plate,
+  };
+}
+
+// The passenger side denormalises driver_name/phone/etc straight onto the
+// rides row (see driverFromRide above), but there was no equivalent for the
+// driver app to know who they're picking up — passenger_name only exists
+// when the caller's SQL explicitly joins the passengers table (see
+// server/src/services/rideDriverOps.js's getActiveRides/getActiveRideById
+// and driverProfile.routes.js's /rides, /rides/:id). Deliberately excludes
+// the passenger's phone number: a driver can identify and call the rider
+// through the in-app ride only, never see their raw number — same privacy
+// boundary the rider companion list already applies (first name only).
+// current_latitude/current_longitude come from an optional join against
+// passenger_locations and are only present pre-pickup.
+function riderFromRide(row) {
+  if (!row.passenger_name) return null;
+  return {
+    name: row.passenger_name,
+    latitude: row.passenger_latitude ?? null,
+    longitude: row.passenger_longitude ?? null,
   };
 }
 
@@ -89,6 +120,7 @@ function rideToJson(row) {
     estimatedFare: Number(row.estimated_fare),
     finalFare: row.final_fare == null ? null : Number(row.final_fare),
     driver: driverFromRide(row),
+    rider: riderFromRide(row),
     pin: row.ride_pin || null,
     cancellationReason: row.cancellation_reason || null,
     cancelledBy: row.cancelled_by || null,

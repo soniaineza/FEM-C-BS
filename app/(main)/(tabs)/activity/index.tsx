@@ -1,21 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, SafeAreaView, FlatList, Pressable, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
+import { Button } from '../../../../components/Button';
 import { useTranslation } from '../../../../hooks/useTranslation';
 import { getRideHistory } from '../../../../services/ride-service';
-import { Ride, formatFare } from '../../../../types/ride';
+import { Ride, formatFare, rideStatusKey } from '../../../../types/ride';
+import { ApiError } from '../../../../services/api-client';
 
+// Ride history — network failures (server cold start, offline) land on an
+// explicit error card with a retry button instead of the previous
+// unhandled promise rejection, which crashed the screen on cold start.
 export default function RideHistoryScreen() {
   const { t } = useTranslation();
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(undefined);
     getRideHistory()
       .then(setRides)
+      .catch((err) => setError(err instanceof ApiError ? err.message : t('requestFailed')))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
+
+  useFocusEffect(load);
 
   return (
     <SafeAreaView className="flex-1 bg-bg-light">
@@ -24,6 +35,13 @@ export default function RideHistoryScreen() {
 
         {loading ? (
           <ActivityIndicator className="mt-8" color="#16A34A" />
+        ) : error ? (
+          <View className="mt-8 items-center">
+            <Text className="text-center text-text-secondary">{error}</Text>
+            <View className="mt-4 min-w-[160px]">
+              <Button title={t('tryAgain')} variant="outline" onPress={load} />
+            </View>
+          </View>
         ) : rides.length === 0 ? (
           <Text className="mt-8 text-text-secondary">{t('noRidesYet')}</Text>
         ) : (
@@ -40,7 +58,7 @@ export default function RideHistoryScreen() {
                   <Text className="text-base font-medium text-ink">{item.destination.address}</Text>
                   <Text className="font-semibold text-primary">{formatFare(item.finalFare ?? item.estimatedFare)}</Text>
                 </View>
-                <Text className="mt-1 text-xs text-text-secondary">{item.status}</Text>
+                <Text className="mt-1 text-xs text-text-secondary">{t(rideStatusKey(item.status))}</Text>
               </Pressable>
             )}
           />

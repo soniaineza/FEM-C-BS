@@ -9,7 +9,11 @@ const { publishRideEvent } = require('./rideEvents');
 const TRANSITIONS = {
   scheduled: ['searchingDriver', 'cancelled'],
   searchingDriver: ['driverAssigned', 'cancelled'],
-  driverAssigned: ['driverArriving', 'cancelled'],
+  // 'searchingDriver' here is a driver declining the offer — the ride goes
+  // back to the matching pool for another driver (see rideDriverOps.js's
+  // declineRide()), distinct from 'cancelled' which is the passenger opting
+  // out entirely.
+  driverAssigned: ['driverArriving', 'cancelled', 'searchingDriver'],
   driverArriving: ['driverArrived', 'cancelled'],
   driverArrived: ['pinVerified', 'cancelled'],
   pinVerified: ['inProgress', 'cancelled'],

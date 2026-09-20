@@ -28,6 +28,28 @@ export function canCancelRide(status: RideStatus): boolean {
   );
 }
 
+// Maps a raw ride status to its translation key — status codes were
+// previously rendered verbatim (e.g. "driverAssigned", "cancelled") in both
+// apps, which is always English regardless of the selected locale. Callers
+// do `t(rideStatusKey(ride.status))`.
+const RIDE_STATUS_KEYS: Record<RideStatus, string> = {
+  scheduled: 'rideStatusScheduled',
+  searchingDriver: 'rideStatusSearchingDriver',
+  driverAssigned: 'rideStatusDriverAssigned',
+  driverArriving: 'rideStatusDriverArriving',
+  driverArrived: 'rideStatusDriverArrived',
+  pinVerified: 'rideStatusPinVerified',
+  inProgress: 'rideStatusInProgress',
+  arrived: 'rideStatusArrived',
+  paymentPending: 'rideStatusPaymentPending',
+  completed: 'rideStatusCompleted',
+  cancelled: 'rideStatusCancelled',
+};
+
+export function rideStatusKey(status: RideStatus): any {
+  return RIDE_STATUS_KEYS[status] ?? status;
+}
+
 export type RideType = 'private' | 'shared';
 
 export function rideTypeFromId(id: string): RideType {
@@ -70,6 +92,23 @@ export function driverFromBackendJson(json: any): Driver {
   };
 }
 
+// The driver-app counterpart of Driver — who the driver is picking up. Only
+// populated when the server query joined passengers (see
+// server/src/utils/serialize.js's riderFromRide()); passenger-facing
+// screens never receive this. Deliberately has no phone number — a driver
+// can identify and reach the rider through the ride itself, never see their
+// raw number (see riderFromRide's comment). latitude/longitude are the
+// rider's live position, reported by their own phone pre-pickup.
+export interface Rider {
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export function riderFromBackendJson(json: any): Rider {
+  return { name: json.name ?? '', latitude: json.latitude ?? null, longitude: json.longitude ?? null };
+}
+
 export interface FareEstimate {
   vehicle: Vehicle;
   distanceKm: number;
@@ -92,6 +131,7 @@ export interface Ride {
   rideType: RideType;
   note?: string;
   driver?: Driver;
+  rider?: Rider;
   createdAt?: string;
   startedAt?: string;
   completedAt?: string;
@@ -101,6 +141,8 @@ export interface Ride {
   scheduledFor?: string;
   appliedDiscount?: number;
   isPooled: boolean;
+  cancellationReason?: string;
+  cancelledBy?: string;
 }
 
 export interface RideCompanion {
@@ -156,6 +198,7 @@ export function rideFromBackendJson(
     rideType: rideTypeFromId(json.rideType ?? 'private'),
     note: json.note ?? undefined,
     driver: json.driver ? driverFromBackendJson(json.driver) : undefined,
+    rider: json.rider ? riderFromBackendJson(json.rider) : undefined,
     createdAt: json.createdAt ?? undefined,
     startedAt: json.startedAt ?? undefined,
     completedAt: json.completedAt ?? undefined,
@@ -165,6 +208,8 @@ export function rideFromBackendJson(
     scheduledFor: json.scheduledFor ?? undefined,
     appliedDiscount: json.appliedDiscount ?? undefined,
     isPooled: Boolean(json.isPooled),
+    cancellationReason: json.cancellationReason ?? undefined,
+    cancelledBy: json.cancelledBy ?? undefined,
   };
 }
 

@@ -3,9 +3,10 @@ const bcrypt = require('bcryptjs');
 const { getPool } = require('../db');
 const { ApiError } = require('../utils/asyncHandler');
 const { transitionRide } = require('./rideStateMachine');
-const { generateRidePin, changeDestination } = require('./rideService');
+const { generateRidePin, changeDestination, matchAndAssign } = require('./rideService');
 const { pushNotification } = require('./notify');
 const { createPaymentForRide, chargePayment } = require('./payments');
+const { releaseDriver } = require('./driverMatcher');
 
 const DRIVER_ACTIVE_RIDE_STATUSES = [
   'driverAssigned',
@@ -29,10 +30,14 @@ async function authenticateDriver(phone, password) {
  * more than one), oldest first — the order the driver picked them up in. */
 async function getActiveRides(driverId) {
   const { rows } = await getPool().query(
-    `SELECT * FROM rides
-      WHERE driver_id = $1
-        AND status = ANY($2)
-      ORDER BY created_at ASC`,
+    `SELECT r.*, p.full_name AS passenger_name,
+            pl.latitude AS passenger_latitude, pl.longitude AS passenger_longitude
+       FROM rides r
+       JOIN passengers p ON p.id = r.passenger_id
+       LEFT JOIN passenger_locations pl ON pl.passenger_id = r.passenger_id
+      WHERE r.driver_id = $1
+        AND r.status = ANY($2)
+      ORDER BY r.created_at ASC`,
     [driverId, DRIVER_ACTIVE_RIDE_STATUSES]
   );
   return rows;
@@ -51,8 +56,12 @@ async function getActiveRide(driverId) {
  * is not the "most recent" one is never mistaken for a missing assignment. */
 async function getActiveRideById(driverId, rideId) {
   const { rows } = await getPool().query(
-    `SELECT * FROM rides
-      WHERE id = $1 AND driver_id = $2 AND status = ANY($3)`,
+    `SELECT r.*, p.full_name AS passenger_name,
+            pl.latitude AS passenger_latitude, pl.longitude AS passenger_longitude
+       FROM rides r
+       JOIN passengers p ON p.id = r.passenger_id
+       LEFT JOIN passenger_locations pl ON pl.passenger_id = r.passenger_id
+      WHERE r.id = $1 AND r.driver_id = $2 AND r.status = ANY($3)`,
     [rideId, driverId, DRIVER_ACTIVE_RIDE_STATUSES]
   );
   return rows[0] || null;
@@ -117,6 +126,29 @@ async function acceptRide(driverId, rideId) {
   });
 }
 
+/** Driver declines a newly assigned ride (the KIMU-style offer's "Decline"
+ * action, which our matcher never had — it only ever offered a single
+ * silently-accepted assignment before this). The ride goes back to
+ * searchingDriver and is immediately re-matched against another driver;
+ * this driver is released back to the active pool. */
+async function declineRide(driverId, rideId) {
+  const ride = await getActiveRideById(driverId, rideId);
+  if (!ride) throw new ApiError(404, 'No assigned ride found.');
+  if (ride.status !== 'driverAssigned') {
+    throw new ApiError(400, 'Only a newly assigned ride can be declined.');
+  }
+  await getPool().query(
+    `UPDATE rides SET driver_id = NULL, driver_name = NULL, driver_phone = NULL,
+       driver_rating = NULL, driver_vehicle_model = NULL, driver_vehicle_color = NULL,
+       driver_license_plate = NULL
+     WHERE id = $1`,
+    [rideId]
+  );
+  await transitionRide(rideId, 'searchingDriver', { changedBy: 'driver', reason: 'declined' });
+  await releaseDriver(driverId);
+  matchAndAssign(rideId).catch((err) => console.error('[rides] re-match after decline failed:', err));
+}
+
 async function markArrived(driverId, rideId) {
   const ride = await getActiveRideById(driverId, rideId);
   if (!ride) throw new ApiError(404, 'No assigned ride found.');
@@ -178,6 +210,32 @@ async function completeTrip(driverId, rideId) {
   return { ride: rows[0], payment };
 }
 
+/** Driver-initiated cancellation of an already-accepted ride (before pickup
+ * is confirmed) — the passenger-side cancelRide() in rideService.js only
+ * ever checked passenger ownership, so a driver had no way to bail on a
+ * no-show passenger once they'd accepted. Mirrors that function's shape. */
+async function cancelRideAsDriver(driverId, rideId, reason) {
+  const ride = await getActiveRideById(driverId, rideId);
+  if (!ride) throw new ApiError(404, 'No assigned ride found.');
+  const cancellable = ['driverAssigned', 'driverArriving', 'driverArrived'];
+  if (!cancellable.includes(ride.status)) {
+    throw new ApiError(400, 'This ride can no longer be cancelled.');
+  }
+  await getPool().query(
+    `UPDATE rides SET cancellation_reason = $1, cancelled_by = 'driver' WHERE id = $2`,
+    [reason || null, rideId]
+  );
+  const updated = await transitionRide(rideId, 'cancelled', { changedBy: 'driver', reason: reason || null });
+  await releaseDriver(driverId);
+  await pushNotification(ride.passenger_id, {
+    title: 'Ride cancelled',
+    body: 'Your driver cancelled this ride. No fare was charged.',
+    type: 'ride',
+    rideId,
+  });
+  return updated;
+}
+
 async function changeDestinationAsDriver(driverId, rideId, destination) {
   const ride = await getActiveRideById(driverId, rideId);
   if (!ride) throw new ApiError(404, 'No assigned ride found.');
@@ -192,8 +250,10 @@ module.exports = {
   poolCompanions,
   updateDriverLocation,
   acceptRide,
+  declineRide,
   markArrived,
   verifyPin,
   completeTrip,
+  cancelRideAsDriver,
   changeDestinationAsDriver,
 };

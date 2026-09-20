@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { rateRide } from '../../../services/ride-service';
 import { ApiError } from '../../../services/api-client';
@@ -33,8 +34,9 @@ export default function RatingScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-10">
-        <Text className="text-2xl font-bold text-ink">{t('howWasRide')}</Text>
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <Text className="mt-4 text-2xl font-bold text-ink">{t('howWasRide')}</Text>
 
         <View className="mt-6 flex-row justify-center gap-2">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -45,7 +47,7 @@ export default function RatingScreen() {
         </View>
 
         <View className="mt-6">
-          <Input value={comment} onChangeText={setComment} placeholder="Add a comment (optional)" multiline />
+          <Input value={comment} onChangeText={setComment} placeholder={t('commentOptional')} multiline />
         </View>
         {error ? <Text className="mt-2 text-sm text-error">{error}</Text> : null}
 

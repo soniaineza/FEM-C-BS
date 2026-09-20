@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ErrorMessage } from '../../components/ErrorMessage';
+import { BackHeader } from '../../components/BackHeader';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { validators } from '../../utils/validators';
@@ -48,8 +49,9 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="flex-grow px-6 pt-10 pb-8" keyboardShouldPersistTaps="handled">
-        <Text className="text-2xl font-bold text-ink">{t('createAccount')}</Text>
+      <ScrollView contentContainerClassName="flex-grow px-6 pt-2 pb-8" keyboardShouldPersistTaps="handled">
+        <BackHeader />
+        <Text className="mt-4 text-2xl font-bold text-ink">{t('createAccount')}</Text>
         <Text className="mt-1 text-text-secondary">{t('lessThanMinute')}</Text>
 
         <View className="mt-8 gap-4">

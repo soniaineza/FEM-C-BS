@@ -3,6 +3,7 @@ import { View, Text, SafeAreaView, TextInput, FlatList, Pressable, ActivityIndic
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
+import { BackHeader } from '../../../components/BackHeader';
 import { RideMap } from '../../../components/RideMap';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useDebouncedCallback } from '../../../hooks/useDebounce';
@@ -60,13 +61,49 @@ export default function PickupScreen() {
     }
   }
 
+  // Tapping the map picks that exact spot even when the rider doesn't know
+  // its street name — reverse-geocode it for a readable address, but the
+  // pin's coordinates (not the guessed name) are what actually matters.
+  const [pinnedPlace, setPinnedPlace] = useState<Place | null>(null);
+  const [resolvingTap, setResolvingTap] = useState(false);
+
+  async function onMapPress(pos: { latitude: number; longitude: number }) {
+    setResolvingTap(true);
+    setPinnedPlace({ address: t('pinnedLocation'), ...pos });
+    try {
+      const resolved = await locationService.reverseGeocode(pos);
+      setPinnedPlace(resolved);
+    } catch {
+      // Keep the generic "Pinned location" label — the coordinates still work.
+    } finally {
+      setResolvingTap(false);
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="h-56 w-full">
-        <RideMap center={center} zoom={center.zoom} markers={[{ id: 'center', position: center, icon: 'me' }]} />
+      <View className="h-72 w-full">
+        <RideMap
+          center={center}
+          zoom={center.zoom}
+          markers={pinnedPlace ? [{ id: 'pin', position: { latitude: pinnedPlace.latitude!, longitude: pinnedPlace.longitude! }, icon: 'pickup' }] : [{ id: 'center', position: center, icon: 'me' }]}
+          onMapPress={onMapPress}
+        />
       </View>
-      <View className="flex-1 px-6 pt-4">
-        <Text className="text-xl font-bold text-ink">{t('setPickup')}</Text>
+      {pinnedPlace ? (
+        <View className="border-b border-border bg-bg-light px-6 py-3">
+          <Text numberOfLines={1} className="text-sm font-medium text-ink">
+            {resolvingTap ? t('findingAddress') : pinnedPlace.address}
+          </Text>
+          <View className="mt-2">
+            <Button title={t('confirmLocation')} onPress={() => choosePlace(pinnedPlace)} disabled={resolvingTap} />
+          </View>
+        </View>
+      ) : null}
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <Text className="mt-1 text-xl font-bold text-ink">{t('setPickup')}</Text>
+        <Text className="mt-1 text-xs text-text-secondary">{t('tapMapHint')}</Text>
 
         <Pressable
           className="mt-4 h-button flex-row items-center rounded border border-primary px-4"

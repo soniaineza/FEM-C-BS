@@ -7,12 +7,31 @@ const { requireAuth } = require('../middleware/auth');
 const { config } = require('../config');
 const { pushNotification } = require('../services/notify');
 
+// The FEM C@BS call center the app's SOS button reaches. Server-side config
+// (EMERGENCY_CALL_CENTER_PHONE) so it can be rotated without an app release;
+// the client fetches it here and dials it with the OS dialer.
+const CALL_CENTER_FALLBACK = '+250000000000'; // PLACEHOLDER — set the real number in server/.env
+
+function callCenterNumber() {
+  return process.env.EMERGENCY_CALL_CENTER_PHONE || CALL_CENTER_FALLBACK;
+}
+
 const router = express.Router();
 router.use(requireAuth);
 
+// GET /api/emergency/config — the SOS call-center configuration. Requires
+// auth like the rest of this router (the safety screen is only reachable
+// logged-in); contains nothing sensitive.
+router.get(
+  '/config',
+  asyncHandler(async (_req, res) => {
+    res.json({ callCenterPhone: callCenterNumber() });
+  })
+);
+
 // POST /api/emergency — passenger SOS. Records the event server-side so the
-// control room has an auditable trail; the OS dials emergency services on the
-// phone itself.
+// call center has an auditable trail, notifies the in-app control-room feed,
+// and the client dials the FEM C@BS call center with the OS dialer.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
@@ -48,7 +67,7 @@ router.post(
 
     await pushNotification(req.passengerId, {
       title: 'Help is on the way',
-      body: 'We recorded your emergency and notified the control room.',
+      body: 'We recorded your emergency and notified the FEM C@BS call center.',
       type: 'safety',
       rideId: rideId || null,
     });
@@ -59,6 +78,7 @@ router.post(
         status: event.status,
         createdAt: event.created_at,
         reference: `EM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+        callCenterPhone: callCenterNumber(),
       },
     });
   })

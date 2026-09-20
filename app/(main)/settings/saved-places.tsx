@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, SafeAreaView, FlatList, Pressable, Modal, TextInput } from 'react-native';
 
 import { Button } from '../../../components/Button';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getSavedPlaces, savePlace, deleteSavedPlace } from '../../../services/user-service';
 import { SavedPlace, SavedPlaceType } from '../../../types/saved-place';
@@ -45,8 +46,9 @@ export default function SavedPlacesScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-6">
-        <View className="flex-row items-center justify-between">
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <View className="mt-2 flex-row items-center justify-between">
           <Text className="text-xl font-bold text-ink">{t('savedPlaces')}</Text>
           <Pressable onPress={() => setModalOpen(true)}>
             <Text className="font-semibold text-primary">{t('addPlace')}</Text>

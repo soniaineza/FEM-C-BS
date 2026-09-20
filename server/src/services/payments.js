@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { getPool } = require('../db');
+const { config } = require('../config');
 const { ApiError } = require('../utils/asyncHandler');
 const { transitionRide } = require('./rideStateMachine');
 const { releaseDriver } = require('./driverMatcher');
@@ -176,7 +177,34 @@ async function settleSucceededPayment(payment, ride) {
   );
 
   await transitionRide(ride.id, 'completed', { changedBy: 'payments' });
-  if (ride.driver_id) await releaseDriver(ride.driver_id);
+
+  // Credit the driver's earnings ledger and trip count now that the fare is
+  // actually settled — driver_earnings (read by GET /driver/earnings and
+  // /driver/earnings/history) and drivers.total_trips (read by GET
+  // /driver/me and the earnings summary) previously had no writer at all,
+  // so the driver app's wallet/account screens would show zero forever.
+  if (ride.driver_id) {
+    const gross = Number(paid.amount);
+    const commission = Math.round(gross * config.driverCommissionRate * 100) / 100;
+    const net = Math.round((gross - commission) * 100) / 100;
+    await getPool().query(
+      `INSERT INTO driver_earnings
+         (driver_id, ride_id, gross_amount, commission, net_amount, payment_method, status, settled_at)
+       VALUES ($1,$2,$3,$4,$5,$6,'settled', now())`,
+      [ride.driver_id, ride.id, gross, commission, net, paid.method]
+    );
+    // today_earnings is left alone: it would need a daily-reset job (none
+    // exists) to stay correct, and nothing currently reads it — the
+    // earnings summary endpoint (driverProfile.routes.js) aggregates
+    // driver_earnings by CURRENT_DATE directly instead, which is already
+    // correct without it.
+    await getPool().query(
+      `UPDATE drivers SET total_trips = total_trips + 1, total_earnings = total_earnings + $2
+       WHERE id = $1`,
+      [ride.driver_id, net]
+    );
+    await releaseDriver(ride.driver_id);
+  }
 
   await pushNotification(ride.passenger_id, {
     title: 'Trip completed',

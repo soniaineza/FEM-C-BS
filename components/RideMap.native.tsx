@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { View } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 
@@ -50,13 +50,14 @@ function buildLeafletHtml(center: LatLng, zoom: number, markers: RideMapMarker[]
   html, body { margin: 0; padding: 0; height: 100%; background: #F5F5F5; }
   #map { width: 100%; height: 100%; }
   .fem-pin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+  .leaflet-container { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <script>
-  var map = L.map('map', { zoomControl: false, attributionControl: false }).setView(${centerJson}, ${zoom});
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  var map = L.map('map', { zoomControl: false, attributionControl: false, preferCanvas: true }).setView(${centerJson}, ${zoom});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, crossOrigin: true }).addTo(map);
 
   function markerIcon(color) {
     return L.divIcon({ className: '', html: '<div class="fem-pin" style="background:' + color + '"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
@@ -75,7 +76,7 @@ function buildLeafletHtml(center: LatLng, zoom: number, markers: RideMapMarker[]
   function renderRoute(points) {
     if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
     if (points && points.length > 1) {
-      routeLine = L.polyline(points, { color: '#16A34A', weight: 4 }).addTo(map);
+      routeLine = L.polyline(points, { color: '#16A34A', weight: 4, smoothFactor: 1 }).addTo(map);
     }
   }
 
@@ -91,7 +92,7 @@ function buildLeafletHtml(center: LatLng, zoom: number, markers: RideMapMarker[]
   // Fired by injectJavaScript when the center prop changes.
   document.addEventListener('message', function () {});
   window.__femSetView = function (lat, lng, z) {
-    map.setView([lat, lng], z == null ? map.getZoom() : z);
+    map.setView([lat, lng], z == null ? map.getZoom() : z, { animate: true, duration: 0.3 });
   };
   window.__femSetMarkers = function (markersJson) {
     renderMarkers(JSON.parse(markersJson));
@@ -113,6 +114,9 @@ export function RideMap({ center, zoom = 15, markers = [], routePolyline, onMapP
   const onMapPressRef = useRef(onMapPress);
   onMapPressRef.current = onMapPress;
 
+  // Incremented to remount the WebView after Android kills its renderer.
+  const [renderNonce, setRenderNonce] = useState(0);
+
   // The full HTML (and thus the WebView page) is keyed on the route shape
   // only. Marker and center updates are pushed incrementally via
   // injectJavaScript below, so a driver GPS tick doesn't reload the page or
@@ -133,18 +137,36 @@ export function RideMap({ center, zoom = 15, markers = [], routePolyline, onMapP
   );
 
   // Push marker updates without reloading the page.
-  useEffect(() => {
+  const updateMarkers = useCallback(() => {
     const payload = JSON.stringify(
       markers.map((m) => ({ id: m.id, lat: m.position.latitude, lng: m.position.longitude, color: ICON_COLORS[m.icon] }))
     );
     webviewRef.current?.injectJavaScript(`window.__femSetMarkers(${JSON.stringify(payload)}); true;`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markerSignature]);
+  }, [markers]);
 
-  // Recenter when the center prop changes.
   useEffect(() => {
-    webviewRef.current?.injectJavaScript(`window.__femSetView(${center.latitude}, ${center.longitude}, ${zoom}); true;`);
+    updateMarkers();
+  }, [updateMarkers]);
+
+  // Debounced center update to avoid excessive injectJavaScript calls
+  const centerUpdateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updateCenter = useCallback(() => {
+    if (centerUpdateTimeout.current) {
+      clearTimeout(centerUpdateTimeout.current);
+    }
+    centerUpdateTimeout.current = setTimeout(() => {
+      webviewRef.current?.injectJavaScript(`window.__femSetView(${center.latitude}, ${center.longitude}, ${zoom}); true;`);
+    }, 100);
   }, [center.latitude, center.longitude, zoom]);
+
+  useEffect(() => {
+    updateCenter();
+    return () => {
+      if (centerUpdateTimeout.current) {
+        clearTimeout(centerUpdateTimeout.current);
+      }
+    };
+  }, [updateCenter]);
 
   function onMessage(event: WebViewMessageEvent) {
     try {
@@ -171,7 +193,18 @@ export function RideMap({ center, zoom = 15, markers = [], routePolyline, onMapP
         cacheEnabled
         pullToRefreshEnabled={false}
         allowsBackForwardNavigationGestures={false}
+        // Android kills backgrounded renderers under memory pressure; without
+        // this the map turned into a frozen grey rectangle after returning
+        // from the background (part of the reported "crashing/freezing").
+        // onRenderProcessGoneDetail requires a changed key to remount, hence
+        // the renderNonce below.
+        onRenderProcessGone={(e) => {
+          const { didCrash } = e.nativeEvent ?? {};
+          console.warn(`[RideMap] render process ${didCrash ? 'crashed' : 'was killed'} — remounting`);
+          setRenderNonce((n) => n + 1);
+        }}
         style={{ flex: 1, backgroundColor: '#F5F5F5' }}
+        key={renderNonce}
       />
     </View>
   );

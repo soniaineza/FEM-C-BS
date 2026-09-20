@@ -42,8 +42,12 @@ export default function HomeScreen() {
   );
 
   // Ask for location right away on first open, matching home_screen.dart's
-  // addPostFrameCallback(_useCurrentLocation).
+  // addPostFrameCallback(_useCurrentLocation) — but only when the user has
+  // not already chosen a pickup (saved place / manual pin). Previously this
+  // fired on every remount and silently replaced a deliberately chosen
+  // pickup with raw GPS.
   useEffect(() => {
+    if (pickup) return;
     getCurrentPlace()
       .then(setPickup)
       .catch(() => {});
@@ -76,7 +80,11 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <ScrollView className="-mt-5 flex-1 rounded-t-[28px] bg-bg-light" contentContainerClassName="px-5 pb-6 pt-5">
+      {/* flexGrow makes the sheet fill the viewport even when content is
+          short: the cards section below is flex-1 + justify-center, so
+          leftover space wraps the cards instead of pooling as a dead white
+          gap under the button. On small screens it simply scrolls. */}
+      <ScrollView className="-mt-5 flex-1 rounded-t-[28px] bg-bg-light" contentContainerClassName="flex-grow px-5 pb-4 pt-5">
         {activeRide ? (
           <Pressable
             className="mb-4 flex-row items-center rounded-2xl border border-primary bg-white p-4"
@@ -123,7 +131,7 @@ export default function HomeScreen() {
           </ScrollView>
         ) : null}
 
-        <View className="mt-5 gap-3.5">
+        <View className="mt-4 flex-1 justify-center gap-4">
           <RideOptionCard
             type="private"
             selected={rideType === 'private'}
@@ -150,7 +158,7 @@ export default function HomeScreen() {
           />
         </View>
 
-        <View className="mt-5">
+        <View className="mt-4">
           <Button
             title={t('findRide')}
             icon="arrow-forward"

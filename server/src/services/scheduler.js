@@ -2,10 +2,17 @@ const { getPool } = require('../db');
 const { config } = require('../config');
 const { transitionRide } = require('./rideStateMachine');
 const { activateScheduledRide, matchAndAssign } = require('./rideService');
+const { pushNotification } = require('./notify');
 const driverMatcher = require('./driverMatcher');
 
 let timer = null;
 const RUN_EVERY_MS = 30 * 1000;
+
+/** Rides stuck in searchingDriver longer than this are auto-cancelled so the
+ * passenger is freed to book again instead of staring at a spinner forever.
+ * Long enough for a small driver pool to match; short enough not to strand
+ * the passenger. */
+const SEARCH_TIMEOUT_SECONDS = Number(process.env.RIDE_SEARCH_TIMEOUT_SECONDS || 300);
 
 /** Activates and (re)starts matching for every scheduled ride due now. */
 async function sweepDueScheduledRides() {
@@ -67,10 +74,43 @@ async function sweepStaleAssignments() {
   }
 }
 
+/** Auto-cancels rides that have been searching for a driver for too long
+ * (no driver ever matched — e.g. zero drivers online). Without this a ride
+ * can sit in searchingDriver forever, and the passenger app's
+ * useActiveRideRestore keeps dragging the user back to the searching screen.
+ */
+async function sweepExpiredSearches() {
+  const { rows } = await getPool().query(
+    `SELECT id, passenger_id, created_at FROM rides
+      WHERE status = 'searchingDriver'
+        AND created_at < now() - ($1 || ' seconds')::interval
+      LIMIT 20`,
+    [SEARCH_TIMEOUT_SECONDS]
+  );
+  for (const ride of rows) {
+    try {
+      await getPool().query(
+        `UPDATE rides SET cancellation_reason = $1, cancelled_by = 'system' WHERE id = $2`,
+        ['no_drivers_available', ride.id]
+      );
+      await transitionRide(ride.id, 'cancelled', { changedBy: 'scheduler', reason: 'search_timeout' });
+      await pushNotification(ride.passenger_id, {
+        title: 'No drivers available',
+        body: 'We could not find a driver for your ride. Please try requesting again.',
+        type: 'ride',
+        rideId: ride.id,
+      });
+      console.log(`[scheduler] auto-cancelled expired search ${ride.id}`);
+ } catch (err) {
+      console.error(`[scheduler] search-timeout handling failed for ${ride.id}:`, err.message);
+ }
+ }
+}
+
 function startScheduler() {
   if (timer) return;
   timer = setInterval(() => {
-    Promise.all([sweepDueScheduledRides(), sweepStaleAssignments()]).catch((err) =>
+    Promise.all([sweepDueScheduledRides(), sweepStaleAssignments(), sweepExpiredSearches()]).catch((err) =>
       console.error('[scheduler] sweep failed:', err)
     );
   }, RUN_EVERY_MS);
@@ -83,4 +123,4 @@ function stopScheduler() {
   }
 }
 
-module.exports = { startScheduler, stopScheduler, sweepDueScheduledRides, sweepStaleAssignments };
+module.exports = { startScheduler, stopScheduler, sweepDueScheduledRides, sweepStaleAssignments, sweepExpiredSearches };

@@ -1,6 +1,8 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 
 const { getPool } = require('../db');
+const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { rideToJson, driverToJson } = require('../utils/serialize');
 const { signDriverToken } = require('../utils/jwt');
@@ -13,13 +15,57 @@ const {
   getActiveRides,
   updateDriverLocation,
   acceptRide,
+  declineRide,
   markArrived,
   verifyPin,
   completeTrip,
+  cancelRideAsDriver,
   changeDestinationAsDriver,
 } = require('../services/rideDriverOps');
 
 const router = express.Router();
+
+// POST /api/drivers/register — self-service driver sign-up for the driver
+// app. New accounts start unverified/offline (KYC documents must be
+// reviewed before a driver can go active and receive rides) unless
+// DEV_AUTO_VERIFY_DRIVERS=1, which immediately verifies them so the app can
+// be exercised end-to-end without a separate admin-verification tool.
+router.post(
+  '/register',
+  apiLimiter({ max: 20 }),
+  asyncHandler(async (req, res) => {
+    const { fullName, phone, password, licenseNumber } = req.body || {};
+    if (!fullName || !phone || !password) {
+      throw new ApiError(400, 'Full name, phone and password are required.');
+    }
+    if (String(password).length < 6) {
+      throw new ApiError(400, 'Password must be at least 6 characters.');
+    }
+
+    const { rows: existing } = await getPool().query('SELECT id FROM drivers WHERE phone = $1', [
+      String(phone).trim(),
+    ]);
+    if (existing[0]) throw new ApiError(409, 'An account with that phone number already exists.');
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const { rows } = await getPool().query(
+      `INSERT INTO drivers (full_name, phone, password_hash, license_number, verified, status)
+       VALUES ($1, $2, $3, $4, $5, 'offline') RETURNING *`,
+      [
+        String(fullName).trim(),
+        String(phone).trim(),
+        passwordHash,
+        licenseNumber ? String(licenseNumber).trim() : null,
+        config.devAutoVerifyDrivers,
+      ]
+    );
+    const driver = rows[0];
+    res.status(201).json({
+      driver: driverToJson(driver),
+      token: signDriverToken(driver.id),
+    });
+  })
+);
 
 // POST /api/drivers/login — real driver-side auth for the future driver app
 // and the reference driver console.
@@ -124,6 +170,16 @@ active.post(
   })
 );
 
+// POST /api/drivers/rides/:id/decline — driver declines a newly assigned
+// ride; it goes back to the matching pool for another driver.
+active.post(
+  '/rides/:id/decline',
+  asyncHandler(async (req, res) => {
+    await declineRide(req.driverId, req.params.id);
+    res.json({ declined: true });
+  })
+);
+
 // POST /api/drivers/rides/:id/arrived
 active.post(
   '/rides/:id/arrived',
@@ -159,6 +215,16 @@ active.post(
         state: payment.state,
       },
     });
+  })
+);
+
+// POST /api/drivers/rides/:id/cancel — driver-initiated cancellation of an
+// already-accepted ride (e.g. a no-show passenger).
+active.post(
+  '/rides/:id/cancel',
+  asyncHandler(async (req, res) => {
+    const ride = await cancelRideAsDriver(req.driverId, req.params.id, req.body?.reason);
+    res.json({ ride: rideToJson(ride) });
   })
 );
 

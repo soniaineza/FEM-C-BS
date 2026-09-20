@@ -4,9 +4,19 @@ import { useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../../components/Button';
 import { Input } from '../../../../components/Input';
+import { BackHeader } from '../../../../components/BackHeader';
 import { useTranslation } from '../../../../hooks/useTranslation';
 import { getTicketWithMessages, replyToTicket } from '../../../../services/support-service';
 import { SupportTicket, SupportMessage } from '../../../../types/support';
+
+// Ticket statuses stored by the backend ('open' | 'resolved' | 'closed')
+// rendered through the dictionary like everything else.
+const STATUS_KEYS: Record<string, string> = {
+  open: 'ticketStatusOpen',
+  in_progress: 'ticketStatusInProgress',
+  resolved: 'ticketStatusResolved',
+  closed: 'ticketStatusClosed',
+};
 
 export default function TicketThreadScreen() {
   const { t } = useTranslation();
@@ -52,9 +62,10 @@ export default function TicketThreadScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-6">
-        <Text className="text-xl font-bold text-ink">{ticket.subject}</Text>
-        <Text className="mt-1 text-sm text-text-secondary">{ticket.status}</Text>
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <Text className="mt-2 text-xl font-bold text-ink">{ticket.subject}</Text>
+        <Text className="mt-1 text-sm text-text-secondary">{t((STATUS_KEYS[ticket.status] ?? ticket.status) as any)}</Text>
 
         <FlatList
           className="mt-4"

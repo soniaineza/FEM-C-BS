@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../../components/Button';
 import { ErrorMessage } from '../../../components/ErrorMessage';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { ApiError } from '../../../services/api-client';
@@ -32,8 +33,9 @@ export default function DeleteAccountScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-10">
-        <Text className="text-xl font-bold text-error">{t('deleteYourAccount')}</Text>
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <Text className="mt-6 text-xl font-bold text-error">{t('deleteYourAccount')}</Text>
         <Text className="mt-3 text-text-secondary">{t('deleteAccountBody')}</Text>
 
         <Pressable className="mt-6 flex-row items-start" onPress={() => setConfirmed((v) => !v)}>

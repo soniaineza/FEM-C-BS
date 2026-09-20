@@ -6,6 +6,7 @@ import { Button } from '../../../components/Button';
 import { RideMap } from '../../../components/RideMap';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
+import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
 import { cancelRide } from '../../../services/ride-service';
 import { MapDefaults } from '../../../services/location-service';
 
@@ -13,6 +14,7 @@ export default function DriverAcceptedScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const { ride, driverLocation } = useRideTracking(rideId ?? null);
+  usePassengerLocationReporting(!!ride);
 
   useEffect(() => {
     if (ride && (ride.status === 'pinVerified' || ride.status === 'inProgress' || ride.status === 'arrived' || ride.status === 'paymentPending')) {

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, SafeAreaView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
+import { BackHeader } from '../../../components/BackHeader';
 import { RideMap } from '../../../components/RideMap';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
@@ -21,12 +22,19 @@ export default function FareEstimateScreen() {
   const [estimate, setEstimate] = useState<FareEstimate | null>(null);
   const [routePoints, setRoutePoints] = useState<{ latitude: number; longitude: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | undefined>();
 
-  useEffect(() => {
+  // load is re-runnable so failures get an explicit Try-again instead of an
+  // eternal spinner: previously a failed GET /rides/estimate (cold-start
+  // blip, dropped request) left this screen wedged on the loading state with
+  // no Continue button rendered at all — reported as "buttons stop working".
+  const load = useCallback(() => {
     if (!pickup || !destination || !vehicle) {
       router.replace('/(main)/request/pickup');
       return;
     }
+    setLoading(true);
+    setLoadError(undefined);
     Promise.all([
       fetchServerEstimate({ pickup, destination, vehicle, rideType }),
       getRoute({ from: pickup, to: destination }),
@@ -34,12 +42,21 @@ export default function FareEstimateScreen() {
       .then(([serverEstimate, route]) => {
         setEstimate(serverEstimate);
         setFareEstimate(serverEstimate);
-        if (route) setRoutePoints(route.points);
+        setRoutePoints(route?.points ?? []);
+      })
+      .catch((err) => {
+        setLoadError(err instanceof Error ? err.message : t('requestFailed'));
       })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup, destination, vehicle, rideType]);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
   function proceed() {
+    if (!estimate) return;
     router.push('/(main)/request/payment-method');
   }
 
@@ -63,15 +80,23 @@ export default function FareEstimateScreen() {
           routePolyline={routePoints}
         />
       </View>
-      <View className="flex-1 px-6 pt-6">
-        <Text className="text-xl font-bold text-ink">{t('rideSummary')}</Text>
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <Text className="mt-1 text-xl font-bold text-ink">{t('rideSummary')}</Text>
 
         <View className="mt-4 gap-2">
           <Text className="text-text-secondary">{pickup.address}</Text>
           <Text className="text-text-secondary">{destination.address}</Text>
         </View>
 
-        {estimate ? (
+        {loadError ? (
+          <View className="mt-6 rounded border border-error/40 bg-error/5 p-4">
+            <Text className="text-sm text-error">{loadError}</Text>
+            <View className="mt-3 self-start">
+              <Button title={t('retryLabel')} variant="outline" onPress={load} />
+            </View>
+          </View>
+        ) : estimate ? (
           <View className="mt-6 rounded border border-border p-4">
             <View className="flex-row justify-between">
               <Text className="text-text-secondary">{t('vehicle')}</Text>
@@ -89,7 +114,7 @@ export default function FareEstimateScreen() {
         ) : null}
 
         <View className="mt-auto pb-8">
-          <Button title={t('continueLabel')} onPress={proceed} />
+          <Button title={t('continueLabel')} onPress={proceed} disabled={!estimate} />
         </View>
       </View>
     </SafeAreaView>

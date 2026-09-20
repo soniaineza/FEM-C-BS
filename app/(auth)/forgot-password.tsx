@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ErrorMessage } from '../../components/ErrorMessage';
+import { BackHeader } from '../../components/BackHeader';
 import { useTranslation } from '../../hooks/useTranslation';
 import { resetPassword, confirmResetPassword } from '../../services/auth-service';
 import { validators } from '../../utils/validators';
@@ -56,7 +57,8 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-10">
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
         {stage === 'request' && (
           <>
             <Text className="text-2xl font-bold text-ink">{t('forgotPassword')}</Text>

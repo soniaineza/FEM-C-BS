@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { requestRide } from '../../../services/ride-service';
@@ -65,8 +66,9 @@ export default function ConfirmRideScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="flex-grow px-6 pt-6 pb-8">
-        <Text className="text-xl font-bold text-ink">{t('confirmRide')}</Text>
+      <ScrollView contentContainerClassName="flex-grow px-6 pt-2 pb-8">
+        <BackHeader />
+        <Text className="mt-1 text-xl font-bold text-ink">{t('confirmRide')}</Text>
 
         <View className="mt-4 gap-2 rounded border border-border p-4">
           <Text className="text-ink">{pickup.address}</Text>

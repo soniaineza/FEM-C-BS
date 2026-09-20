@@ -180,7 +180,10 @@ router.post('/documents', asyncHandler(async (req, res) => {
 // GET /api/driver/rides — ride history for the driver.
 router.get('/rides', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
-    `SELECT * FROM rides WHERE driver_id = $1 ORDER BY created_at DESC LIMIT 100`,
+    `SELECT r.*, p.full_name AS passenger_name
+       FROM rides r
+       JOIN passengers p ON p.id = r.passenger_id
+      WHERE r.driver_id = $1 ORDER BY r.created_at DESC LIMIT 100`,
     [req.driverId]
   );
   res.json({ rides: rows.map(rideToJson) });
@@ -189,7 +192,10 @@ router.get('/rides', asyncHandler(async (req, res) => {
 // GET /api/driver/rides/:id — a specific ride.
 router.get('/rides/:id', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
-    'SELECT * FROM rides WHERE id = $1 AND driver_id = $2',
+    `SELECT r.*, p.full_name AS passenger_name
+       FROM rides r
+       JOIN passengers p ON p.id = r.passenger_id
+      WHERE r.id = $1 AND r.driver_id = $2`,
     [req.params.id, req.driverId]
   );
   if (!rows[0]) throw new ApiError(404, 'Ride not found.');
@@ -206,14 +212,14 @@ router.get('/earnings', asyncHandler(async (req, res) => {
 
   // Today's earnings
   const todayRes = await getPool().query(
-    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*) as rides
+    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1 AND created_at >= CURRENT_DATE AND status = 'settled'`,
     [driverId]
   );
 
   // This week's earnings (Mon-Sun)
   const weekRes = await getPool().query(
-    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*) as rides
+    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1
        AND created_at >= date_trunc('week', CURRENT_DATE) AND status = 'settled'`,
     [driverId]
@@ -221,7 +227,7 @@ router.get('/earnings', asyncHandler(async (req, res) => {
 
   // This month's earnings
   const monthRes = await getPool().query(
-    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*) as rides
+    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1
        AND created_at >= date_trunc('month', CURRENT_DATE) AND status = 'settled'`,
     [driverId]
@@ -229,7 +235,7 @@ router.get('/earnings', asyncHandler(async (req, res) => {
 
   // All-time earnings
   const totalRes = await getPool().query(
-    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*) as rides
+    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1 AND status = 'settled'`,
     [driverId]
   );
@@ -536,7 +542,12 @@ router.post('/support/:id/messages', asyncHandler(async (req, res) => {
 // EMERGENCY / SOS
 // ============================================================
 
-// POST /api/driver/emergency — driver SOS.
+// POST /api/driver/emergency — driver SOS. Same shape as the passenger one
+// (server/src/routes/emergency.routes.js): event recorded for the call
+// center's audit trail, and the response carries the call-center number the
+// app dials with the OS dialer.
+const CALL_CENTER_FALLBACK = '+250000000000'; // PLACEHOLDER — set EMERGENCY_CALL_CENTER_PHONE in server/.env
+
 router.post('/emergency', asyncHandler(async (req, res) => {
   const { rideId, latitude, longitude, address, details } = req.body || {};
   const { rows } = await getPool().query(
@@ -548,7 +559,7 @@ router.post('/emergency', asyncHandler(async (req, res) => {
 
   await pushDriverNotification(req.driverId, {
     title: 'Emergency recorded',
-    body: 'We recorded your emergency and notified the control room.',
+    body: 'We recorded your emergency and notified the FEM C@BS call center.',
     type: 'safety',
     rideId: rideId || null,
   });
@@ -559,6 +570,7 @@ router.post('/emergency', asyncHandler(async (req, res) => {
       status: event.status,
       createdAt: event.created_at,
       reference: `EM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+      callCenterPhone: process.env.EMERGENCY_CALL_CENTER_PHONE || CALL_CENTER_FALLBACK,
     },
   });
 }));

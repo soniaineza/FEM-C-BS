@@ -15,6 +15,7 @@ const {
 } = require('./driverMatcher');
 const { publishRideEvent } = require('./rideEvents');
 const { pushNotification } = require('./notify');
+const { pushDriverNotification } = require('./driverNotify');
 
 const BOOKABLE_STATUSES = new Set([
   'searchingDriver',
@@ -277,7 +278,19 @@ async function cancelRide(passengerId, rideId, reason) {
     changedBy: 'passenger',
     reason: reason || null,
   });
-  if (updated.driver_id) await releaseDriver(updated.driver_id);
+  if (updated.driver_id) {
+    await releaseDriver(updated.driver_id);
+    // The driver had already been assigned/en route — they need to know the
+    // trip is off, not just silently lose it off their active-rides list on
+    // their next poll (drivers.routes.js's GET /rides/active has no other
+    // way to distinguish "cancelled" from "never existed").
+    await pushDriverNotification(updated.driver_id, {
+      title: 'Ride cancelled',
+      body: 'The rider cancelled this trip. No action needed.',
+      type: 'ride',
+      rideId,
+    });
+  }
   await pushNotification(passengerId, {
     title: 'Ride cancelled',
     body: 'Your ride was cancelled. No fare was charged.',
@@ -406,4 +419,5 @@ module.exports = {
   generateRidePin,
   rateRide,
   activateScheduledRide,
+  matchAndAssign,
 };

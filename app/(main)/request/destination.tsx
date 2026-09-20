@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { View, Text, SafeAreaView, TextInput, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 
+import { Button } from '../../../components/Button';
+import { BackHeader } from '../../../components/BackHeader';
+import { RideMap } from '../../../components/RideMap';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useDebouncedCallback } from '../../../hooks/useDebounce';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
@@ -11,6 +14,7 @@ import { Place } from '../../../types/place';
 
 export default function DestinationScreen() {
   const { t } = useTranslation();
+  const pickup = useRideWizardStore((s) => s.pickup);
   const setDestination = useRideWizardStore((s) => s.setDestination);
 
   const [query, setQuery] = useState('');
@@ -47,12 +51,53 @@ export default function DestinationScreen() {
     router.back();
   }
 
+  // Tapping the map picks that exact spot even when the rider doesn't know
+  // its street name — same pattern as request/pickup.tsx.
+  const [pinnedPlace, setPinnedPlace] = useState<Place | null>(null);
+  const [resolvingTap, setResolvingTap] = useState(false);
+
+  async function onMapPress(pos: { latitude: number; longitude: number }) {
+    setResolvingTap(true);
+    setPinnedPlace({ address: t('pinnedLocation'), ...pos });
+    try {
+      const resolved = await locationService.reverseGeocode(pos);
+      setPinnedPlace(resolved);
+    } catch {
+      // Keep the generic "Pinned location" label — the coordinates still work.
+    } finally {
+      setResolvingTap(false);
+    }
+  }
+
+  const mapCenter = pickup?.latitude && pickup?.longitude
+    ? { latitude: pickup.latitude, longitude: pickup.longitude }
+    : locationService.MapDefaults;
+
   const list = query.trim().length >= 2 ? results : recent.map((r) => ({ address: r.address, latitude: r.latitude, longitude: r.longitude }));
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-6">
-        <Text className="text-xl font-bold text-ink">{t('chooseDestination')}</Text>
+      <View className="h-64 w-full">
+        <RideMap
+          center={pinnedPlace ? { latitude: pinnedPlace.latitude!, longitude: pinnedPlace.longitude! } : mapCenter}
+          markers={pinnedPlace ? [{ id: 'pin', position: { latitude: pinnedPlace.latitude!, longitude: pinnedPlace.longitude! }, icon: 'destination' }] : []}
+          onMapPress={onMapPress}
+        />
+      </View>
+      {pinnedPlace ? (
+        <View className="border-b border-border bg-bg-light px-6 py-3">
+          <Text numberOfLines={1} className="text-sm font-medium text-ink">
+            {resolvingTap ? t('findingAddress') : pinnedPlace.address}
+          </Text>
+          <View className="mt-2">
+            <Button title={t('confirmLocation')} onPress={() => choosePlace(pinnedPlace)} disabled={resolvingTap} />
+          </View>
+        </View>
+      ) : null}
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <Text className="mt-1 text-xl font-bold text-ink">{t('chooseDestination')}</Text>
+        <Text className="mt-1 text-xs text-text-secondary">{t('tapMapHint')}</Text>
 
         <TextInput
           className="mt-4 h-button rounded border border-border bg-white px-4 text-base text-ink"
@@ -60,7 +105,6 @@ export default function DestinationScreen() {
           placeholderTextColor="#6B7280"
           value={query}
           onChangeText={onQueryChange}
-          autoFocus
         />
 
         {searching ? <ActivityIndicator className="mt-4" color="#16A34A" /> : null}

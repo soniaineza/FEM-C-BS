@@ -1,22 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../../components/Button';
+import { BackHeader } from '../../../../components/BackHeader';
 import { useTranslation } from '../../../../hooks/useTranslation';
 import { getRideDetails } from '../../../../services/ride-service';
-import { Ride, formatFare } from '../../../../types/ride';
+import { Ride, formatFare, rideStatusKey } from '../../../../types/ride';
+import { ApiError } from '../../../../services/api-client';
 
+// Ride details — network failures land on an explicit error card with a
+// retry button instead of an infinite spinner (cold-start requests used to
+// sit here forever, or worse, crash with an unhandled rejection).
 export default function RideDetailsScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const [ride, setRide] = useState<Ride | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (rideId) getRideDetails(rideId).then(setRide);
-  }, [rideId]);
+  const load = useCallback(() => {
+    if (!rideId) return;
+    setLoading(true);
+    setError(undefined);
+    getRideDetails(rideId)
+      .then(setRide)
+      .catch((err) => setError(err instanceof ApiError ? err.message : t('requestFailed')))
+      .finally(() => setLoading(false));
+  }, [rideId, t]);
 
-  if (!ride) {
+  useEffect(load, [load]);
+
+  if (loading && !ride) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator color="#16A34A" />
@@ -24,23 +39,44 @@ export default function RideDetailsScreen() {
     );
   }
 
+  if (error && !ride) {
+    return (
+      <SafeAreaView className="flex-1 bg-white">
+        <View className="flex-1 px-6 pt-2">
+          <BackHeader />
+          <View className="mt-10 items-center">
+            <Text className="text-center text-text-secondary">{error}</Text>
+            <View className="mt-4 min-w-[160px]">
+              <Button title={t('tryAgain')} variant="outline" onPress={load} />
+            </View>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!ride) return null;
+
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pt-6 pb-10">
-        <Text className="text-xl font-bold text-ink">{t('rideDetails')}</Text>
+      <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
+        <BackHeader />
+        <Text className="mt-2 text-xl font-bold text-ink">{t('rideDetails')}</Text>
 
         <View className="mt-4 gap-2 rounded border border-border p-4">
           <Text className="text-ink">{ride.pickup.address}</Text>
           <Text className="text-ink">{ride.destination.address}</Text>
           <View className="mt-2 flex-row justify-between">
             <Text className="text-text-secondary">{ride.distanceKm.toFixed(1)} km</Text>
-            <Text className="text-text-secondary">{ride.durationMinutes} min</Text>
+            <Text className="text-text-secondary">
+              {ride.durationMinutes} {t('minutesShort')}
+            </Text>
           </View>
           <View className="mt-2 flex-row justify-between">
             <Text className="text-base font-semibold text-ink">{t('finalFare')}</Text>
             <Text className="text-lg font-bold text-primary">{formatFare(ride.finalFare ?? ride.estimatedFare)}</Text>
           </View>
-          <Text className="mt-1 text-xs text-text-secondary">{ride.status}</Text>
+          <Text className="mt-1 text-xs text-text-secondary">{t(rideStatusKey(ride.status))}</Text>
         </View>
 
         {ride.driver ? (

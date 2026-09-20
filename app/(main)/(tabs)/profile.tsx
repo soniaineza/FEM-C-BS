@@ -5,6 +5,7 @@ import { MenuTile } from '../../../components/MenuTile';
 import { SectionTitle } from '../../../components/SectionTitle';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useAuthStore } from '../../../stores/useAuthStore';
+import { useAppModeStore } from '../../../stores/useAppModeStore';
 
 function initialsFor(name: string): string {
   const trimmed = name.trim();
@@ -18,6 +19,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const currentUser = useAuthStore((s) => s.currentUser);
   const logout = useAuthStore((s) => s.logout);
+  const setMode = useAppModeStore((s) => s.setMode);
 
   function confirmLogout() {
     Alert.alert(t('logoutQuestion'), undefined, [
@@ -73,6 +75,11 @@ export default function ProfileScreen() {
               onPress={() => router.push('/(main)/settings/delete-account')}
             />
             <MenuTile icon="log-out-outline" label={t('logout')} onPress={confirmLogout} />
+            <MenuTile
+              icon="car-outline"
+              label={t('passengerSwitchToDriverHint')}
+              onPress={() => setMode('driver')}
+            />
           </View>
         </View>
       </ScrollView>

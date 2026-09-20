@@ -111,3 +111,16 @@ CREATE INDEX IF NOT EXISTS idx_emergency_driver ON emergency_events(driver_id) W
 
 -- Ensure driver_id index exists on driver_locations for fast lookups.
 CREATE INDEX IF NOT EXISTS idx_driver_locations_driver ON driver_locations(driver_id);
+
+-- Live passenger location, reported by the rider's own phone while a ride is
+-- active — lets the assigned driver see where the passenger actually is
+-- (they may have walked from where they originally requested pickup), the
+-- same way driver_locations already lets the passenger see the driver.
+-- Mirrors driver_locations' shape exactly.
+CREATE TABLE IF NOT EXISTS passenger_locations (
+  passenger_id UUID PRIMARY KEY REFERENCES passengers(id) ON DELETE CASCADE,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  heading DOUBLE PRECISION,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

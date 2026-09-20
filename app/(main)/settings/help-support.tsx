@@ -5,10 +5,12 @@ import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { submitRequest, getTickets } from '../../../services/support-service';
 import { SUPPORT_CATEGORY_IDS, SupportTicket } from '../../../types/support';
 import { ApiError } from '../../../services/api-client';
+import { openWhatsAppSupport, SUPPORT_EMAIL } from '../../../utils/support';
 
 const TOPICS = Object.keys(SUPPORT_CATEGORY_IDS) as (keyof typeof SUPPORT_CATEGORY_IDS)[];
 
@@ -51,11 +53,15 @@ export default function HelpSupportScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pt-6 pb-10">
-        <Text className="text-xl font-bold text-ink">{t('helpSupportTitle')}</Text>
+      <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
+        <BackHeader />
+        <Text className="mt-2 text-xl font-bold text-ink">{t('helpSupportTitle')}</Text>
         <Text className="mt-1 text-text-secondary">{t('helpIntro')}</Text>
 
-        <Pressable className="mt-3" onPress={() => Linking.openURL('mailto:support@femcabs.com')}>
+        <View className="mt-4">
+          <Button title={t('whatsappSupport')} icon="logo-whatsapp" onPress={() => openWhatsAppSupport()} />
+        </View>
+        <Pressable className="mt-3" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>
           <Text className="text-primary">{t('contactSupport')}</Text>
         </Pressable>
 
@@ -96,7 +102,7 @@ export default function HelpSupportScreen() {
 
         {tickets.length > 0 ? (
           <>
-            <Text className="mt-8 text-lg font-bold text-ink">{t('support')}</Text>
+            <Text className="mt-8 text-lg font-bold text-ink">{t('supportYourTickets')}</Text>
             {tickets.map((ticket) => (
               <Pressable
                 key={ticket.id}

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { router, usePathname } from 'expo-router';
 
 import { useAuthStore } from '../stores/useAuthStore';
-import { getCurrentRide } from '../services/ride-service';
+import { getCurrentRide, cancelRide } from '../services/ride-service';
 import { canCancelRide, Ride } from '../types/ride';
 
 // Non-terminal statuses that mean the passenger still has a live ride to
@@ -19,6 +19,16 @@ const ACTIVE_STATUSES = new Set([
   'arrived',
   'paymentPending',
 ]);
+
+// A search that has found no driver for this long is never going to (the
+// matcher only considers drivers within 5 km of the pickup — see server
+// driverMatcher.js). Rather than trapping the passenger behind an eternal
+// "Finding your driver…" that also blocks every new booking (the backend's
+// duplicate-ride guard rejects with 409), the client gives up on it:
+// auto-cancel (always free — no driver was ever assigned) and clear the way.
+// The server's scheduler now runs the same sweep globally; this client-side
+// guard also covers rides created before that server change deploys.
+const SEARCH_GIVE_UP_MS = 10 * 60 * 1000;
 
 function screenForRide(ride: Ride) {
   if (ride.status === 'searchingDriver' || ride.status === 'scheduled') {
@@ -38,10 +48,23 @@ function screenForRide(ride: Ride) {
 // The ride screens themselves then track the ride to completion. Also covers
 // the "passenger must not request a second ride while one is active" rule:
 // callers surface hasActiveRide to block the booking flow.
+//
+// Redirect discipline: the auto-redirect only ever fires while Home is the
+// visible screen. Previously a mid-wizard user (picking a vehicle, entering a
+// destination…) got router.replace()d out of their screen by the 15s poll
+// whenever a stale ride existed — the reported "buttons stop working /
+// crashing" behavior. Stale searches past the give-up window are cancelled
+// instead of redirecting, so Home becomes usable again with no user action.
 export function useActiveRideRestore() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const [checking, setChecking] = useState(true);
+
+  // Live pathname without re-running the effect (and resetting the 15s
+  // cadence) on every navigation.
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
 
   useEffect(() => {
     if (!currentUser) {
@@ -55,11 +78,37 @@ export function useActiveRideRestore() {
 
     function check() {
       getCurrentRide()
-        .then((ride) => {
+        .then(async (ride) => {
           if (cancelled) return;
+
+          // A search nobody accepted within the give-up window is dead
+          // weight — cancel it and move on. Never touches rides with a
+          // driver involved (those need the driver-side flow) or scheduled
+          // rides (they haven't started searching yet).
+          if (
+            ride &&
+            ride.status === 'searchingDriver' &&
+            ride.createdAt &&
+            Date.now() - new Date(ride.createdAt).getTime() > SEARCH_GIVE_UP_MS
+          ) {
+            try {
+              await cancelRide(ride.id, 'No driver available nearby');
+            } catch {
+              // Server may have already cancelled it — treat as cancelled.
+            }
+            if (cancelled) return;
+            setActiveRide(null);
+            return;
+          }
+
           const isActive = ride && ACTIVE_STATUSES.has(ride.status);
           setActiveRide(isActive ? ride : null);
-          if (isActive && ride) {
+          // Only yank the user when they are actually sitting on Home —
+          // never mid-wizard, never on a ride screen that is already
+          // tracking this ride.
+          const p = pathnameRef.current ?? '';
+          const onHomeRoot = p === '/' || p === '(main)/(tabs)' || p.endsWith('/(main)/(tabs)') || p.endsWith('/(tabs)');
+          if (isActive && ride && onHomeRoot) {
             router.replace(screenForRide(ride));
           }
         })
@@ -83,6 +132,9 @@ export function useActiveRideRestore() {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
+    // pathname intentionally excluded — read via pathnameRef inside the
+    // interval closure so navigation doesn't reset the polling timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
 
   const canRequestRide = !activeRide && !checking;

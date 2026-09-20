@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, SafeAreaView, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { TripRouteCard } from '../../../components/TripRouteCard';
 import { SectionTitle } from '../../../components/SectionTitle';
 import { Button } from '../../../components/Button';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { fetchVehicles, straightLineKm, estimateFareLocal } from '../../../services/ride-service';
@@ -53,7 +54,18 @@ export default function VehicleSelectionScreen() {
 
   function proceed() {
     const vehicle = vehicles.find((v) => v.id === selectedId);
-    if (!pickup || !destination || !vehicle) return;
+    // Loud failure instead of a silent no-op tap: previously a corrupted
+    // wizard state (or a vehicle list that refetched to empty after a
+    // cold-start blip) made Continue dead with zero feedback — reported as
+    // "the continue button is not working".
+    if (!pickup || !destination) {
+      Alert.alert(t('locationDialogTitle'), t('selectPickupFirst'));
+      return;
+    }
+    if (!vehicle) {
+      Alert.alert(t('locationDialogTitle'), t('chooseVehicleFirst'));
+      return;
+    }
     const distanceKm = straightLineKm(pickup, destination);
     setVehicle(vehicle);
     setFareEstimate(estimateFareLocal(vehicle, distanceKm, rideType));
@@ -66,8 +78,9 @@ export default function VehicleSelectionScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-bg-light">
-      <View className="flex-1 px-5 pt-5">
-        <Text className="mb-4 text-xl font-bold text-ink">{t('chooseRide')}</Text>
+      <View className="flex-1 px-5 pt-2">
+        <BackHeader />
+        <Text className="mb-4 mt-1 text-xl font-bold text-ink">{t('chooseRide')}</Text>
 
         <TripRouteCard pickup={pickup} destination={destination} distanceKm={distanceKm} />
 

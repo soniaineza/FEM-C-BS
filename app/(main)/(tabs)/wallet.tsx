@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, FlatList, ActivityIndicator } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, SafeAreaView, FlatList, ActivityIndicator, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
 
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getWallet, Wallet, WalletTransaction } from '../../../services/wallet-service';
@@ -11,27 +12,36 @@ export default function WalletScreen() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getWallet()
-      .then(setWallet)
-      .finally(() => setLoading(false));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      getWallet()
+        .then(setWallet)
+        .finally(() => setLoading(false));
+    }, [])
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-bg-light">
       <View className="px-5 pt-4">
-        <Text className="text-xl font-bold text-ink">Wallet</Text>
+        <Text className="text-xl font-bold text-ink">{t('wallet')}</Text>
 
         <View
           className="mt-4 rounded-2xl bg-primary p-5"
           style={{ shadowColor: '#16A34A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
         >
-          <Text className="text-sm font-medium text-white/85">Balance</Text>
+          <Text className="text-sm font-medium text-white/85">{t('balance')}</Text>
           {loading ? (
             <ActivityIndicator className="mt-2" color="#fff" />
           ) : (
             <Text className="mt-1 text-3xl font-bold text-white">{formatFare(wallet?.balance ?? 0)}</Text>
           )}
+          <Pressable
+            className="mt-4 flex-row items-center justify-center rounded-xl bg-white/15 py-2.5"
+            onPress={() => router.push('/(main)/wallet/top-up' as any)}
+          >
+            <Ionicons name="add-circle-outline" size={16} color="#fff" />
+            <Text className="ml-2 font-semibold text-white">{t('topUp')}</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -39,7 +49,7 @@ export default function WalletScreen() {
         {!loading && (wallet?.transactions.length ?? 0) === 0 ? (
           <View className="mt-10 items-center">
             <Ionicons name="receipt-outline" size={40} color="#6B7280" />
-            <Text className="mt-3 text-text-secondary">No transactions yet</Text>
+            <Text className="mt-3 text-text-secondary">{t('walletTransactionsEmpty')}</Text>
           </View>
         ) : (
           <FlatList

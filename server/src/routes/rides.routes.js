@@ -38,6 +38,31 @@ router.post(
   })
 );
 
+// POST /api/rides/location — live GPS reported by the passenger's own phone
+// while a ride is active, so their assigned driver can see where they
+// actually are (they may have walked from the original pickup point).
+// Mirrors POST /api/drivers/location exactly, passenger-side.
+router.post(
+  '/location',
+  asyncHandler(async (req, res) => {
+    const { latitude, longitude, heading } = req.body || {};
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      throw new ApiError(400, 'latitude and longitude are required.');
+    }
+    await getPool().query(
+      `INSERT INTO passenger_locations (passenger_id, latitude, longitude, heading, recorded_at)
+       VALUES ($1,$2,$3,$4, now())
+       ON CONFLICT (passenger_id) DO UPDATE SET
+         latitude = EXCLUDED.latitude,
+         longitude = EXCLUDED.longitude,
+         heading = EXCLUDED.heading,
+         recorded_at = now()`,
+      [req.passengerId, latitude, longitude, heading ?? null]
+    );
+    res.status(204).end();
+  })
+);
+
 // GET /api/rides — ride history for the current passenger.
 router.get(
   '/',

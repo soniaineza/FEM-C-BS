@@ -82,7 +82,7 @@ export default function TrackingScreen() {
             <Text className="text-base font-semibold text-ink">{t('preparePayment')}</Text>
             {payment ? (
               isPaymentSettled(payment.status) ? (
-                <Text className="mt-2 text-primary">Payment received.</Text>
+                <Text className="mt-2 text-primary">{t('depositReceived')}</Text>
               ) : payment.method === 'cash' ? (
                 <View className="mt-3">
                   <Button title={t('confirmCashPayment')} onPress={handleConfirmCash} loading={payLoading} />

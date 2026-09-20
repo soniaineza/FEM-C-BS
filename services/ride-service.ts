@@ -188,6 +188,17 @@ export async function getRideCompanions(rideId: string): Promise<RideCompanion[]
   return json.companions.map(rideCompanionFromBackendJson);
 }
 
+// Reports the passenger's own live GPS while a ride is active, so their
+// assigned driver can see where they actually are pre-pickup (mirrors
+// services/driver-service.ts's reportDriverLocation()).
+export async function reportPassengerLocation(params: {
+  latitude: number;
+  longitude: number;
+  heading?: number;
+}): Promise<void> {
+  await apiClient.post('/rides/location', params);
+}
+
 export async function getNearbyDrivers(params: {
   latitude: number;
   longitude: number;

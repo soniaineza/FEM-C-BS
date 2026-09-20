@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, SafeAreaView, FlatList, Pressable, ActivityIndicator } from 'react-native';
 
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getNotifications, markAsRead, markAllRead } from '../../../services/notification-service';
 import { NotificationItem } from '../../../types/notification';
@@ -28,8 +29,9 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-6">
-        <View className="flex-row items-center justify-between">
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <View className="mt-2 flex-row items-center justify-between">
           <Text className="text-xl font-bold text-ink">{t('notifications')}</Text>
           {items.some((i) => !i.read) ? (
             <Pressable

@@ -3,6 +3,7 @@ import { View, Text, SafeAreaView, Pressable, Modal, Alert, ScrollView } from 'r
 import { router } from 'expo-router';
 
 import { MenuTile } from '../../../components/MenuTile';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { Locale } from '../../../locales';
 
@@ -16,8 +17,9 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-bg-light">
-      <ScrollView contentContainerClassName="px-5 pb-6 pt-4">
-        <Text className="text-xl font-bold text-ink">{t('settings')}</Text>
+      <ScrollView contentContainerClassName="px-5 pb-6 pt-2">
+        <BackHeader />
+        <Text className="mt-2 text-xl font-bold text-ink">{t('settings')}</Text>
 
         <View className="mt-4">
           <MenuTile icon="notifications-outline" label={t('notifications')} onPress={() => router.push('/(main)/settings/notifications')} />

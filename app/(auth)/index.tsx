@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 
 import { Button } from '../../components/Button';
 import { useTranslation } from '../../hooks/useTranslation';
+import { useAppModeStore } from '../../stores/useAppModeStore';
 
 // Direct port of lib/screens/auth/welcome_screen.dart's layout: a top hero
 // panel (gradient + two soft "blob" decorations + the car photo in a
@@ -13,6 +14,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 // as a real visual regression.
 export default function WelcomeScreen() {
   const { t } = useTranslation();
+  const setMode = useAppModeStore((s) => s.setMode);
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -69,7 +71,11 @@ export default function WelcomeScreen() {
           <Pressable onPress={() => router.push('/(auth)/login')}>
             <Text className="font-bold text-primary">{t('login')}</Text>
           </Pressable>
-        </View>
+        </View>          <Pressable className="mt-6" onPress={() => setMode('driver')}>
+            <Text className="text-center text-sm text-text-secondary">
+              {t('passengerSwitchToDriverHint')} <Text className="font-semibold text-primary">{t('switchToDriverApp')}</Text>
+            </Text>
+          </Pressable>
       </View>
     </SafeAreaView>
   );

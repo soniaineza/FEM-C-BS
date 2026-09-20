@@ -1,4 +1,6 @@
 import { getToken } from '../storage/session';
+import { useLocaleStore } from '../stores/useLocaleStore';
+import { tFor } from '../utils/i18n-errors';
 
 // Direct TS port of the Flutter app's lib/services/api_client.dart. Every
 // domain service module (auth-service.ts, ride-service.ts, ...) goes
@@ -14,7 +16,23 @@ export class ApiError extends Error {
 }
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api';
-const REQUEST_TIMEOUT_MS = 20_000;
+// Render's free tier sleeps the API after ~15 min idle; the first request
+// after that took a measured ~24s to cold-start (and failed at the old 20s
+// timeout with "We could not reach the FEM C@BS servers"). 45s covers a
+// full cold boot plus a slow 3G round trip.
+const REQUEST_TIMEOUT_MS = 45_000;
+// One silent retry for idempotent GETs that fail at the transport level
+// (timeout / connection reset) — covers the cold-start blip without any UI
+// change. Non-GETs are never retried automatically (they may not be
+// idempotent: booking, payments, SOS...).
+
+function translatedError(kind: 'unreachable' | 'timeout' | 'failed', status?: number): ApiError {
+  const key = kind === 'timeout' ? 'networkTimeout' : kind === 'unreachable' ? 'networkUnreachable' : 'requestFailed';
+  // Read the locale straight off the zustand store (works outside React;
+  // defaults to 'rw' before hydration, same as the UI's initial render).
+  const locale = useLocaleStore.getState().locale;
+  return new ApiError(tFor(locale, key), status);
+}
 
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
@@ -33,27 +51,39 @@ async function send<T>(
   auth = true
 ): Promise<T> {
   const token = auth ? await getToken() : null;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  const attempt = async (): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(`${BASE_URL}${path}`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
+    res = await attempt();
   } catch (err) {
-    if ((err as { name?: string }).name === 'AbortError') {
-      throw new ApiError('The FEM C@BS servers are taking too long to respond. Please try again.');
+    const canRetry = method === 'GET';
+    if (canRetry) {
+      try {
+        res = await attempt();
+      } catch (retryErr) {
+        throw toNetworkError(retryErr);
+      }
+    } else {
+      throw toNetworkError(err);
     }
-    throw new ApiError('We could not reach the FEM C@BS servers. Check your connection and try again.');
-  } finally {
-    clearTimeout(timer);
   }
 
   const json = await safeJson(res);
@@ -62,10 +92,15 @@ async function send<T>(
     // { error: message } — verified live against the running backend.
     // (The old Flutter client read json['message'] here, which never
     // matched a real response field; that bug is not ported forward.)
-    const message = typeof json?.error === 'string' ? json.error : 'Something went wrong. Please try again.';
+    const message = typeof json?.error === 'string' ? json.error : translatedError('failed', res.status).message;
     throw new ApiError(message, res.status);
   }
   return json as T;
+}
+
+function toNetworkError(err: unknown): ApiError {
+  if ((err as { name?: string }).name === 'AbortError') return translatedError('timeout');
+  return translatedError('unreachable');
 }
 
 export const apiClient = {

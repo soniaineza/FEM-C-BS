@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
+import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { validators } from '../../../utils/validators';
@@ -50,8 +51,9 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="flex-grow px-6 pt-6 pb-8">
-        <Text className="text-xl font-bold text-ink">{t('editProfile')}</Text>
+      <ScrollView contentContainerClassName="flex-grow px-6 pt-2 pb-8">
+        <BackHeader />
+        <Text className="mt-2 text-xl font-bold text-ink">{t('editProfile')}</Text>
 
         <View className="mt-6 gap-4">
           <Input label={t('fullName')} value={fullName} onChangeText={setFullName} autoCapitalize="words" />

@@ -267,6 +267,27 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Wallet top-ups: a passenger depositing money into their FEM Wallet via
+-- mobile money, mirroring the `payments` table's pending -> provider-charge
+-- -> settle shape (server/src/services/payments.js) so it goes through the
+-- same real Paypack collect/refresh flow and is never faked when the
+-- provider isn't configured.
+CREATE TABLE IF NOT EXISTS wallet_topups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  passenger_id UUID NOT NULL REFERENCES passengers(id) ON DELETE CASCADE,
+  amount DOUBLE PRECISION NOT NULL,
+  phone TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  provider TEXT,
+  state TEXT,
+  reference TEXT NOT NULL,
+  external_reference TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_topups_passenger ON wallet_topups(passenger_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS referrals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   referrer_id UUID NOT NULL REFERENCES passengers(id) ON DELETE CASCADE,
