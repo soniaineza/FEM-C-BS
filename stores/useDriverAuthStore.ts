@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as driverAuthService from '../services/driver-auth-service';
+import { useRideWizardStore } from './useRideWizardStore';
 import { DriverProfile } from '../types/driver';
 
 // Driver-side counterpart to stores/useAuthStore.ts — kept as a fully
@@ -51,11 +52,13 @@ export const useDriverAuthStore = create<DriverAuthState>((set, get) => ({
 
   logout: async () => {
     await driverAuthService.driverLogout();
+    useRideWizardStore.getState().reset();
     set({ currentDriver: null });
   },
 
   deleteAccount: async () => {
     await driverAuthService.deleteDriverAccount();
+    useRideWizardStore.getState().reset();
     set({ currentDriver: null });
   },
 }));

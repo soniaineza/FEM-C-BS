@@ -1,24 +1,38 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 
 import { Button } from '../../../components/Button';
 import { LocationField } from '../../../components/LocationField';
+import { RideMap } from '../../../components/RideMap';
+import { FEMMapCard } from '../../../components/FEMMapCard';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
+import { useAuthStore } from '../../../stores/useAuthStore';
 import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
-import { getCurrentPlace } from '../../../services/location-service';
+import { getCurrentPlace, MapDefaults } from '../../../services/location-service';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
 import { RideType } from '../../../types/ride';
 
-// Matches the reference design 1:1: green banner (brand mark + profile
-// button, no map on this screen), a single white rounded-top sheet holding
-// the seamless pickup/dropoff card, two ride-type cards with a feature-tag
-// row each, and a full-width Find Ride button.
+function greetingKey(): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'goodMorning';
+  if (hour < 18) return 'goodAfternoon';
+  return 'goodEvening';
+}
+
+// Home = greeting header + booking section + a framed map card, matching a
+// production ride-hailing home: the map reads as a section of the page (never
+// swallowing the screen) and the Find Ride button always stays inside the
+// SafeArea above the tab bar. Booking logic (pickup/destination/ride type/
+// active-ride guard) is unchanged.
 export default function HomeScreen() {
   const { t } = useTranslation();
+  const currentUser = useAuthStore((s) => s.currentUser);
   const pickup = useRideWizardStore((s) => s.pickup);
   const destination = useRideWizardStore((s) => s.destination);
   const rideType = useRideWizardStore((s) => s.rideType);
@@ -26,6 +40,8 @@ export default function HomeScreen() {
   const setRideType = useRideWizardStore((s) => s.setRideType);
 
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
+  const [mapCenter, setMapCenter] = useState(MapDefaults);
+  const [mapLocating, setMapLocating] = useState(false);
 
   // Restores an active ride after app restart and blocks duplicate booking:
   // while a ride is live, Home shows a resume banner and the Find Ride flow
@@ -49,10 +65,16 @@ export default function HomeScreen() {
   useEffect(() => {
     if (pickup) return;
     getCurrentPlace()
-      .then(setPickup)
+      .then((place) => {
+        setPickup(place);
+        setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 15 });
+      })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Greeting name: first word of the rider's full name ("Muraho, Sonia").
+  const firstName = (currentUser?.fullName ?? '').trim().split(/\s+/)[0] ?? '';
 
   function findRide() {
     if (!canRequestRide) return;
@@ -60,18 +82,32 @@ export default function HomeScreen() {
     router.push('/(main)/request/vehicle-selection');
   }
 
+  async function recenterMap() {
+    setMapLocating(true);
+    try {
+      const place = await getCurrentPlace();
+      setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 16 });
+    } catch {
+      // Never block the booking flow on GPS — the map simply stays where it is.
+    } finally {
+      setMapLocating(false);
+    }
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-primary">
-      <View className="bg-primary px-5 pb-8 pt-3">
-        <View className="flex-row items-center">
-          <View className="h-11 w-11 items-center justify-center rounded-xl bg-white">
-            <Text className="text-2xl font-bold text-primary">F</Text>
-          </View>
-          <View className="ml-3 flex-1">
-            <Text className="text-xl font-bold text-white">FEM C@BS</Text>
-            <Text className="text-xs font-medium tracking-wide text-white/85">{t('tagline')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['top']}>
+      <StatusBar style="light" />
+      <View className="bg-primary px-5 pb-6 pt-3">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1 pr-3">
+            <Text className="text-lg font-bold text-white" numberOfLines={1}>
+              {t('homeGreetingPrefix')} {firstName}
+            </Text>
+            <Text className="mt-0.5 text-xs font-medium text-white/85">{t('homeHeroSub')}</Text>
           </View>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('profile')}
             className="h-11 w-11 items-center justify-center rounded-full bg-white/20"
             onPress={() => router.push('/(main)/(tabs)/profile')}
           >
@@ -81,10 +117,9 @@ export default function HomeScreen() {
       </View>
 
       {/* flexGrow makes the sheet fill the viewport even when content is
-          short: the cards section below is flex-1 + justify-center, so
-          leftover space wraps the cards instead of pooling as a dead white
-          gap under the button. On small screens it simply scrolls. */}
-      <ScrollView className="-mt-5 flex-1 rounded-t-[28px] bg-bg-light" contentContainerClassName="flex-grow px-5 pb-4 pt-5">
+          short: leftover space wraps the cards instead of pooling as a dead
+          white gap under the button. On small screens it simply scrolls. */}
+      <ScrollView className="-mt-4 flex-1 rounded-t-[28px] bg-bg-light" contentContainerClassName="flex-grow px-5 pb-4 pt-5">
         {activeRide ? (
           <Pressable
             className="mb-4 flex-row items-center rounded-2xl border border-primary bg-white p-4"
@@ -131,6 +166,33 @@ export default function HomeScreen() {
           </ScrollView>
         ) : null}
 
+        {/* Framed map card: fixed aspect via responsive height, rounded
+            corners, recenter control. Shows pickup when known, else Kigali
+            default; never consumes the whole screen. */}
+        <View className="mt-4">
+          <Text className="mb-2 text-sm font-semibold text-text-secondary">{t('homeMapTitle')}</Text>
+          <FEMMapCard height={160} onRecenter={recenterMap} recenterDisabled={mapLocating} recenterLabel={t('useCurrentLocation')}>
+            <RideMap
+              center={pickup?.latitude && pickup?.longitude ? { latitude: pickup.latitude, longitude: pickup.longitude } : mapCenter}
+              zoom={15}
+              markers={
+                pickup?.latitude && pickup?.longitude
+                  ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
+                  : []
+              }
+              retryLabel={t('tryAgain')}
+              loadingLabel={t('mapLoading')}
+              errorLabel={t('mapError')}
+            />
+          </FEMMapCard>
+          {mapLocating ? (
+            <View className="mt-2 flex-row items-center">
+              <ActivityIndicator size="small" color="#16A34A" />
+              <Text className="ml-2 text-xs text-text-secondary">{t('gettingLocationPermission')}</Text>
+            </View>
+          ) : null}
+        </View>
+
         <View className="mt-4 flex-1 justify-center gap-4">
           <RideOptionCard
             type="private"
@@ -140,7 +202,7 @@ export default function HomeScreen() {
             features={[
               { icon: 'person-outline', label: '1-4' },
               { icon: 'car-outline', label: 'Sedan / SUV' },
-              { icon: 'shield-checkmark-outline', label: 'Safe & Reliable' },
+              { icon: 'shield-checkmark-outline', label: t('featureSafe') },
             ]}
             onPress={() => setRideType('private')}
           />
@@ -151,8 +213,8 @@ export default function HomeScreen() {
             subtitle={t('shareRideDescription')}
             features={[
               { icon: 'person-outline', label: '1-4' },
-              { icon: 'car-outline', label: 'Comfortable' },
-              { icon: 'leaf-outline', label: 'Eco Friendly' },
+              { icon: 'car-outline', label: t('featureComfortable') },
+              { icon: 'leaf-outline', label: t('featureEcoFriendly') },
             ]}
             onPress={() => setRideType('shared')}
           />
@@ -168,7 +230,7 @@ export default function HomeScreen() {
           {checking ? <Text className="mt-2 text-center text-xs text-text-secondary">{t('checkingActiveRide')}</Text> : null}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }
 
@@ -190,6 +252,8 @@ function RideOptionCard({
   const isShared = type === 'shared';
   return (
     <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
       className="rounded-2xl p-4"
       style={{
         backgroundColor: selected ? 'rgba(22,163,74,0.06)' : '#fff',

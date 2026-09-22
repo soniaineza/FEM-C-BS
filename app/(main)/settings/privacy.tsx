@@ -1,4 +1,5 @@
-import { View, Text, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
 import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
@@ -8,7 +9,7 @@ const SECTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 export default function PrivacyScreen() {
   const { t } = useTranslation();
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('privacyPolicyTitle')}</Text>
@@ -19,6 +20,6 @@ export default function PrivacyScreen() {
           </View>
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

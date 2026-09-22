@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -40,7 +41,7 @@ export default function DriverWalletScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
       <View className="px-5 pb-3 pt-4">
         <Text className="text-xl font-bold text-ink">{t('wallet')}</Text>
       </View>
@@ -93,7 +94,7 @@ export default function DriverWalletScreen() {
           )}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }
 

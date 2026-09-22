@@ -1,10 +1,11 @@
 import { Pressable, Text, View } from 'react-native';
+import { memo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 // Direct port of the repeated _MenuTile/_SettingsTile pattern in
 // profile_screen.dart / settings_screen.dart: a white bordered row, icon +
 // label + optional trailing content + chevron.
-export function MenuTile({
+export const MenuTile = memo(function MenuTile({
   icon,
   label,
   onPress,
@@ -28,4 +29,6 @@ export function MenuTile({
       <Ionicons name="chevron-forward" size={20} color="#6B7280" />
     </Pressable>
   );
-}
+});
+
+MenuTile.displayName = 'MenuTile';

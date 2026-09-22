@@ -11,6 +11,6 @@ export const supportedLocales: Locale[] = ['rw', 'fr', 'en'];
 
 export const languageNames: Record<Locale, string> = {
   rw: 'Kinyarwanda',
-  fr: 'Francais',
+  fr: 'Français',
   en: 'English',
 };

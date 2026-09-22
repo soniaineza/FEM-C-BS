@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -58,15 +59,15 @@ export default function ConfirmRideScreen() {
 
   if (!pickup || !destination || !vehicle || !paymentMethod) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <Text className="text-text-secondary">{t('selectPickupFirst')}</Text>
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="flex-grow px-6 pt-2 pb-8">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <ScrollView contentContainerClassName="flex-grow px-6 pt-2 pb-8" keyboardShouldPersistTaps="handled">
         <BackHeader />
         <Text className="mt-1 text-xl font-bold text-ink">{t('confirmRide')}</Text>
 
@@ -126,6 +127,6 @@ export default function ConfirmRideScreen() {
           />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

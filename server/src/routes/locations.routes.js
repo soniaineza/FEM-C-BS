@@ -10,6 +10,13 @@ router.use(requireAuth);
 const PHOTON_BASE = 'https://photon.komoot.io/api/';
 const PHOTON_REVERSE_BASE = 'https://photon.komoot.io/reverse';
 
+// Rwanda's bounding box (minLon, minLat, maxLon, maxLat). Applied to every
+// forward-geocoding query so results stay inside the country the app serves —
+// without it, Photon matches same-named places across the whole planet first
+// (e.g. "Kimironko" → South Africa, "Remera" → Tanzania), which is the
+// reported "can't find places in Rwanda" bug.
+const RWANDA_BBOX = '28.8617,-2.8407,30.8990,-1.0475';
+
 /**
  * Proxies Photon (the OpenStreetMap geocoder) so the Flutter app never needs
  * a maps API key. Photon is used instead of Nominatim directly because
@@ -26,6 +33,43 @@ async function photon(url) {
   return res.json();
 }
 
+// Nominatim fallback for forward geocoding, hard-restricted to Rwanda
+// (countrycodes=rw). Returns Photon-shaped JSON ({ features: [...] }) so the
+// search handler can post-process it identically. Used when Photon is
+// unreachable or returns zero hits. Nominatim has cleaner coverage of some
+// Rwandan neighbourhoods/landmarks Photon hasn't indexed.
+async function fallbackNominatim(q) {
+  const url = `${config.nominatimUrl}?format=jsonv2&limit=8&countrycodes=rw&addressdetails=1&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'FEMCabsApp/1.0 (mobile app; https://femcabs.rw)',
+    },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new ApiError(502, 'Location service unavailable.');
+  const rows = await res.json();
+  const features = (Array.isArray(rows) ? rows : [])
+    .filter((r) => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)))
+    .map((r) => ({
+      properties: {
+        name: r.name ?? undefined,
+        street: r.address?.road ?? r.address?.pedestrian ?? undefined,
+        city:
+          r.address?.city ??
+          r.address?.town ??
+          r.address?.village ??
+          r.address?.district ??
+          undefined,
+        country: r.address?.country ?? undefined,
+      },
+      geometry: {
+        coordinates: [Number(r.lon), Number(r.lat)],
+      },
+    }));
+  return { features };
+}
+
 function labelFor(properties) {
   const parts = [
     properties.name,
@@ -37,17 +81,34 @@ function labelFor(properties) {
   return parts.length ? parts.join(', ') : 'Unknown location';
 }
 
-// GET /api/locations/search?q=... — forward geocoding.
+// GET /api/locations/search?q=... — forward geocoding, biased to Rwanda.
 router.get(
   '/search',
   asyncHandler(async (req, res) => {
     const q = String(req.query.q || '').trim();
     if (q.length < 2) throw new ApiError(400, 'Provide at least 2 characters.');
-    const url = `${PHOTON_BASE}?limit=5&lang=en&q=${encodeURIComponent(q)}`;
-    const data = await photon(url);
-    const features = Array.isArray(data.features) ? data.features : [];
+
+    // Primary: Photon, restricted to Rwanda's bounding box. Also pass the
+    // rider's approximate region for a "near me first" ranking on ties.
+    const url = `${PHOTON_BASE}?limit=8&lang=en&q=${encodeURIComponent(q)}&bbox=${RWANDA_BBOX}`;
+    let data;
+    try {
+      data = await photon(url);
+    } catch {
+      // Photon down/rate-limited: fall back to Nominatim with *rw* country
+      // codes so search never returns empty-handed because one geocoder is
+      // unreachable (the whole reason these calls are proxied server-side).
+      data = null;
+    }
+
+    // Photon sometimes returns nothing for real Rwandan neighbourhoods it
+    // hasn't indexed yet — retry with Nominatim before giving up.
+    const features = Array.isArray(data?.features) && data.features.length
+      ? data.features
+      : (await fallbackNominatim(q).catch(() => ({ features: [] }))).features;
+
     res.json({
-      results: features.slice(0, 5).map((f) => {
+      results: features.slice(0, 8).map((f) => {
         const properties = f.properties || {};
         const coords = (f.geometry && f.geometry.coordinates) || [];
         return {

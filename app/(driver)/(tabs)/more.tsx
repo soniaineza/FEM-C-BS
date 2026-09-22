@@ -1,4 +1,6 @@
-import { View, Text, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { MenuTile } from '../../../components/MenuTile';
@@ -22,7 +24,7 @@ export default function DriverMoreScreen() {
   const setMode = useAppModeStore((s) => s.setMode);
 
   return (
-    <SafeAreaView className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
       <ScrollView contentContainerClassName="px-5 pb-6 pt-6">
         <Text className="text-xl font-bold text-ink">{t('account')}</Text>
 
@@ -34,7 +36,14 @@ export default function DriverMoreScreen() {
             <Text className="text-[17px] font-bold text-ink">{currentDriver?.fullName || t('driver')}</Text>
             <Text className="text-[13.5px] text-text-secondary">{currentDriver?.phone}</Text>
             <Text className="mt-0.5 text-[13.5px] text-text-secondary">
-              {currentDriver?.rating != null ? `${currentDriver.rating.toFixed(1)} ★` : t('driverNoRatingYet')} · {t('driverTripsCount', { count: currentDriver?.totalTrips ?? 0 })}
+              {currentDriver?.rating != null ? (
+                <>
+                  <Ionicons name="star" size={13} color="#D97706" /> {currentDriver.rating.toFixed(1)}
+                </>
+              ) : (
+                t('driverNoRatingYet')
+              )}{' '}
+              <Text className="text-text-secondary">·</Text> {t('driverTripsCount', { count: currentDriver?.totalTrips ?? 0 })}
             </Text>
           </View>
         </View>
@@ -70,6 +79,6 @@ export default function DriverMoreScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

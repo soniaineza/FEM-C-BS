@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { View, Text, SafeAreaView, TextInput, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { BackHeader } from '../../../components/BackHeader';
 import { RideMap } from '../../../components/RideMap';
+import { FEMMapCard } from '../../../components/FEMMapCard';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useDebouncedCallback } from '../../../hooks/useDebounce';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
@@ -21,6 +23,8 @@ export default function PickupScreen() {
   const [locating, setLocating] = useState(false);
   const [center, setCenter] = useState(locationService.MapDefaults);
   const [error, setError] = useState<string | undefined>();
+  const [recenterToken, setRecenterToken] = useState(0);
+  const [recentering, setRecentering] = useState(false);
 
   const runSearch = useDebouncedCallback(async (q: string) => {
     if (q.trim().length < 2) return setResults([]);
@@ -61,6 +65,23 @@ export default function PickupScreen() {
     }
   }
 
+  // Recenter the map on the rider's current location without selecting it —
+  // the floating button on the map card. Falls back to a visible error (and
+  // never freezes) if GPS is unavailable, so manual pin selection still works.
+  async function handleRecenter() {
+    setRecentering(true);
+    setError(undefined);
+    try {
+      const place = await locationService.getCurrentPlace();
+      setCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 16 });
+      setRecenterToken((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : undefined);
+    } finally {
+      setRecentering(false);
+    }
+  }
+
   // Tapping the map picks that exact spot even when the rider doesn't know
   // its street name — reverse-geocode it for a readable address, but the
   // pin's coordinates (not the guessed name) are what actually matters.
@@ -81,15 +102,25 @@ export default function PickupScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="h-72 w-full">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <FEMMapCard
+        height={220}
+        className="mx-4 mt-3"
+        onRecenter={handleRecenter}
+        recenterDisabled={recentering}
+        recenterLabel={t('useCurrentLocation')}
+      >
         <RideMap
           center={center}
           zoom={center.zoom}
           markers={pinnedPlace ? [{ id: 'pin', position: { latitude: pinnedPlace.latitude!, longitude: pinnedPlace.longitude! }, icon: 'pickup' }] : [{ id: 'center', position: center, icon: 'me' }]}
           onMapPress={onMapPress}
+          recenterToken={recenterToken}
+          retryLabel={t('tryAgain')}
+          loadingLabel={t('mapLoading')}
+          errorLabel={t('mapError')}
         />
-      </View>
+      </FEMMapCard>
       {pinnedPlace ? (
         <View className="border-b border-border bg-bg-light px-6 py-3">
           <Text numberOfLines={1} className="text-sm font-medium text-ink">
@@ -135,6 +166,6 @@ export default function PickupScreen() {
           )}
         />
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

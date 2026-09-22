@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -58,8 +59,8 @@ export default function ProfileSetupScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="flex-grow px-6 pt-6 pb-8">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <ScrollView contentContainerClassName="flex-grow px-6 pt-6 pb-8" keyboardShouldPersistTaps="handled">
         <Text className="text-xl font-bold text-ink">{t('completeProfile')}</Text>
 
         <View className="mt-6 items-center">
@@ -113,6 +114,6 @@ export default function ProfileSetupScreen() {
           <Button title={t('continueLabel')} onPress={handleContinue} loading={loading} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

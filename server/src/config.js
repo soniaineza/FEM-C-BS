@@ -48,6 +48,13 @@ const config = {
   // exist yet). Real KYC review must gate this in production.
   devAutoVerifyDrivers: process.env.DEV_AUTO_VERIFY_DRIVERS === '1',
 
+  // When true, moMo/Airtel charges and wallet top-ups are "accepted"
+  // immediately without calling Paypack — the whole payment flow can be
+  // exercised without real mobile-money credentials. Never enable in
+  // production (the runner has no real Paypack creds, so rides/top-ups
+  // would settle with nothing actually charged).
+  demoPayments: process.env.DEMO_PAYMENTS === '1',
+
   // Rate limiting (express-rate-limit): per-identity window for auth routes.
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
   rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 20),
@@ -124,6 +131,7 @@ function ensureConfig() {
     if (!config.jwtSecret) problems.push('JWT_SECRET');
     if (config.devRevealCodes) problems.push('DEV_REVEAL_CODES (must be "0")');
     if (config.devAutoVerifyDrivers) problems.push('DEV_AUTO_VERIFY_DRIVERS (must be "0")');
+    if (config.demoPayments) problems.push('DEMO_PAYMENTS (must be "0")');
   }
   if (problems.length) {
     console.error(

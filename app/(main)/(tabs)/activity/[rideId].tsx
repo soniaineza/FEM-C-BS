@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../../components/Button';
@@ -33,15 +34,15 @@ export default function RideDetailsScreen() {
 
   if (loading && !ride) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator color="#16A34A" />
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   if (error && !ride) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 bg-white">
         <View className="flex-1 px-6 pt-2">
           <BackHeader />
           <View className="mt-10 items-center">
@@ -51,14 +52,14 @@ export default function RideDetailsScreen() {
             </View>
           </View>
         </View>
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   if (!ride) return null;
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('rideDetails')}</Text>
@@ -94,6 +95,6 @@ export default function RideDetailsScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

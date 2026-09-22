@@ -1,4 +1,5 @@
-import { Pressable, Text, View, SafeAreaView } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -55,7 +56,7 @@ export default function RideTypeScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <Text className="mt-1 text-xl font-bold text-ink">{t('chooseRideType')}</Text>
@@ -81,6 +82,6 @@ export default function RideTypeScreen() {
           <Button title={t('continueLabel')} onPress={proceed} />
         </View>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -67,7 +68,7 @@ export default function SearchingDriverScreen() {
 
   if (timedOut) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white px-6">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white px-6">
         <View
           className="h-20 w-20 items-center justify-center rounded-full"
           style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}
@@ -79,7 +80,7 @@ export default function SearchingDriverScreen() {
         <View className="mt-8 w-full">
           <Button title={t('backHome')} onPress={() => router.replace('/(main)/(tabs)')} />
         </View>
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
@@ -89,7 +90,7 @@ export default function SearchingDriverScreen() {
   const seconds = secondsLeft % 60;
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <Pressable className="px-5 pt-2" onPress={() => router.replace('/(main)/(tabs)')}>
         <Ionicons name="chevron-back" size={26} color="#111111" />
       </Pressable>
@@ -114,6 +115,6 @@ export default function SearchingDriverScreen() {
       <View className="px-6 pb-8">
         <Button title={t('cancelRide')} variant="outline" onPress={handleCancel} loading={cancelling} />
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

@@ -69,7 +69,7 @@ async function chargePayment(payment, ride) {
   );
   const phone = phoneRows[0]?.phone || '';
 
-  if (payment.method === 'cash') return payment; // settled in person
+if (payment.method === 'cash') return payment; // settled in person
   if (payment.method === 'wallet') {
     const ok = await debitWallet(payment.passenger_id, payment.amount, payment.reference);
     if (!ok) {
@@ -84,13 +84,30 @@ async function chargePayment(payment, ride) {
         type: 'payment',
         rideId: ride.id,
       });
-      throw new ApiError(400, 'Insufficient wallet balance for this trip.');
+      return payment;
     }
     await settleSucceededPayment(payment, ride, { method: 'wallet' });
     return payment;
   }
 
   if (PROVIDER_METHODS.has(payment.method)) {
+    if (config.demoPayments) {
+      // Demo mode (DEMO_PAYMENTS=1): fake acceptance — mark the charge
+      // settled immediately instead of calling Paypack, so the whole ride +
+      // wallet-earnings flow is testable without mobile-money credentials.
+      // The payment row is still recorded with a provider label for realism.
+      await getPool().query(
+        `UPDATE payments SET provider='paypack', state='processing', updated_at=now(),
+           metadata='{"reason":"demo_acceptance"}'::jsonb WHERE id = $1`,
+        [payment.id]
+      );
+      await settleSucceededPayment(payment, ride, { method: payment.method, demo: true });
+      const { rows: settled } = await getPool().query(
+        'SELECT * FROM payments WHERE id = $1',
+        [payment.id]
+      );
+      return settled[0] || payment;
+    }
     if (!paypack.isConfigured()) {
       // Honest "gateway not configured": the ride stays pending — the app must
       // not be allowed to mark itself paid.

@@ -1,4 +1,5 @@
-import { View, Text, SafeAreaView, FlatList } from 'react-native';
+import { View, Text, FlatList } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
 import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
@@ -9,7 +10,7 @@ export default function PaymentMethodsScreen() {
   const methods = getAvailablePaymentMethods();
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('paymentMethods')}</Text>
@@ -28,6 +29,6 @@ export default function PaymentMethodsScreen() {
         <Text className="mt-4 text-xs text-text-secondary">{t('paymentMethodsNote')}</Text>
         <Text className="mt-2 text-xs text-text-secondary">{t('paymentSecurityNotice')}</Text>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

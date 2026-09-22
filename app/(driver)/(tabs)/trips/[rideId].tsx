@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../../components/SafeAreaViewPlaceholder';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../../components/Button';
@@ -26,7 +27,7 @@ export default function DriverTripDetailScreen() {
 
   if (!ride) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 bg-white">
         <View className="flex-1 px-6 pt-2">
           <BackHeader />
           {!error ? (
@@ -40,12 +41,12 @@ export default function DriverTripDetailScreen() {
             </View>
           )}
         </View>
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('rideDetails')}</Text>
@@ -77,6 +78,6 @@ export default function DriverTripDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

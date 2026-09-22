@@ -1,16 +1,16 @@
 import '../global.css';
 
 import { useEffect, useCallback } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { Platform, Alert, BackHandler } from 'react-native';
+import { Platform, BackHandler } from 'react-native';
 import {
   useFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from '@expo-google-fonts/poppins';
 
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLocaleStore } from '../stores/useLocaleStore';
@@ -20,23 +20,29 @@ import { useLocationPermission } from '../hooks/useLocationPermission';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Disable font scaling globally for consistent UI
+// Disable font scaling globally for consistent UI, and set Poppins as the
+// base family so unstyled body text matches the weighted text (which the
+// Tailwind font-bold/semibold/medium tokens map to the Poppins weight files).
 if (Platform.OS !== 'web') {
-  // Use a global approach to disable font scaling
   const originalText = require('react-native').Text;
   if (originalText) {
-    originalText.defaultProps = { ...originalText.defaultProps, allowFontScaling: false };
+    originalText.defaultProps = {
+      ...originalText.defaultProps,
+      allowFontScaling: false,
+      style: [{ fontFamily: 'Poppins_400Regular' }, ...(originalText.defaultProps?.style ?? [])],
+    };
   }
 }
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
   });
 
+  const router = useRouter();
   const currentUser = useAuthStore((s) => s.currentUser);
   const isAuthHydrated = useAuthStore((s) => s.isHydrated);
   const hydrateAuth = useAuthStore((s) => s.hydrate);
@@ -66,19 +72,14 @@ export default function RootLayout() {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
 
-  // Handle Android hardware back button with exit confirmation
+  // Handle Android hardware back button - navigate back in stack instead of exiting
   const handleBackPress = useCallback(() => {
-    Alert.alert(
-      'Exit App',
-      'Are you sure you want to exit?',
-      [
-        { text: 'Cancel', style: 'cancel', onPress: () => false },
-        { text: 'Exit', onPress: () => BackHandler.exitApp() },
-      ],
-      { cancelable: false }
-    );
-    return true; // Prevent default back behavior
-  }, []);
+    if (router.canGoBack()) {
+      router.back();
+      return true;
+    }
+    return false; // Allow default exit behavior only at root
+  }, [router]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);

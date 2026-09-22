@@ -1,27 +1,37 @@
 import { useCallback, useState } from 'react';
-import { View, Text, SafeAreaView, FlatList, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, Pressable } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 
+import { Button } from '../../../components/Button';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getWallet, Wallet, WalletTransaction } from '../../../services/wallet-service';
 import { formatFare } from '../../../types/ride';
+import { ApiError } from '../../../services/api-client';
 
+// Wallet must never show a wrong balance: while loading it shows a spinner,
+// and if the backend is unreachable (Render cold start, offline) it shows an
+// explicit error card with a retry action instead of a fake RWF 0 balance.
 export default function WalletScreen() {
   const { t } = useTranslation();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
 
-  useFocusEffect(
-    useCallback(() => {
-      getWallet()
-        .then(setWallet)
-        .finally(() => setLoading(false));
-    }, [])
-  );
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(undefined);
+    getWallet()
+      .then(setWallet)
+      .catch((err) => setError(err instanceof ApiError ? err.message : t('requestFailed')))
+      .finally(() => setLoading(false));
+  }, [t]);
+
+  useFocusEffect(load);
 
   return (
-    <SafeAreaView className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
       <View className="px-5 pt-4">
         <Text className="text-xl font-bold text-ink">{t('wallet')}</Text>
 
@@ -32,6 +42,8 @@ export default function WalletScreen() {
           <Text className="text-sm font-medium text-white/85">{t('balance')}</Text>
           {loading ? (
             <ActivityIndicator className="mt-2" color="#fff" />
+          ) : error ? (
+            <Text className="mt-1 text-lg font-semibold text-white/90">—</Text>
           ) : (
             <Text className="mt-1 text-3xl font-bold text-white">{formatFare(wallet?.balance ?? 0)}</Text>
           )}
@@ -46,7 +58,15 @@ export default function WalletScreen() {
       </View>
 
       <View className="mt-5 flex-1 px-5">
-        {!loading && (wallet?.transactions.length ?? 0) === 0 ? (
+        {!loading && error ? (
+          <View className="mt-10 items-center">
+            <Ionicons name="cloud-offline-outline" size={40} color="#6B7280" />
+            <Text className="mt-3 text-center text-text-secondary">{error}</Text>
+            <View className="mt-4 min-w-[160px]">
+              <Button title={t('tryAgain')} variant="outline" onPress={load} />
+            </View>
+          </View>
+        ) : !loading && (wallet?.transactions.length ?? 0) === 0 ? (
           <View className="mt-10 items-center">
             <Ionicons name="receipt-outline" size={40} color="#6B7280" />
             <Text className="mt-3 text-text-secondary">{t('walletTransactionsEmpty')}</Text>
@@ -59,7 +79,7 @@ export default function WalletScreen() {
           />
         )}
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }
 

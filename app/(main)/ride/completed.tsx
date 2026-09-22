@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -18,14 +19,14 @@ export default function CompletedScreen() {
 
   if (!ride) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator color="#16A34A" />
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-10">
         <Text className="text-2xl font-bold text-primary">{t('tripCompleted')}</Text>
 
@@ -52,6 +53,6 @@ export default function CompletedScreen() {
           <Button title={t('backHome')} variant="outline" onPress={() => router.replace('/(main)/(tabs)')} />
         </View>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

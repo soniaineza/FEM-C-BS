@@ -1,10 +1,11 @@
 import { View, Text, Pressable } from 'react-native';
+import { memo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 // Direct port of lib/widgets/error_message.dart: a tinted banner (6%-opacity
 // red fill, 30%-opacity red border) with an error icon, used for every
 // inline form/request error across the app instead of bare red text.
-export function ErrorMessage({
+export const ErrorMessage = memo(function ErrorMessage({
   message,
   retryLabel,
   onRetry,
@@ -27,4 +28,6 @@ export function ErrorMessage({
       ) : null}
     </View>
   );
-}
+});
+
+ErrorMessage.displayName = 'ErrorMessage';

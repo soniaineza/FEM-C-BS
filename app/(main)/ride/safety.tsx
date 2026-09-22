@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, Share, Pressable } from 'react-native';
+import { View, Text, Share, Pressable } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -66,7 +67,7 @@ export default function SafetyScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <Text className="mt-4 text-xl font-bold text-ink">{t('safety')}</Text>
@@ -106,6 +107,6 @@ export default function SafetyScreen() {
           </View>
         </View>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

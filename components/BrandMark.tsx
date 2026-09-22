@@ -1,11 +1,12 @@
 import { View, Text } from 'react-native';
+import { memo } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 
 // Direct port of lib/widgets/brand_mark.dart — the FEM C@BS wordmark used on
 // the splash and welcome screens, with an optional gradient icon badge above
 // it (car icon in the Dart original; kept as a simple glyph here since we
 // have no vector icon set installed).
-export function BrandMark({ fontSize = 28, withIcon = true }: { fontSize?: number; withIcon?: boolean }) {
+export const BrandMark = memo(function BrandMark({ fontSize = 28, withIcon = true }: { fontSize?: number; withIcon?: boolean }) {
   return (
     <View className="items-center">
       {withIcon ? (
@@ -41,4 +42,6 @@ export function BrandMark({ fontSize = 28, withIcon = true }: { fontSize?: numbe
       </View>
     </View>
   );
-}
+});
+
+BrandMark.displayName = 'BrandMark';

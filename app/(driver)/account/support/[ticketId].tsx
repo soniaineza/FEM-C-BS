@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../../components/SafeAreaViewPlaceholder';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../../components/Button';
@@ -52,14 +53,14 @@ export default function DriverTicketThreadScreen() {
 
   if (loading || !ticket) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator color="#16A34A" />
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{ticket.subject}</Text>
@@ -87,6 +88,6 @@ export default function DriverTicketThreadScreen() {
           </View>
         ) : null}
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

@@ -1,10 +1,12 @@
-import { View, Text, Image, SafeAreaView, Pressable } from 'react-native';
+import { View, Text, Image, Pressable } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 
 import { Button } from '../../components/Button';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAppModeStore } from '../../stores/useAppModeStore';
+import { useLocaleStore } from '../../stores/useLocaleStore';
 
 // Direct port of lib/screens/auth/welcome_screen.dart's layout: a top hero
 // panel (gradient + two soft "blob" decorations + the car photo in a
@@ -15,9 +17,13 @@ import { useAppModeStore } from '../../stores/useAppModeStore';
 export default function WelcomeScreen() {
   const { t } = useTranslation();
   const setMode = useAppModeStore((s) => s.setMode);
+  const hasChosenLanguage = useLocaleStore((s) => s.hasChosenLanguage);
+
+  // Language must be chosen before login on first launch.
+  if (!hasChosenLanguage) return <Redirect href="/(auth)/language" />;
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="px-6 pt-3" style={{ flex: 6 }}>
         <View className="flex-1 overflow-hidden rounded-[28px]">
           <LinearGradient
@@ -58,7 +64,7 @@ export default function WelcomeScreen() {
         </View>
       </View>
 
-      <View className="justify-center px-6" style={{ flex: 5 }}>
+      <View className="justify-center px-6 flex-5">
         <Text className="text-center text-2xl font-bold leading-tight text-ink">{t('tagline')}</Text>
         <Text className="mt-2.5 text-center leading-relaxed text-text-secondary">{t('safeReliableRides')}</Text>
 
@@ -71,12 +77,13 @@ export default function WelcomeScreen() {
           <Pressable onPress={() => router.push('/(auth)/login')}>
             <Text className="font-bold text-primary">{t('login')}</Text>
           </Pressable>
-        </View>          <Pressable className="mt-6" onPress={() => setMode('driver')}>
-            <Text className="text-center text-sm text-text-secondary">
-              {t('passengerSwitchToDriverHint')} <Text className="font-semibold text-primary">{t('switchToDriverApp')}</Text>
-            </Text>
-          </Pressable>
+        </View>
+        <Pressable className="mt-6" onPress={() => setMode('driver')}>
+          <Text className="text-center text-sm text-text-secondary">
+            {t('passengerSwitchToDriverHint')} <Text className="font-semibold text-primary">{t('switchToDriverApp')}</Text>
+          </Text>
+        </Pressable>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

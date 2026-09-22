@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, SafeAreaView, TextInput, Pressable } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
+import { BackHeader } from '../../components/BackHeader';
+import { FEMOtpField } from '../../components/FEMOtpField';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { ApiError } from '../../services/api-client';
@@ -16,6 +19,7 @@ export default function VerificationScreen() {
   const { t } = useTranslation();
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const resendOtp = useAuthStore((s) => s.resendOtp);
+  const devCode = useAuthStore((s) => s.devCode);
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | undefined>();
@@ -65,38 +69,49 @@ export default function VerificationScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-10">
-        <Text className="text-center text-2xl font-bold text-ink">{t('verifyAccount')}</Text>
-        <Text className="mt-2 text-center leading-relaxed text-text-secondary">{t('verificationCodeSent')}</Text>
-
-        <TextInput
-          className="mt-7 h-16 rounded border border-border text-center text-ink"
-          style={{ fontSize: 26, fontWeight: '700', letterSpacing: 14 }}
-          value={code}
-          onChangeText={onChangeCode}
-          keyboardType="number-pad"
-          maxLength={OTP_LENGTH}
-          placeholder={'·'.repeat(OTP_LENGTH)}
-          placeholderTextColor="#E5E7EB"
-        />
-
-        {error ? (
-          <View className="mt-4">
-            <ErrorMessage message={error} />
-          </View>
-        ) : null}
-
-        <View className="mt-6">
-          <Button title={t('verify')} onPress={() => handleVerify(code)} loading={loading} />
-        </View>
-
-        <Pressable className="mt-4 items-center" onPress={handleResend} disabled={resendSeconds > 0}>
-          <Text className={resendSeconds > 0 ? 'text-text-secondary' : 'font-semibold text-primary'}>
-            {resendSeconds > 0 ? t('resendCodeIn', { seconds: resendSeconds }) : t('resendCode')}
-          </Text>
-        </Pressable>
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <View className="px-5 pt-1">
+        <BackHeader />
       </View>
-    </SafeAreaView>
+      <ScrollView
+        contentContainerClassName="flex-grow justify-center px-6 pb-10 pt-2"
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="w-full max-w-[440px] self-center">
+          <Text className="text-center text-2xl font-bold text-ink">{t('verifyAccount')}</Text>
+          <Text className="mt-2 text-center leading-relaxed text-text-secondary">
+            {t('verificationCodeSent')}
+          </Text>
+
+          {devCode ? (
+            <View className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+              <Text className="text-center font-bold tracking-widest text-primary">
+                {t('demoOtpHint', { code: devCode })}
+              </Text>
+            </View>
+          ) : null}
+
+          <View className="mt-7">
+            <FEMOtpField value={code} onChange={onChangeCode} error={Boolean(error)} disabled={loading} />
+          </View>
+
+          {error ? (
+            <View className="mt-4">
+              <ErrorMessage message={error} />
+            </View>
+          ) : null}
+
+          <View className="mt-6">
+            <Button title={t('verify')} onPress={() => handleVerify(code)} loading={loading} />
+          </View>
+
+          <Pressable className="mt-5 items-center" onPress={handleResend} disabled={resendSeconds > 0} hitSlop={8}>
+            <Text className={resendSeconds > 0 ? 'text-text-secondary' : 'font-semibold text-primary'}>
+              {resendSeconds > 0 ? t('resendCodeIn', { seconds: resendSeconds }) : t('resendCode')}
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </SafeAreaViewPlaceholder>
   );
 }

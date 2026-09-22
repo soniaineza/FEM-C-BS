@@ -1,4 +1,5 @@
 import { Pressable, View, Text } from 'react-native';
+import { memo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Place } from '../types/place';
@@ -8,7 +9,7 @@ import { Place } from '../types/place';
 // card (used standalone); when false (default) it's meant to sit inside a
 // shared outer card with a divider between rows, matching the reference
 // design's single seamless location card.
-export function LocationField({
+export const LocationField = memo(function LocationField({
   value,
   onPress,
   isPickup = false,
@@ -38,4 +39,6 @@ export function LocationField({
       {onPress ? <Ionicons name="chevron-forward" size={20} color="#6B7280" /> : null}
     </Pressable>
   );
-}
+});
+
+LocationField.displayName = 'LocationField';

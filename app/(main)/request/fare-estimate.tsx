@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -8,8 +9,9 @@ import { RideMap } from '../../../components/RideMap';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { fetchServerEstimate } from '../../../services/ride-service';
-import { getRoute } from '../../../services/location-service';
+import { getRoute, MapDefaults } from '../../../services/location-service';
 import { formatFare, FareEstimate } from '../../../types/ride';
+import { placeHasCoordinates } from '../../../types/place';
 
 export default function FareEstimateScreen() {
   const { t } = useTranslation();
@@ -62,22 +64,35 @@ export default function FareEstimateScreen() {
 
   if (loading || !pickup || !destination) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator color="#16A34A" />
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
+  // Coordinates are optional on Place (see types/place.ts): only render
+  // map markers when both sides have real coordinates, and keep the map at
+  // the default Kigali view otherwise instead of asserting non-null and
+  // drawing markers at "0,0".
+  const pickupCoords = placeHasCoordinates(pickup) ? { latitude: pickup.latitude!, longitude: pickup.longitude! } : null;
+  const destinationCoords = placeHasCoordinates(destination) ? { latitude: destination.latitude!, longitude: destination.longitude! } : null;
+  const mapMarkers = pickupCoords && destinationCoords
+    ? [
+        { id: 'pickup', position: pickupCoords, icon: 'pickup' as const },
+        { id: 'dest', position: destinationCoords, icon: 'destination' as const },
+      ]
+    : [];
+
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="h-56 w-full">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <View className="h-52 w-full">
         <RideMap
-          center={{ latitude: pickup.latitude!, longitude: pickup.longitude! }}
-          markers={[
-            { id: 'pickup', position: { latitude: pickup.latitude!, longitude: pickup.longitude! }, icon: 'pickup' },
-            { id: 'dest', position: { latitude: destination.latitude!, longitude: destination.longitude! }, icon: 'destination' },
-          ]}
+          center={pickupCoords ?? MapDefaults}
+          markers={mapMarkers}
           routePolyline={routePoints}
+          retryLabel={t('retryLabel')}
+          loadingLabel={t('mapLoading')}
+          errorLabel={t('mapError')}
         />
       </View>
       <View className="flex-1 px-6 pt-2">
@@ -117,6 +132,6 @@ export default function FareEstimateScreen() {
           <Button title={t('continueLabel')} onPress={proceed} disabled={!estimate} />
         </View>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { View, Text, SafeAreaView, Pressable, Modal, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, Modal, Alert, ScrollView } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { MenuTile } from '../../../components/MenuTile';
@@ -13,10 +15,14 @@ import { Locale } from '../../../locales';
 // (location/security) matching the original's AlertDialog usage.
 export default function SettingsScreen() {
   const { t, locale, setLocale, languageNames } = useTranslation();
+  // Centered dialog in a transparent Modal — no automatic SafeArea, so the
+  // box gets a bottom margin equal to the system inset to stay visually
+  // centered and clear of the gesture bar on edge-to-edge devices.
+  const insets = useSafeAreaInsets();
   const [langModalOpen, setLangModalOpen] = useState(false);
 
   return (
-    <SafeAreaView className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
       <ScrollView contentContainerClassName="px-5 pb-6 pt-2">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('settings')}</Text>
@@ -49,7 +55,7 @@ export default function SettingsScreen() {
       </ScrollView>
 
       <Modal visible={langModalOpen} animationType="slide" transparent>
-        <View className="flex-1 items-center justify-center bg-black/40 px-6">
+        <View className="flex-1 items-center justify-center bg-black/40 px-6" style={{ paddingBottom: insets.bottom }}>
           <View className="w-full rounded-2xl bg-white p-6">
             <Text className="text-lg font-bold text-ink">{t('chooseLanguage')}</Text>
             {(['rw', 'fr', 'en'] as Locale[]).map((l) => (
@@ -68,6 +74,6 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -63,15 +64,15 @@ export default function DriverVehicleScreen() {
 
   if (loading || !vehicle) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator color="#16A34A" />
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <ScrollView contentContainerClassName="px-6 pt-2 pb-10" keyboardShouldPersistTaps="handled">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('driverYourVehicle')}</Text>
 
@@ -89,6 +90,6 @@ export default function DriverVehicleScreen() {
           <Button title={t('save')} onPress={handleSave} loading={saving} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

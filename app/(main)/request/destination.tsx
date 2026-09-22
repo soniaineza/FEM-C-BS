@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, TextInput, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { BackHeader } from '../../../components/BackHeader';
 import { RideMap } from '../../../components/RideMap';
+import { FEMMapCard } from '../../../components/FEMMapCard';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useDebouncedCallback } from '../../../hooks/useDebounce';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
@@ -21,6 +23,27 @@ export default function DestinationScreen() {
   const [results, setResults] = useState<Place[]>([]);
   const [recent, setRecent] = useState<RecentPlace[]>([]);
   const [searching, setSearching] = useState(false);
+  const [recenterToken, setRecenterToken] = useState(0);
+  const [recentering, setRecentering] = useState(false);
+  const [focusCenter, setFocusCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [error, setError] = useState<string | undefined>();
+
+  // Recenter on the rider's current location without selecting it. Never
+  // freezes on GPS failure — surfaces an error and leaves manual search/pin
+  // selection fully usable.
+  async function handleRecenter() {
+    setRecentering(true);
+    setError(undefined);
+    try {
+      const place = await locationService.getCurrentPlace();
+      setFocusCenter({ latitude: place.latitude!, longitude: place.longitude! });
+      setRecenterToken((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : undefined);
+    } finally {
+      setRecentering(false);
+    }
+  }
 
   useEffect(() => {
     getRecentPlaces().then(setRecent);
@@ -76,14 +99,25 @@ export default function DestinationScreen() {
   const list = query.trim().length >= 2 ? results : recent.map((r) => ({ address: r.address, latitude: r.latitude, longitude: r.longitude }));
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="h-64 w-full">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <FEMMapCard
+        height={200}
+        className="mx-4 mt-3"
+        onRecenter={handleRecenter}
+        recenterDisabled={recentering}
+        recenterLabel={t('useCurrentLocation')}
+      >
         <RideMap
-          center={pinnedPlace ? { latitude: pinnedPlace.latitude!, longitude: pinnedPlace.longitude! } : mapCenter}
+          center={pinnedPlace ? { latitude: pinnedPlace.latitude!, longitude: pinnedPlace.longitude! } : (focusCenter ?? mapCenter)}
           markers={pinnedPlace ? [{ id: 'pin', position: { latitude: pinnedPlace.latitude!, longitude: pinnedPlace.longitude! }, icon: 'destination' }] : []}
           onMapPress={onMapPress}
+          recenterToken={recenterToken}
+          retryLabel={t('tryAgain')}
+          loadingLabel={t('mapLoading')}
+          errorLabel={t('mapError')}
         />
-      </View>
+      </FEMMapCard>
+      {error ? <Text className="px-6 pt-2 text-sm text-error">{error}</Text> : null}
       {pinnedPlace ? (
         <View className="border-b border-border bg-bg-light px-6 py-3">
           <Text numberOfLines={1} className="text-sm font-medium text-ink">
@@ -124,6 +158,6 @@ export default function DestinationScreen() {
           )}
         />
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

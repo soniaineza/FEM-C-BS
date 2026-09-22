@@ -28,10 +28,13 @@ export async function signUp(params: {
   phone: string;
   email: string;
   password: string;
-}): Promise<Passenger> {
-  const json = await apiClient.post<{ passenger: any; token: string }>('/auth/signup', params, false);
+}): Promise<{ passenger: Passenger; devCode?: string }> {
+  const json = await apiClient.post<{ passenger: any; token: string; devCode?: string }>('/auth/signup', params, false);
   await saveSession(json.token, json.passenger.id);
-  return passengerFromBackendJson(json.passenger);
+  return {
+    passenger: passengerFromBackendJson(json.passenger),
+    devCode: json.devCode,
+  };
 }
 
 export async function logIn(params: { identifier: string; password: string }): Promise<Passenger> {
@@ -40,9 +43,9 @@ export async function logIn(params: { identifier: string; password: string }): P
   return passengerFromBackendJson(json.passenger);
 }
 
-export async function resetPassword(identifier: string): Promise<string> {
-  const json = await apiClient.post<{ message: string }>('/auth/reset-password/request', { identifier }, false);
-  return json.message ?? '';
+export async function resetPassword(identifier: string): Promise<{ message: string; devCode?: string }> {
+  const json = await apiClient.post<{ message: string; devCode?: string }>('/auth/reset-password/request', { identifier }, false);
+  return { message: json.message ?? '', devCode: json.devCode };
 }
 
 export async function confirmResetPassword(params: {
@@ -61,8 +64,9 @@ export async function verifyOtp(params: { passengerId: string; code: string }): 
   await apiClient.post('/auth/verify-otp', params, false);
 }
 
-export async function resendOtp(purpose: string = 'signup'): Promise<void> {
-  await apiClient.post('/auth/resend-otp', { purpose });
+export async function resendOtp(purpose: string = 'signup'): Promise<{ devCode?: string }> {
+  const json = await apiClient.post<{ devCode?: string }>('/auth/resend-otp', { purpose });
+  return { devCode: json.devCode };
 }
 
 export async function updateProfile(passenger: Passenger): Promise<Passenger> {

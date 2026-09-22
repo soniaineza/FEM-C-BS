@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, SafeAreaView, Pressable } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -18,6 +19,7 @@ export default function ForgotPasswordScreen() {
   const [stage, setStage] = useState<'request' | 'confirm' | 'done'>('request');
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
+  const [devCode, setDevCode] = useState<string | undefined>();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | undefined>();
@@ -29,7 +31,8 @@ export default function ForgotPasswordScreen() {
     setError(undefined);
     setLoading(true);
     try {
-      await resetPassword(identifier.trim());
+      const result = await resetPassword(identifier.trim());
+      setDevCode(result.devCode);
       setStage('confirm');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : undefined);
@@ -56,8 +59,9 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <ScrollView contentContainerClassName="flex-grow px-6 pt-2 pb-8" keyboardShouldPersistTaps="handled">
+        <View className="w-full max-w-[440px] self-center">
         <BackHeader />
         {stage === 'request' && (
           <>
@@ -86,6 +90,13 @@ export default function ForgotPasswordScreen() {
             </View>
             <Text className="mt-4 text-2xl font-bold text-ink">{t('codeArrivalHint')}</Text>
             <Text className="mt-2 leading-relaxed text-text-secondary">{t('checkPhoneOrEmail')}</Text>
+            {devCode ? (
+              <View className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+                <Text className="text-center font-bold tracking-widest text-primary">
+                  {t('demoOtpHint', { code: devCode })}
+                </Text>
+              </View>
+            ) : null}
             <View className="mt-6 gap-4">
               <Input
                 label={t('resetCodeLabel')}
@@ -138,7 +149,8 @@ export default function ForgotPasswordScreen() {
             <Text className="text-primary">{t('backToLogin')}</Text>
           </Pressable>
         )}
-      </View>
-    </SafeAreaView>
+        </View>
+      </ScrollView>
+    </SafeAreaViewPlaceholder>
   );
 }

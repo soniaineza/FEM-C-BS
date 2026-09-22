@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { getPool } = require('../db');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
+const { config } = require('../config');
 const paypack = require('../services/paypackClient');
 
 const router = express.Router();
@@ -75,6 +76,38 @@ router.post(
       [req.passengerId, value, String(phone).trim(), reference]
     );
     let topup = rows[0];
+
+    if (config.demoPayments) {
+      // Demo mode: credit the wallet immediately instead of going through
+      // Paypack, so top-ups are testable without real mobile-money creds.
+      const client = await getPool().connect();
+      try {
+        await client.query('BEGIN');
+        const settled = await client.query(
+          `UPDATE wallet_topups SET status='succeeded', state='succeeded',
+             metadata=$2::jsonb, updated_at=now() WHERE id = $1 RETURNING *`,
+          [topup.id, JSON.stringify({ reason: 'demo_acceptance' })]
+        );
+        await client.query(
+          `INSERT INTO wallets (passenger_id, balance) VALUES ($1, $2)
+           ON CONFLICT (passenger_id) DO UPDATE SET balance = wallets.balance + $2, updated_at = now()`,
+          [req.passengerId, value]
+        );
+        await client.query(
+          `INSERT INTO wallet_transactions (passenger_id, amount, type, source, reference)
+           VALUES ($1, $2, 'credit', 'topup', $3)`,
+          [req.passengerId, value, topup.reference]
+        );
+        await client.query('COMMIT');
+        topup = settled.rows[0];
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+      return res.status(201).json({ topup: topupToJson(topup) });
+    }
 
     if (!paypack.isConfigured()) {
       const updated = await getPool().query(

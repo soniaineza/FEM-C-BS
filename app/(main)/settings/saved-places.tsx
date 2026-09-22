@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, FlatList, Pressable, Modal, TextInput } from 'react-native';
+import { View, Text, FlatList, Pressable, Modal, TextInput } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../../../components/Button';
 import { BackHeader } from '../../../components/BackHeader';
@@ -45,7 +46,7 @@ export default function SavedPlacesScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <View className="mt-2 flex-row items-center justify-between">
@@ -107,6 +108,6 @@ export default function SavedPlacesScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

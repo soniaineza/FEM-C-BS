@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -77,7 +78,7 @@ export default function VehicleSelectionScreen() {
   const distanceKm = straightLineKm(pickup, destination);
 
   return (
-    <SafeAreaView className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
       <View className="flex-1 px-5 pt-2">
         <BackHeader />
         <Text className="mb-4 mt-1 text-xl font-bold text-ink">{t('chooseRide')}</Text>
@@ -136,6 +137,6 @@ export default function VehicleSelectionScreen() {
       <View className="border-t border-border bg-white px-5 py-3.5">
         <Button title={t('continueLabel')} onPress={proceed} disabled={!selectedId} />
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

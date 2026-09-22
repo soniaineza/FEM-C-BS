@@ -1,4 +1,5 @@
 import { Pressable, Text, ActivityIndicator, View, PressableProps } from 'react-native';
+import { memo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ButtonProps extends Omit<PressableProps, 'children'> {
@@ -14,7 +15,7 @@ interface ButtonProps extends Omit<PressableProps, 'children'> {
 // Mirrors primary_button.dart / app_theme.dart's elevatedButtonTheme: full
 // width, 52px tall, 12px radius, filled brand green by default, with a soft
 // brand-tinted shadow lifting it off the page.
-export function Button({
+export const Button = memo(function Button({
   title,
   loading,
   variant = 'primary',
@@ -65,4 +66,6 @@ export function Button({
       </Pressable>
     </View>
   );
-}
+});
+
+Button.displayName = 'Button';

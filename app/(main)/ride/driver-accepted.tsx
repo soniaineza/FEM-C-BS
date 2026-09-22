@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
-import { View, Text, SafeAreaView, Pressable, Linking } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, Pressable, Linking } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -8,13 +9,23 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
 import { cancelRide } from '../../../services/ride-service';
-import { MapDefaults } from '../../../services/location-service';
+import { MapDefaults, getRoute } from '../../../services/location-service';
+import { RoutePoint } from '../../../types/ride';
 
 export default function DriverAcceptedScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const { ride, driverLocation } = useRideTracking(rideId ?? null);
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   usePassengerLocationReporting(!!ride);
+
+  useEffect(() => {
+    if (!ride) return;
+    getRoute({ from: ride.pickup, to: ride.destination }).then((route) => {
+      setRoutePoints(route?.points ?? []);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ride?.id]);
 
   useEffect(() => {
     if (ride && (ride.status === 'pinVerified' || ride.status === 'inProgress' || ride.status === 'arrived' || ride.status === 'paymentPending')) {
@@ -27,22 +38,30 @@ export default function DriverAcceptedScreen() {
 
   if (!ride || !ride.driver) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <Text className="text-text-secondary">{t('waitingDriver')}</Text>
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   const center = driverLocation ?? { latitude: ride.pickup.latitude ?? MapDefaults.latitude, longitude: ride.pickup.longitude ?? MapDefaults.longitude };
   const markers = [
     { id: 'pickup', position: { latitude: ride.pickup.latitude!, longitude: ride.pickup.longitude! }, icon: 'pickup' as const },
+    { id: 'dest', position: { latitude: ride.destination.latitude!, longitude: ride.destination.longitude! }, icon: 'destination' as const },
     ...(driverLocation ? [{ id: 'driver', position: { latitude: driverLocation.latitude, longitude: driverLocation.longitude }, icon: 'driver' as const }] : []),
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="h-64 w-full">
-        <RideMap center={center} markers={markers} />
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <View className="h-52 w-full">
+        <RideMap
+          center={center}
+          markers={markers}
+          routePolyline={routePoints}
+          retryLabel={t('tryAgain')}
+          loadingLabel={t('mapLoading')}
+          errorLabel={t('mapError')}
+        />
       </View>
       <View className="flex-1 px-6 pt-6">
         <Text className="text-lg font-bold text-primary">{t('driverOnWay')}</Text>
@@ -87,6 +106,6 @@ export default function DriverAcceptedScreen() {
           ) : null}
         </View>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

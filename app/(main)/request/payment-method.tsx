@@ -1,4 +1,5 @@
-import { View, Text, SafeAreaView, FlatList, Pressable } from 'react-native';
+import { View, Text, FlatList, Pressable } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -25,7 +26,7 @@ export default function PaymentMethodScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <Text className="mt-1 text-xl font-bold text-ink">{t('paymentMethod')}</Text>
@@ -51,6 +52,6 @@ export default function PaymentMethodScreen() {
           <Button title={t('continueLabel')} onPress={proceed} disabled={!paymentMethod} />
         </View>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

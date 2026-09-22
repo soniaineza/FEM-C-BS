@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Platform, Alert, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import { useTranslation } from './useTranslation';
@@ -8,6 +8,7 @@ export function useLocationPermission() {
   const [permissionStatus, setPermissionStatus] = useState<Location.PermissionStatus | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
   const [locationServicesEnabled, setLocationServicesEnabled] = useState(true);
+  const [hasChecked, setHasChecked] = useState(false);
 
   const checkLocationServices = useCallback(async () => {
     const enabled = await Location.hasServicesEnabledAsync();
@@ -40,20 +41,20 @@ export function useLocationPermission() {
     }
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-    
-    (async () => {
-      await checkLocationServices();
-      if (mounted) {
-        await checkPermission();
-      }
-    })();
+  // Lazy check - only runs once, when first needed
+  const ensureInitialized = useCallback(async () => {
+    if (hasChecked) return;
+    setHasChecked(true);
+    await checkLocationServices();
+    await checkPermission();
+  }, [hasChecked, checkLocationServices, checkPermission]);
 
-    return () => { mounted = false; };
-  }, [checkLocationServices, checkPermission]);
-
+  // Pre-prompt: on the FIRST ask (status still 'undetermined'), show a plain
+  // explanation of WHY the app wants location before the OS dialog appears —
+  // the OS itself only offers Allow/Deny with no context, which reads as
+  // invasive and drives denials. Skipped when already granted/denied.
   const ensurePermission = useCallback(async (): Promise<boolean> => {
+    await ensureInitialized();
     const enabled = await checkLocationServices();
     if (!enabled) {
       Alert.alert(
@@ -64,7 +65,22 @@ export function useLocationPermission() {
       return false;
     }
 
-    const status = await checkPermission();
+    let status = await checkPermission();
+    if (status === Location.PermissionStatus.UNDETERMINED) {
+      await new Promise<void>((resolve) => {
+        Alert.alert(
+          t('locationPrePromptTitle'),
+          t('locationPrePromptBody'),
+          [
+            { text: t('notNow'), style: 'cancel', onPress: () => resolve() },
+            { text: t('continueLabel'), onPress: () => resolve() },
+          ],
+          { cancelable: false }
+        );
+      });
+      status = await checkPermission();
+    }
+
     if (status === Location.PermissionStatus.GRANTED) {
       return true;
     }
@@ -76,6 +92,9 @@ export function useLocationPermission() {
       }
     }
 
+    // Denied (or permanently denied via BLOCKED): the app never freezes —
+    // manual pickup selection works everywhere, and this dialog points to
+    // Settings for users who want to enable it.
     Alert.alert(
       t('locationPermissionDeniedTitle'),
       t('locationPermissionDeniedMessage'),
@@ -91,6 +110,7 @@ export function useLocationPermission() {
     checkPermission,
     requestPermission,
     ensurePermission,
+    ensureInitialized,
     openSettings,
   };
 }

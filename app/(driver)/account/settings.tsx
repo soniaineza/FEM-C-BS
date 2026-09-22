@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, SafeAreaView, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../../components/Button';
@@ -44,7 +45,7 @@ export default function DriverSettingsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
       <ScrollView contentContainerClassName="px-5 pb-8 pt-2">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('settings')}</Text>
@@ -67,6 +68,6 @@ export default function DriverSettingsScreen() {
           <Button title={t('deleteMyAccount')} destructive disabled={!confirmDelete} loading={deleting} onPress={handleDelete} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

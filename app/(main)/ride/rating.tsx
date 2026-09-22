@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { View, Text, SafeAreaView, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -33,15 +35,15 @@ export default function RatingScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <Text className="mt-4 text-2xl font-bold text-ink">{t('howWasRide')}</Text>
 
         <View className="mt-6 flex-row justify-center gap-2">
           {[1, 2, 3, 4, 5].map((n) => (
-            <Pressable key={n} onPress={() => setStars(n)}>
-              <Text className={`text-4xl ${n <= stars ? 'text-primary' : 'text-border'}`}>{'★'}</Text>
+            <Pressable key={n} onPress={() => setStars(n)} hitSlop={8}>
+              <Ionicons name={n <= stars ? 'star' : 'star-outline'} size={38} color={n <= stars ? '#16A34A' : '#E5E7EB'} />
             </Pressable>
           ))}
         </View>
@@ -55,6 +57,6 @@ export default function RatingScreen() {
           <Button title={t('submitRating')} onPress={handleSubmit} loading={loading} />
         </View>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

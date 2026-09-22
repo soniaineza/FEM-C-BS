@@ -1,4 +1,5 @@
 import { View, Text, Pressable } from 'react-native';
+import { memo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
@@ -17,7 +18,7 @@ interface BackHeaderProps {
 // layouts (see app/_layout.tsx and friends). Used at the top of a screen's
 // content instead of turning the native header back on, so it doesn't
 // disturb screens with their own colored hero sections.
-export function BackHeader({ title, onBack, light = false, className }: BackHeaderProps) {
+export const BackHeader = memo(function BackHeader({ title, onBack, light = false, className }: BackHeaderProps) {
   return (
     <View className={`flex-row items-center px-1 py-2 ${className ?? ''}`}>
       <Pressable
@@ -32,4 +33,6 @@ export function BackHeader({ title, onBack, light = false, className }: BackHead
       ) : null}
     </View>
   );
-}
+});
+
+BackHeader.displayName = 'BackHeader';

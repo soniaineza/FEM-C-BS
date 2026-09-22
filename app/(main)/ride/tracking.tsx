@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
-import { View, Text, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { RideMap } from '../../../components/RideMap';
+import { FEMMapCard } from '../../../components/FEMMapCard';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { getPaymentForRide, confirmCashPayment, initiatePayment, refreshPaymentStatus } from '../../../services/payment-service';
 import { PaymentRecord, isPaymentSettled } from '../../../types/payment';
-import { MapDefaults } from '../../../services/location-service';
+import { MapDefaults, getRoute } from '../../../services/location-service';
+import { RoutePoint } from '../../../types/ride';
 
 export default function TrackingScreen() {
   const { t } = useTranslation();
@@ -17,6 +20,18 @@ export default function TrackingScreen() {
 
   const [payment, setPayment] = useState<PaymentRecord | null>(null);
   const [payLoading, setPayLoading] = useState(false);
+  const [recenterToken, setRecenterToken] = useState(0);
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+
+  // Draw the planned itinerary (pickup → destination) so the map shows where
+  // the ride is going even before the driver is on-screen.
+  useEffect(() => {
+    if (!ride) return;
+    getRoute({ from: ride.pickup, to: ride.destination }).then((route) => {
+      setRoutePoints(route?.points ?? []);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ride?.id]);
 
   useEffect(() => {
     if (ride && ride.status === 'completed') {
@@ -54,25 +69,39 @@ export default function TrackingScreen() {
 
   if (!ride) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator color="#16A34A" />
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
   const center = driverLocation ?? { latitude: ride.destination.latitude ?? MapDefaults.latitude, longitude: ride.destination.longitude ?? MapDefaults.longitude };
   const markers = [
     { id: 'dest', position: { latitude: ride.destination.latitude!, longitude: ride.destination.longitude! }, icon: 'destination' as const },
+    { id: 'pickup', position: { latitude: ride.pickup.latitude!, longitude: ride.pickup.longitude! }, icon: 'pickup' as const },
     ...(driverLocation ? [{ id: 'driver', position: { latitude: driverLocation.latitude, longitude: driverLocation.longitude }, icon: 'driver' as const }] : []),
   ];
 
   const awaitingPayment = ride.status === 'arrived' || ride.status === 'paymentPending';
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="h-64 w-full">
-        <RideMap center={center} markers={markers} />
-      </View>
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <FEMMapCard
+        height={200}
+        className="mx-4 mt-3"
+        onRecenter={() => setRecenterToken((n) => n + 1)}
+        recenterLabel={t('recenterMap')}
+      >
+        <RideMap
+          center={center}
+          markers={markers}
+          routePolyline={routePoints}
+          recenterToken={recenterToken}
+          retryLabel={t('tryAgain')}
+          loadingLabel={t('mapLoading')}
+          errorLabel={t('mapError')}
+        />
+      </FEMMapCard>
       <View className="flex-1 px-6 pt-6">
         <Text className="text-lg font-bold text-ink">{t('tripInProgress')}</Text>
         <Text className="mt-1 text-text-secondary">{ride.destination.address}</Text>
@@ -105,6 +134,6 @@ export default function TrackingScreen() {
           <Button title={t('safety')} variant="outline" onPress={() => router.push({ pathname: '/(main)/ride/safety', params: { rideId: ride.id } })} />
         </View>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

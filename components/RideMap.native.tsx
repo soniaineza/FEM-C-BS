@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { View } from 'react-native';
+import { View, ActivityIndicator, Text, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 
 export interface LatLng {
@@ -19,6 +20,13 @@ interface RideMapProps {
   markers?: RideMapMarker[];
   routePolyline?: LatLng[];
   onMapPress?: (pos: LatLng) => void;
+  // Bump this to force the map to re-apply `center`/`zoom` even when they
+  // haven't changed (e.g. a recenter button after the user pans the map).
+  recenterToken?: number;
+  // Optional label for the error state's retry action.
+  retryLabel?: string;
+  loadingLabel?: string;
+  errorLabel?: string;
 }
 
 // Native map: a WebView running Leaflet over raw OpenStreetMap tiles — the
@@ -66,6 +74,34 @@ function buildLeafletHtml(center: LatLng, zoom: number, markers: RideMapMarker[]
   var markerLayer = L.layerGroup().addTo(map);
   var routeLine = null;
 
+  // Fit the viewport to whatever content exists (route first, else markers).
+  // Without this, a fare-estimate/tracking map centered on the pickup shows a
+  // destination far away with no visible path — the reported "map isn't
+  // showing where I'm going" issue.
+  function fitContent() {
+    var lats = [];
+    if (routeLine && routeLine.getLatLngs().length) {
+      routeLine.getLatLngs().forEach(function (latlng) {
+        if (Array.isArray(latlng)) {
+          latlng.forEach(function (p) { lats.push([p.lat, p.lng]); });
+        } else {
+          lats.push([latlng.lat, latlng.lng]);
+        }
+      });
+    }
+    if (!lats.length) {
+      markerLayer.eachLayer(function (layer) {
+        var p = layer.getLatLng();
+        lats.push([p.lat, p.lng]);
+      });
+    }
+    if (lats.length >= 2) {
+      map.fitBounds(L.latLngBounds(lats).pad(0.2), { animate: false });
+    } else if (lats.length === 1) {
+      map.setView(lats[0], Math.max(map.getZoom(), 14), { animate: false });
+    }
+  }
+
   function renderMarkers(markers) {
     markerLayer.clearLayers();
     (markers || []).forEach(function (m) {
@@ -82,6 +118,7 @@ function buildLeafletHtml(center: LatLng, zoom: number, markers: RideMapMarker[]
 
   renderMarkers(${markerJson});
   renderRoute(${routeJson});
+  fitContent();
 
   map.on('click', function (e) {
     window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
@@ -99,7 +136,9 @@ function buildLeafletHtml(center: LatLng, zoom: number, markers: RideMapMarker[]
   };
   window.__femSetRoute = function (routeJson) {
     renderRoute(JSON.parse(routeJson));
+    fitContent();
   };
+  window.__femFitRoute = fitContent;
 
   map.whenReady(function () {
     window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
@@ -109,13 +148,27 @@ function buildLeafletHtml(center: LatLng, zoom: number, markers: RideMapMarker[]
 </html>`;
 }
 
-export function RideMap({ center, zoom = 15, markers = [], routePolyline, onMapPress }: RideMapProps) {
+export function RideMap({
+  center,
+  zoom = 15,
+  markers = [],
+  routePolyline,
+  onMapPress,
+  recenterToken,
+  retryLabel = 'Retry',
+  loadingLabel = 'Loading map…',
+  errorLabel = 'The map could not be loaded. Check your connection.',
+}: RideMapProps) {
   const webviewRef = useRef<WebView>(null);
   const onMapPressRef = useRef(onMapPress);
   onMapPressRef.current = onMapPress;
 
   // Incremented to remount the WebView after Android kills its renderer.
   const [renderNonce, setRenderNonce] = useState(0);
+  // Tile/WebView lifecycle: show a spinner until the map reports ready, and a
+  // retryable error state instead of a frozen grey rectangle if it fails.
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
 
   // The full HTML (and thus the WebView page) is keyed on the route shape
   // only. Marker and center updates are pushed incrementally via
@@ -171,12 +224,32 @@ export function RideMap({ center, zoom = 15, markers = [], routePolyline, onMapP
   function onMessage(event: WebViewMessageEvent) {
     try {
       const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'ready') {
+        setLoaded(true);
+        setErrored(false);
+        return;
+      }
       if (data.type === 'press' && onMapPressRef.current) {
         onMapPressRef.current({ latitude: data.latitude, longitude: data.longitude });
       }
     } catch {
       // Ignore malformed messages — never crash the app over a bridge hiccup.
     }
+  }
+
+  // Recenter on demand (recenterToken change) even if center/zoom are the same.
+  useEffect(() => {
+    if (recenterToken === undefined) return;
+    webviewRef.current?.injectJavaScript(
+      `window.__femSetView && window.__femSetView(${center.latitude}, ${center.longitude}, ${zoom}); true;`
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recenterToken]);
+
+  function retry() {
+    setErrored(false);
+    setLoaded(false);
+    setRenderNonce((n) => n + 1);
   }
 
   return (
@@ -193,6 +266,9 @@ export function RideMap({ center, zoom = 15, markers = [], routePolyline, onMapP
         cacheEnabled
         pullToRefreshEnabled={false}
         allowsBackForwardNavigationGestures={false}
+        onLoadEnd={() => setLoaded(true)}
+        onError={() => setErrored(true)}
+        onHttpError={() => setErrored(true)}
         // Android kills backgrounded renderers under memory pressure; without
         // this the map turned into a frozen grey rectangle after returning
         // from the background (part of the reported "crashing/freezing").
@@ -201,11 +277,36 @@ export function RideMap({ center, zoom = 15, markers = [], routePolyline, onMapP
         onRenderProcessGone={(e) => {
           const { didCrash } = e.nativeEvent ?? {};
           console.warn(`[RideMap] render process ${didCrash ? 'crashed' : 'was killed'} — remounting`);
+          setLoaded(false);
           setRenderNonce((n) => n + 1);
         }}
         style={{ flex: 1, backgroundColor: '#F5F5F5' }}
         key={renderNonce}
       />
+
+      {!loaded && !errored ? (
+        <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: '#F5F5F5' }}>
+          <ActivityIndicator color="#16A34A" />
+          <Text className="mt-2 text-xs text-text-secondary">{loadingLabel}</Text>
+        </View>
+      ) : null}
+
+      {errored ? (
+        <View className="absolute inset-0 items-center justify-center px-6" style={{ backgroundColor: '#F5F5F5' }}>
+          <Ionicons name="map-outline" size={36} color="#9CA3AF" />
+          <Text className="mt-2 text-center text-sm text-text-secondary">
+            {errorLabel}
+          </Text>
+          <Pressable
+            onPress={retry}
+            hitSlop={8}
+            className="mt-3 flex-row items-center rounded-full border border-primary px-4 py-2"
+          >
+            <Ionicons name="refresh" size={16} color="#16A34A" />
+            <Text className="ml-1.5 text-sm font-semibold text-primary">{retryLabel}</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }

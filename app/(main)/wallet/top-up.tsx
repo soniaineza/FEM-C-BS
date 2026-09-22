@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -59,8 +60,8 @@ export default function WalletTopUpScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pb-10">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <ScrollView contentContainerClassName="px-6 pb-10" keyboardShouldPersistTaps="handled">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('topUpTitle')}</Text>
         <Text className="mt-1 text-sm text-text-secondary">{t('topUpSubtitle')}</Text>
@@ -108,6 +109,6 @@ export default function WalletTopUpScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

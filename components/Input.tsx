@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { View, Text, TextInput, TextInputProps, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -14,7 +14,7 @@ interface InputProps extends TextInputProps {
 // bordered, green focus ring, red error text) plus custom_text_field.dart's
 // prefix icon and automatic password show/hide toggle for secureTextEntry
 // fields.
-export function Input({
+export const Input = memo(function Input({
   label,
   error,
   prefixIcon,
@@ -53,4 +53,6 @@ export function Input({
       {error ? <Text className="mt-1 text-xs text-error">{error}</Text> : null}
     </View>
   );
-}
+});
+
+Input.displayName = 'Input';

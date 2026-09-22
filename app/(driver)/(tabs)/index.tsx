@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 
 import { Button } from '../../../components/Button';
 import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
@@ -39,6 +42,11 @@ function greetingKey(): 'driverGoodMorning' | 'driverGoodAfternoon' | 'driverGoo
 // report for that call.
 export default function DriverHomeScreen() {
   const { t } = useTranslation();
+  // Bottom sheets render inside a transparent full-screen Modal, which gets
+  // no SafeArea automatically — the OfferOverlay pads its own bottom edge by
+  // the device's system inset so Accept/Decline never sit behind the gesture
+  // bar or 3-button nav.
+  const insets = useSafeAreaInsets();
   const currentDriver = useDriverAuthStore((s) => s.currentDriver);
   const refreshDriver = useDriverAuthStore((s) => s.refresh);
 
@@ -95,7 +103,8 @@ export default function DriverHomeScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-primary">
+    <SafeAreaViewPlaceholder className="flex-1 bg-primary">
+      <StatusBar style="light" />
       <View className="bg-primary px-5 pb-8 pt-3">
         <View className="flex-row items-center">
           <View className="h-11 w-11 items-center justify-center rounded-xl bg-white">
@@ -201,10 +210,11 @@ export default function DriverHomeScreen() {
         destinationAddress={offeredRide?.destination.address}
         fare={offeredRide ? formatFare(offeredRide.estimatedFare) : ''}
         distanceKm={offeredRide?.distanceKm}
+        bottomInset={insets.bottom}
         onAccept={handleAccept}
         onDecline={handleDecline}
       />
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }
 
@@ -239,6 +249,7 @@ function OfferOverlay({
   destinationAddress,
   fare,
   distanceKm,
+  bottomInset,
   onAccept,
   onDecline,
 }: {
@@ -247,6 +258,7 @@ function OfferOverlay({
   destinationAddress?: string;
   fare: string;
   distanceKm?: number;
+  bottomInset: number;
   onAccept: () => void;
   onDecline: () => void;
 }) {
@@ -282,7 +294,14 @@ function OfferOverlay({
       <View className="flex-1 justify-end bg-black/40">
         <View
           className="rounded-t-[28px] bg-white p-6"
-          style={{ shadowColor: '#111827', shadowOpacity: 0.2, shadowRadius: 24, shadowOffset: { width: 0, height: -6 }, elevation: 8 }}
+          style={{
+            paddingBottom: 24 + bottomInset,
+            shadowColor: '#111827',
+            shadowOpacity: 0.2,
+            shadowRadius: 24,
+            shadowOffset: { width: 0, height: -6 },
+            elevation: 8,
+          }}
         >
           <View className="flex-row items-center justify-between">
             <Text className="text-lg font-bold text-ink">{t('driverNewRideRequest')}</Text>

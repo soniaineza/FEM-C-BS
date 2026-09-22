@@ -146,11 +146,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(200);
   await api('POST', '/drivers/location', { latitude: -1.9586, longitude: 30.0205 }, dt);
 
-  // driver completes trip -> paymentPending
+  // driver completes trip -> paymentPending (honest mode) or completed
+  // immediately (DEMO_PAYMENTS fake acceptance).
+  const DEMO = process.env.DEMO_PAYMENTS === '1';
   const done = await api('POST', `/drivers/rides/${rideId}/complete-trip`, null, dt);
-  check('complete-trip -> paymentPending (paypack not configured, stays pending)',
-    done.status === 200 && done.data.ride.status === 'paymentPending' && done.data.payment.status === 'pending',
-    `status=${done.status} ${JSON.stringify(done.data?.ride?.status)}/${JSON.stringify(done.data?.payment)}`);
+  if (DEMO) {
+    check('complete-trip -> completed (DEMO_PAYMENTS demo acceptance)',
+      done.status === 200 && done.data.ride.status === 'completed' && done.data.payment.status === 'succeeded',
+      `status=${done.status} ${JSON.stringify(done.data?.ride?.status)}/${JSON.stringify(done.data?.payment)}`);
+  } else {
+    check('complete-trip -> paymentPending (paypack not configured, stays pending)',
+      done.status === 200 && done.data.ride.status === 'paymentPending' && done.data.payment.status === 'pending',
+      `status=${done.status} ${JSON.stringify(done.data?.ride?.status)}/${JSON.stringify(done.data?.payment)}`);
+  }
 
   // actual travelled route: the passenger can fetch the breadcrumb trail
   // recorded while the driver drove this ride, in chronological order.
@@ -163,21 +171,37 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     `status=${route.status} n=${pts.length}`);
 
   // 11. payment flow: retry POST /payments while provider not configured
+  // (honest mode) — demo mode already settled momo, so this path is not
+  // re-exercised here.
   const pay = await api('POST', '/payments', { rideId }, token);
-  check('payment re-init idempotent', pay.status === 200 && pay.data.payment, `status=${pay.status}`);
+  if (DEMO) {
+    check('payment re-init after demo settlement returns 400', pay.status === 400, `status=${pay.status}`);
+  } else {
+    check('payment re-init idempotent', pay.status === 200 && pay.data.payment, `status=${pay.status}`);
+  }
 
   // 11b. rideId is still paymentPending (momo, provider unconfigured) — its
-  // payment must NOT be marked paid by any client action.
+  // payment must NOT be marked paid by any client action. Demo mode has the
+  // opposite, intentional behavior: momo was settled automatically.
   const ride1Check = await api('GET', `/rides/${rideId}`, null, token);
-  check('unpaid momo ride still paymentPending (never falsely paid)',
-    ride1Check.data.ride.status === 'paymentPending',
-    `status=${ride1Check.data.ride.status}`);
+  if (DEMO) {
+    check('demo momo ride completed (fake acceptance settled it)',
+      ride1Check.data.ride.status === 'completed',
+      `status=${ride1Check.data.ride.status}`);
+  } else {
+    check('unpaid momo ride still paymentPending (never falsely paid)',
+      ride1Check.data.ride.status === 'paymentPending',
+      `status=${ride1Check.data.ride.status}`);
+  }
 
   // switch to cash route: create a NEW cash ride and settle it via pay-cash.
-  // (rideId is cancelled first — a passenger can hold only one active ride.)
-  const ride1Cancel = await api('POST', `/rides/${rideId}/cancel`, { reason: 'smoke: switching to cash ride' }, token);
-  check('cancel momo ride to free the passenger', ride1Cancel.status === 200 && ride1Cancel.data.ride.status === 'cancelled',
-    `status=${ride1Cancel.status}`);
+  // (In honest mode rideId is cancelled first — a passenger can hold only one
+  // active ride. Demo mode: the ride is already completed, passenger is free.)
+  if (!DEMO) {
+    const ride1Cancel = await api('POST', `/rides/${rideId}/cancel`, { reason: 'smoke: switching to cash ride' }, token);
+    check('cancel momo ride to free the passenger', ride1Cancel.status === 200 && ride1Cancel.data.ride.status === 'cancelled',
+      `status=${ride1Cancel.status}`);
+  }
 
   const ride2 = await api('POST', '/rides', {
     pickup: { address: 'KN 5 Rd, Kigali', latitude: -1.9441, longitude: 30.0619 },
@@ -211,8 +235,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('rate ride', rate.status === 200, `status=${rate.status}`);
   const rate2 = await api('POST', `/rides/${ride2Id}/rate`, { rating: 1 }, token);
   check('double rate rejected', rate2.status === 400, `status=${rate2.status}`);
-  const rateFail = await api('POST', `/rides/${rideId}/rate`, { rating: 3 }, token);
-  check('rate non-completed ride rejected', rateFail.status === 400, `status=${rateFail.status}`);
 
   // 13. cancel flow + reason
   const ride3 = await api('POST', '/rides', {
@@ -225,6 +247,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     `status=${cancel.status}`);
   const cancelLate = await api('POST', `/rides/${ride2Id}/cancel`, {}, token);
   check('completed ride cannot cancel', cancelLate.status === 400, `status=${cancelLate.status}`);
+  const rateCancelled = await api('POST', `/rides/${ride3.data.ride.id}/rate`, { rating: 3 }, token);
+  check('rate non-completed (cancelled) ride rejected', rateCancelled.status === 400, `status=${rateCancelled.status}`);
 
   // 14. notifications + device token + mark read
   const devToken = await api('POST', '/notifications/device-token', { token: `smoke-${ts}`, platform: 'android' }, token);

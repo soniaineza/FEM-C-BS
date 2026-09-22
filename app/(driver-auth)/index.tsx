@@ -1,4 +1,5 @@
-import { View, Text, Image, SafeAreaView, Pressable } from 'react-native';
+import { View, Text, Image, Pressable } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
@@ -15,7 +16,7 @@ export default function DriverWelcomeScreen() {
   const setMode = useAppModeStore((s) => s.setMode);
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="px-6 pt-3" style={{ flex: 6 }}>
         <View className="flex-1 overflow-hidden rounded-[28px]">
           <LinearGradient
@@ -77,6 +78,6 @@ export default function DriverWelcomeScreen() {
           </Text>
         </Pressable>
       </View>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

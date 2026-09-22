@@ -1,4 +1,5 @@
-import { View, Text, SafeAreaView, ScrollView, Alert } from 'react-native';
+import { View, Text, ScrollView, Alert } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { MenuTile } from '../../../components/MenuTile';
@@ -29,7 +30,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
       <ScrollView contentContainerClassName="px-5 pb-6 pt-4">
         <Text className="text-xl font-bold text-ink">{t('profile')}</Text>
 
@@ -50,7 +51,6 @@ export default function ProfileScreen() {
             <MenuTile icon="person-outline" label={t('editProfile')} onPress={() => router.push('/(main)/settings/edit-profile')} />
             <MenuTile icon="location-outline" label={t('savedPlaces')} onPress={() => router.push('/(main)/settings/saved-places')} />
             <MenuTile icon="card-outline" label={t('paymentMethods')} onPress={() => router.push('/(main)/settings/payment-methods')} />
-            <MenuTile icon="time-outline" label={t('rideHistory')} onPress={() => router.push('/(main)/(tabs)/activity')} />
             <MenuTile icon="notifications-outline" label={t('notifications')} onPress={() => router.push('/(main)/settings/notifications')} />
           </View>
         </View>
@@ -83,6 +83,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

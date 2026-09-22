@@ -1,4 +1,5 @@
 import { View, Text } from 'react-native';
+import { memo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Place } from '../types/place';
@@ -6,7 +7,7 @@ import { Place } from '../types/place';
 // Direct port of lib/widgets/trip_route_card.dart: pickup (filled dot) and
 // destination (pin) connected by a short vertical line, with distance/
 // duration on the right when known.
-export function TripRouteCard({
+export const TripRouteCard = memo(function TripRouteCard({
   pickup,
   destination,
   distanceKm,
@@ -41,4 +42,6 @@ export function TripRouteCard({
       ) : null}
     </View>
   );
-}
+});
+
+TripRouteCard.displayName = 'TripRouteCard';

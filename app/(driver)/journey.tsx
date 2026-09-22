@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { View, Text, SafeAreaView, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -12,8 +14,8 @@ import { useDriverRideDetails } from '../../hooks/useDriverRideDetails';
 import { useDriverLocationReporting } from '../../hooks/useDriverLocationReporting';
 import { useTranslation } from '../../hooks/useTranslation';
 import { markDriverArrived, verifyDriverRidePin, completeDriverTrip, cancelDriverRide } from '../../services/driver-service';
-import { formatFare } from '../../types/ride';
-import { MapDefaults } from '../../services/location-service';
+import { formatFare, RoutePoint } from '../../types/ride';
+import { MapDefaults, getRoute } from '../../services/location-service';
 import { ApiError } from '../../services/driver-api-client';
 
 // Reason sent to the backend stays a stable English id (stored verbatim as
@@ -34,8 +36,23 @@ export default function DriverJourneyScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const { ride } = useDriverRideDetails(rideId ?? null);
+  // The cancel-reason bottom sheet lives in a transparent Modal (no automatic
+  // SafeArea) — pad its bottom by the system inset so the action list stays
+  // clear of the gesture bar / 3-button nav.
+  const insets = useSafeAreaInsets();
 
   useDriverLocationReporting(true);
+
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+  // Polyline from pickup → destination so the driver sees the whole planned
+  // path, not just two pins. Fetched once per ride (route is static).
+  useEffect(() => {
+    if (!ride) return;
+    getRoute({ from: ride.pickup, to: ride.destination }).then((route) => {
+      setRoutePoints(route?.points ?? []);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ride?.id]);
 
   const [pin, setPin] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -45,9 +62,9 @@ export default function DriverJourneyScreen() {
 
   if (!ride) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator color="#16A34A" />
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
@@ -102,7 +119,7 @@ export default function DriverJourneyScreen() {
 
   if (completion) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 bg-white">
         <View className="flex-1 items-center justify-center px-8">
           <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
             <Ionicons name="checkmark" size={32} color="#16A34A" />
@@ -116,7 +133,7 @@ export default function DriverJourneyScreen() {
             <Button title={t('driverBackToCockpit')} onPress={() => router.replace('/(driver)/(tabs)' as any)} />
           </View>
         </View>
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
@@ -125,7 +142,7 @@ export default function DriverJourneyScreen() {
   // must say so plainly rather than showing a blank action area forever.
   if (ride.status === 'cancelled') {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 bg-white">
         <View className="flex-1 items-center justify-center px-8">
           <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(220,38,38,0.1)' }}>
             <Ionicons name="close" size={32} color="#DC2626" />
@@ -138,7 +155,7 @@ export default function DriverJourneyScreen() {
             <Button title={t('driverBackToCockpit')} onPress={() => router.replace('/(driver)/(tabs)' as any)} />
           </View>
         </View>
-      </SafeAreaView>
+      </SafeAreaViewPlaceholder>
     );
   }
 
@@ -160,9 +177,16 @@ export default function DriverJourneyScreen() {
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="h-56 w-full">
-        <RideMap center={center} markers={markers} />
+        <RideMap
+          center={center}
+          markers={markers}
+          routePolyline={routePoints}
+          retryLabel={t('tryAgain')}
+          loadingLabel={t('mapLoading')}
+          errorLabel={t('mapError')}
+        />
       </View>
 
       <View className="flex-1 px-6 pt-2">
@@ -225,7 +249,7 @@ export default function DriverJourneyScreen() {
 
       <Modal visible={cancelSheetOpen} transparent animationType="slide" onRequestClose={() => setCancelSheetOpen(false)}>
         <View className="flex-1 justify-end bg-black/40">
-          <View className="rounded-t-[28px] bg-white p-6 pb-8">
+          <View className="rounded-t-[28px] bg-white p-6" style={{ paddingBottom: 32 + insets.bottom }}>
             <Text className="text-lg font-bold text-ink">{t('driverWhyCancelling')}</Text>
             <View className="mt-4 gap-2">
               {CANCEL_REASONS.map((reason) => (
@@ -240,6 +264,6 @@ export default function DriverJourneyScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </SafeAreaViewPlaceholder>
   );
 }

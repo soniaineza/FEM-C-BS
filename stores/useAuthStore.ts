@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import * as authService from '../services/auth-service';
+import { useRideWizardStore } from './useRideWizardStore';
 import { Passenger } from '../types/passenger';
 
 interface AuthState {
@@ -12,6 +13,9 @@ interface AuthState {
   // instead of jumping straight to profile-setup the instant an account
   // exists but hasn't been verified yet.
   pendingPassenger: Passenger | null;
+  // Demo-only: the OTP revealed by the server when DEV_REVEAL_CODES=1, so
+  // testing never needs a real SMS.
+  devCode: string | null;
   hydrate: () => Promise<void>;
   signUp: (params: { fullName: string; phone: string; email: string; password: string }) => Promise<void>;
   logIn: (params: { identifier: string; password: string }) => Promise<Passenger>;
@@ -29,6 +33,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: null,
   isHydrated: false,
   pendingPassenger: null,
+  devCode: null,
 
   hydrate: async () => {
     const passenger = await authService.restoreSession();
@@ -36,8 +41,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (params) => {
-    const passenger = await authService.signUp(params);
-    set({ pendingPassenger: passenger });
+    const { passenger, devCode } = await authService.signUp(params);
+    set({ pendingPassenger: passenger, devCode: devCode ?? null });
   },
 
   logIn: async (params) => {
@@ -50,11 +55,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const pending = get().pendingPassenger;
     if (!pending?.id) throw new Error('No pending signup to verify.');
     await authService.verifyOtp({ passengerId: pending.id, code });
-    set({ currentUser: pending, pendingPassenger: null });
+    set({ currentUser: pending, pendingPassenger: null, devCode: null });
   },
 
   resendOtp: async (purpose = 'signup') => {
-    await authService.resendOtp(purpose);
+    const { devCode } = await authService.resendOtp(purpose);
+    if (devCode) set({ devCode });
   },
 
   updateProfile: async (passenger: Passenger) => {
@@ -65,11 +71,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     await authService.logout();
+    useRideWizardStore.getState().reset();
     set({ currentUser: null, pendingPassenger: null });
   },
 
   deleteAccount: async () => {
     await authService.deleteAccount();
+    useRideWizardStore.getState().reset();
     set({ currentUser: null, pendingPassenger: null });
   },
 }));

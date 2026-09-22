@@ -204,10 +204,10 @@ async function completeTrip(driverId, rideId) {
 
   const updated = await getPool().query('SELECT * FROM rides WHERE id = $1', [rideId]);
   const payment = await createPaymentForRide(updated.rows[0]);
-  await chargePayment(payment, updated.rows[0]);
+  const paymentAfter = await chargePayment(payment, updated.rows[0]);
 
   const { rows } = await getPool().query('SELECT * FROM rides WHERE id = $1', [rideId]);
-  return { ride: rows[0], payment };
+  return { ride: rows[0], payment: paymentAfter || payment };
 }
 
 /** Driver-initiated cancellation of an already-accepted ride (before pickup
