@@ -219,7 +219,14 @@ async function matchAndAssign(rideId) {
     driverName = result.driver.full_name;
   }
 
-  await transitionRide(rideId, 'driverAssigned', { changedBy: 'system' });
+  try {
+    await transitionRide(rideId, 'driverAssigned', { changedBy: 'system' });
+  } catch (err) {
+    // The passenger cancelled while we were assigning: don't leave the
+    // driver marked busy for a ride that no longer exists.
+    await releaseDriver(assigned.driver_id);
+    throw err;
+  }
   const updated = await loadRide(rideId);
 
   await pushNotification(ride.passenger_id, {

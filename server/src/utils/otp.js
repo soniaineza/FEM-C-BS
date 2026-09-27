@@ -20,19 +20,17 @@ function generateCode(length = config.otpLength) {
 async function issueCode(pool, { passengerId, purpose }) {
   const code = generateCode();
   const codeHash = await hashCode(code);
-  await pool.query(
+  const { rows } = await pool.query(
     `INSERT INTO verification_codes (passenger_id, code_hash, purpose, expires_at)
-     VALUES ($1, $2, $3, $4)`,
+     VALUES ($1, $2, $3, $4) RETURNING id`,
     [passengerId, codeHash, purpose, expiryDate()]
   );
-  // Only the latest unused code of this purpose may be redeemed.
+  // Only the code just issued may be redeemed. (ids are random UUIDs, so
+  // "latest" must never be inferred from id order.)
   await pool.query(
     `UPDATE verification_codes SET used_at = now()
-     WHERE passenger_id = $1 AND purpose = $2 AND used_at IS NULL
-       AND id NOT IN (SELECT id FROM verification_codes
-                      WHERE passenger_id = $1 AND purpose = $2 AND used_at IS NULL
-                      ORDER BY id DESC LIMIT 1)`,
-    [passengerId, purpose]
+     WHERE passenger_id = $1 AND purpose = $2 AND used_at IS NULL AND id <> $3`,
+    [passengerId, purpose, rows[0].id]
   );
   return code;
 }
@@ -48,7 +46,7 @@ async function verifyCode(pool, { passengerId, purpose, code }) {
     `SELECT id, code_hash, attempts
        FROM verification_codes
       WHERE passenger_id = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now()
-      ORDER BY id DESC LIMIT 1`,
+      ORDER BY created_at DESC LIMIT 1`,
     [passengerId, purpose]
   );
   const record = rows[0];

@@ -3,6 +3,7 @@ const { getPool } = require('../db');
 const { config } = require('../config');
 const { ApiError } = require('../utils/asyncHandler');
 const { transitionRide } = require('./rideStateMachine');
+const { publishRideEvent } = require('./rideEvents');
 const { releaseDriver } = require('./driverMatcher');
 const { pushNotification } = require('./notify');
 const paypack = require('./paypackClient');
@@ -180,67 +181,80 @@ async function confirmCashPayment(payment) {
   if (payment.method !== 'cash') {
     throw new ApiError(400, 'This payment was not a cash payment.');
   }
-  const { rows } = await getPool().query(
-    `UPDATE payments SET status='succeeded', state='succeeded', updated_at=now()
-      WHERE id = $1 RETURNING *`,
-    [payment.id]
-  );
   const { rows: rideRows } = await getPool().query('SELECT * FROM rides WHERE id = $1', [
     payment.ride_id,
   ]);
-  await settleSucceededPayment(rows[0], rideRows[0]);
+  await settleSucceededPayment(payment, rideRows[0]);
+  const { rows } = await getPool().query('SELECT * FROM payments WHERE id = $1', [payment.id]);
   return rows[0];
 }
 
-/** Marks payment successful and completes the ride exactly once. */
+/**
+ * Marks payment successful and completes the ride exactly once. Webhook
+ * deliveries and status polls can race, so the payment row is claimed
+ * atomically: only the caller whose UPDATE flips it to 'succeeded' settles.
+ * The claim, receipt, ride completion and driver earnings commit together in
+ * one transaction, so a crash part-way leaves the payment unclaimed and a
+ * later webhook/poll can settle it cleanly.
+ */
 async function settleSucceededPayment(payment, ride) {
   if (!ride) return;
   if (ride.status !== 'paymentPending') return; // already settled — idempotent
 
-  const { rows } = await getPool().query(
-    `UPDATE payments SET status='succeeded', state='succeeded', updated_at=now()
-      WHERE id = $1 AND status != 'succeeded' RETURNING *`,
-    [payment.id]
-  );
-  const paid = rows[0] || payment;
-
-  const receiptNumber = `RCP-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-  await getPool().query(
-    `INSERT INTO receipts (receipt_number, payment_id, ride_id, passenger_id, amount, method, paid_at)
-     VALUES ($1,$2,$3,$4,$5,$6, now())`,
-    [receiptNumber, paid.id, ride.id, ride.passenger_id, paid.amount, paid.method]
-  );
-
-  await transitionRide(ride.id, 'completed', { changedBy: 'payments' });
-
-  // Credit the driver's earnings ledger and trip count now that the fare is
-  // actually settled — driver_earnings (read by GET /driver/earnings and
-  // /driver/earnings/history) and drivers.total_trips (read by GET
-  // /driver/me and the earnings summary) previously had no writer at all,
-  // so the driver app's wallet/account screens would show zero forever.
-  if (ride.driver_id) {
-    const gross = Number(paid.amount);
-    const commission = Math.round(gross * config.driverCommissionRate * 100) / 100;
-    const net = Math.round((gross - commission) * 100) / 100;
-    await getPool().query(
-      `INSERT INTO driver_earnings
-         (driver_id, ride_id, gross_amount, commission, net_amount, payment_method, status, settled_at)
-       VALUES ($1,$2,$3,$4,$5,$6,'settled', now())`,
-      [ride.driver_id, ride.id, gross, commission, net, paid.method]
+  const client = await getPool().connect();
+  let paid;
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `UPDATE payments SET status='succeeded', state='succeeded', updated_at=now()
+        WHERE id = $1 AND status != 'succeeded' RETURNING *`,
+      [payment.id]
     );
-    // today_earnings is left alone: it would need a daily-reset job (none
-    // exists) to stay correct, and nothing currently reads it — the
-    // earnings summary endpoint (driverProfile.routes.js) aggregates
-    // driver_earnings by CURRENT_DATE directly instead, which is already
-    // correct without it.
-    await getPool().query(
-      `UPDATE drivers SET total_trips = total_trips + 1, total_earnings = total_earnings + $2
-       WHERE id = $1`,
-      [ride.driver_id, net]
+    paid = rows[0];
+    if (!paid) {
+      await client.query('ROLLBACK');
+      return; // another caller settled it first
+    }
+
+    const receiptNumber = `RCP-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    await client.query(
+      `INSERT INTO receipts (receipt_number, payment_id, ride_id, passenger_id, amount, method, paid_at)
+       VALUES ($1,$2,$3,$4,$5,$6, now())`,
+      [receiptNumber, paid.id, ride.id, ride.passenger_id, paid.amount, paid.method]
     );
-    await releaseDriver(ride.driver_id);
+
+    await transitionRide(ride.id, 'completed', { changedBy: 'payments', db: client, publish: false });
+
+    // Credit the driver's earnings ledger and trip count now that the fare is
+    // actually settled (read by GET /driver/earnings, /driver/me and the
+    // earnings summary). today_earnings is left alone: the summary endpoint
+    // aggregates driver_earnings by CURRENT_DATE instead.
+    if (ride.driver_id) {
+      const gross = Number(paid.amount);
+      const commission = Math.round(gross * config.driverCommissionRate * 100) / 100;
+      const net = Math.round((gross - commission) * 100) / 100;
+      await client.query(
+        `INSERT INTO driver_earnings
+           (driver_id, ride_id, gross_amount, commission, net_amount, payment_method, status, settled_at)
+         VALUES ($1,$2,$3,$4,$5,$6,'settled', now())`,
+        [ride.driver_id, ride.id, gross, commission, net, paid.method]
+      );
+      await client.query(
+        `UPDATE drivers SET total_trips = total_trips + 1, total_earnings = total_earnings + $2
+         WHERE id = $1`,
+        [ride.driver_id, net]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
 
+  publishRideEvent(ride.id, { type: 'status', status: 'completed', rideId: ride.id });
+  if (ride.driver_id) await releaseDriver(ride.driver_id);
   await pushNotification(ride.passenger_id, {
     title: 'Trip completed',
     body: `Your trip is complete. Fare: RWF ${Number(paid.amount).toLocaleString()}.`,

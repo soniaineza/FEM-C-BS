@@ -148,7 +148,7 @@ router.post(
     const { rows } = await getPool().query(
       `SELECT * FROM verification_codes
         WHERE passenger_id = $1 AND purpose = $2 AND used_at IS NULL
-        ORDER BY id DESC LIMIT 1`,
+        ORDER BY created_at DESC LIMIT 1`,
       [req.passengerId, purpose]
     );
     const last = rows[0];
