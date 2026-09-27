@@ -80,6 +80,51 @@ directly in API responses so the flows can be exercised without a real SMS/
 payment provider. Set it to `0` before shipping — codes must go out over real
 SMS and payment references must come from the real provider webhook instead.
 
+## Going to production
+
+With `NODE_ENV=production` the server refuses to start until every item
+below is configured (it prints exactly what is missing). `render.yaml` at the
+repo root lists the same variables for the Render service.
+
+**OTP SMS.** Set `SMS_PROVIDER` to `pindo`, `africastalking` or `generic`,
+plus `SMS_API_KEY` (and `AT_USERNAME` for Africa's Talking, or
+`SMS_GATEWAY_URL` for generic). `SMS_SENDER_NAME` must be a sender ID
+registered with the provider. If a send fails, resending a code or
+requesting a password reset returns a 502 the app can show.
+
+**Paypack.** Set `PAYPACK_CLIENT_ID`, `PAYPACK_CLIENT_SECRET` and
+`PAYPACK_WEBHOOK_SECRET`, and register
+`https://<api-host>/api/webhooks/paypack` as the webhook in the Paypack
+dashboard. Successful or failed `transaction:processed` events settle ride
+payments and wallet top-ups (each one exactly once, even if the event is
+delivered twice). The app's refresh endpoints poll Paypack as a fallback.
+
+**SOS.** `EMERGENCY_CALL_CENTER_PHONE` is the number the SOS button dials.
+
+**Driver verification.** New drivers start unverified and can't go online
+until an operator approves them. Set `ADMIN_API_KEY` (at least 24 random
+characters) and call the admin API with the `X-Admin-Key` header:
+
+```
+H="X-Admin-Key: $ADMIN_API_KEY"; API=https://<api-host>/api/admin
+curl -H "$H" "$API/drivers?verified=false"          # awaiting review, with documents
+curl -H "$H" -X POST "$API/documents/<docId>/review" \
+     -H 'Content-Type: application/json' -d '{"status":"approved"}'
+     # or {"status":"rejected","reason":"Photo unreadable"}
+curl -H "$H" -X POST "$API/drivers/<driverId>/verify"
+curl -H "$H" -X POST "$API/drivers/<driverId>/suspend" \
+     -H 'Content-Type: application/json' -d '{"reason":"..."}'
+```
+
+The driver gets an in-app notification for each decision.
+
+**Demo switches.** `DEV_REVEAL_CODES`, `DEMO_PAYMENTS` and
+`DEV_AUTO_VERIFY_DRIVERS` must be `0`.
+
+`test/production-readiness.js` covers the webhook, admin and driver
+verification flows end to end. Run it against a dev server started with the
+same `PAYPACK_WEBHOOK_SECRET` and `ADMIN_API_KEY`.
+
 ## Wiring up the app
 
 The Flutter services under `lib/services/` (`auth_service.dart`,

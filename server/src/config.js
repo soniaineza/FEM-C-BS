@@ -83,10 +83,22 @@ const config = {
   fcmProjectId: process.env.FCM_PROJECT_ID || '',
   fcmSenderId: process.env.FCM_SENDER_ID || '',
 
-  // SMS gateway used to deliver OTP codes (generic HTTP JSON endpoint).
+  // SMS delivery for OTP codes (services/otpSender.js): 'pindo',
+  // 'africastalking' or 'generic' (JSON POST to SMS_GATEWAY_URL). Unset means
+  // codes are only logged — development only.
+  smsProvider: (
+    process.env.SMS_PROVIDER || (process.env.SMS_GATEWAY_URL ? 'generic' : '')
+  ).toLowerCase(),
+  smsApiKey: process.env.SMS_API_KEY || process.env.SMS_GATEWAY_API_KEY || '',
   smsGatewayUrl: process.env.SMS_GATEWAY_URL || '',
-  smsGatewayApiKey: process.env.SMS_GATEWAY_API_KEY || '',
+  // Africa's Talking account username ('sandbox' for their test env).
+  atUsername: process.env.AT_USERNAME || '',
+  // Sender ID shown on the SMS. Most providers require it to be registered.
   smsSenderName: process.env.SMS_SENDER_NAME || 'FEM CABS',
+
+  // Shared secret for the operator-only /api/admin routes (driver KYC
+  // review). Sent as the X-Admin-Key header. Unset disables those routes.
+  adminApiKey: process.env.ADMIN_API_KEY || '',
 
   // Average city speed (km/h) used to estimate trip duration server-side.
   estimateAverageSpeedKmh: Number(process.env.ESTIMATE_AVG_SPEED_KMH || 25),
@@ -132,10 +144,31 @@ function ensureConfig() {
     if (config.devRevealCodes) problems.push('DEV_REVEAL_CODES (must be "0")');
     if (config.devAutoVerifyDrivers) problems.push('DEV_AUTO_VERIFY_DRIVERS (must be "0")');
     if (config.demoPayments) problems.push('DEMO_PAYMENTS (must be "0")');
+
+    // Real OTP delivery.
+    if (!['pindo', 'africastalking', 'generic'].includes(config.smsProvider)) {
+      problems.push('SMS_PROVIDER (pindo | africastalking | generic)');
+    }
+    if (config.smsProvider && !config.smsApiKey) problems.push('SMS_API_KEY');
+    if (config.smsProvider === 'generic' && !config.smsGatewayUrl) problems.push('SMS_GATEWAY_URL');
+    if (config.smsProvider === 'africastalking' && !config.atUsername) problems.push('AT_USERNAME');
+
+    // Real mobile-money payments.
+    if (!config.paypackClientId) problems.push('PAYPACK_CLIENT_ID');
+    if (!config.paypackClientSecret) problems.push('PAYPACK_CLIENT_SECRET');
+    if (!config.paypackWebhookSecret) problems.push('PAYPACK_WEBHOOK_SECRET');
+
+    // The SOS button must reach a real call center.
+    if (!config.emergencyCallCenterPhone) problems.push('EMERGENCY_CALL_CENTER_PHONE');
+
+    // Without it no driver can ever be verified, so no ride can be matched.
+    if (!config.adminApiKey || config.adminApiKey.length < 24) {
+      problems.push('ADMIN_API_KEY (at least 24 characters)');
+    }
   }
   if (problems.length) {
     console.error(
-      `[config] Missing required environment variable${problems.length > 1 ? 's' : ''}: ` +
+      `[config] Missing or invalid environment variable${problems.length > 1 ? 's' : ''}: ` +
         [...problems, 'See server/.env.example.'].join(', ')
     );
     process.exit(1);

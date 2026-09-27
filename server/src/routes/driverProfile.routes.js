@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
 const { getPool } = require('../db');
+const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { driverToJson, rideToJson } = require('../utils/serialize');
 const { requireDriverAuth } = require('../middleware/auth');
@@ -67,6 +68,14 @@ router.put('/status', asyncHandler(async (req, res) => {
   const validStatuses = ['offline', 'active'];
   if (!validStatuses.includes(status)) {
     throw new ApiError(400, 'Status must be "offline" or "active".');
+  }
+  if (status === 'active') {
+    // Only KYC-verified drivers can be matched (driverMatcher.js), so don't
+    // let an unverified driver sit "online" waiting for rides that never come.
+    const { rows: me } = await getPool().query('SELECT verified FROM drivers WHERE id = $1', [req.driverId]);
+    if (!me[0]?.verified) {
+      throw new ApiError(403, 'Your account is still being verified. Upload your documents and we will notify you once approved.');
+    }
   }
 
   const { rows } = await getPool().query(
@@ -546,7 +555,6 @@ router.post('/support/:id/messages', asyncHandler(async (req, res) => {
 // (server/src/routes/emergency.routes.js): event recorded for the call
 // center's audit trail, and the response carries the call-center number the
 // app dials with the OS dialer.
-const CALL_CENTER_FALLBACK = '+250000000000'; // PLACEHOLDER — set EMERGENCY_CALL_CENTER_PHONE in server/.env
 
 router.post('/emergency', asyncHandler(async (req, res) => {
   const { rideId, latitude, longitude, address, details } = req.body || {};
@@ -570,7 +578,7 @@ router.post('/emergency', asyncHandler(async (req, res) => {
       status: event.status,
       createdAt: event.created_at,
       reference: `EM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
-      callCenterPhone: process.env.EMERGENCY_CALL_CENTER_PHONE || CALL_CENTER_FALLBACK,
+      callCenterPhone: config.emergencyCallCenterPhone || null,
     },
   });
 }));

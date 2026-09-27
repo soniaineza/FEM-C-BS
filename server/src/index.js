@@ -22,6 +22,7 @@ const emergencyRoutes = require('./routes/emergency.routes');
 const shareRoutes = require('./routes/share.routes');
 const walletRoutes = require('./routes/wallet.routes');
 const webhookRoutes = require('./routes/webhooks.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 async function main() {
   ensureEmbeddedReady();
@@ -39,10 +40,16 @@ async function main() {
 
   // Webhooks need the raw body for Paypack signature verification — mount
   // this BEFORE the JSON parser.
-  app.use('/api/webhooks', express.raw({ type: 'application/json' }), (req, _res, next) => {
-    req.rawBody = req.body;
-    if (req.body && req.body.length) {
-      req.body = JSON.parse(req.body.toString('utf8'));
+  app.use('/api/webhooks', express.raw({ type: 'application/json' }), (req, res, next) => {
+    req.rawBody = Buffer.isBuffer(req.body) ? req.body : null;
+    if (req.rawBody && req.rawBody.length) {
+      try {
+        req.body = JSON.parse(req.rawBody.toString('utf8'));
+      } catch {
+        return res.status(400).json({ error: 'Invalid JSON.' });
+      }
+    } else {
+      req.body = {};
     }
     next();
   }, webhookRoutes);
@@ -65,6 +72,7 @@ async function main() {
   app.use('/api/emergency', emergencyRoutes);
   app.use('/api/share', shareRoutes);
   app.use('/api/wallet', walletRoutes);
+  app.use('/api/admin', adminRoutes);
 
   // `npx expo export --platform web` (replacing `flutter build web`) outputs
   // to dist/ at the Expo project root, which is now also the repo root:

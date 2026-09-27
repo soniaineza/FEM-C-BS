@@ -10,10 +10,10 @@ const { pushNotification } = require('../services/notify');
 // The FEM C@BS call center the app's SOS button reaches. Server-side config
 // (EMERGENCY_CALL_CENTER_PHONE) so it can be rotated without an app release;
 // the client fetches it here and dials it with the OS dialer.
-const CALL_CENTER_FALLBACK = '+250000000000'; // PLACEHOLDER — set the real number in server/.env
-
+// Production refuses to start without it (config.js); in development it may
+// be unset, in which case the app hides the call button.
 function callCenterNumber() {
-  return process.env.EMERGENCY_CALL_CENTER_PHONE || CALL_CENTER_FALLBACK;
+  return config.emergencyCallCenterPhone || null;
 }
 
 const router = express.Router();

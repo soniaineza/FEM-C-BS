@@ -6,6 +6,7 @@ const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { config } = require('../config');
 const paypack = require('../services/paypackClient');
+const { creditTopup, failTopup } = require('../services/walletTopups');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -80,32 +81,7 @@ router.post(
     if (config.demoPayments) {
       // Demo mode: credit the wallet immediately instead of going through
       // Paypack, so top-ups are testable without real mobile-money creds.
-      const client = await getPool().connect();
-      try {
-        await client.query('BEGIN');
-        const settled = await client.query(
-          `UPDATE wallet_topups SET status='succeeded', state='succeeded',
-             metadata=$2::jsonb, updated_at=now() WHERE id = $1 RETURNING *`,
-          [topup.id, JSON.stringify({ reason: 'demo_acceptance' })]
-        );
-        await client.query(
-          `INSERT INTO wallets (passenger_id, balance) VALUES ($1, $2)
-           ON CONFLICT (passenger_id) DO UPDATE SET balance = wallets.balance + $2, updated_at = now()`,
-          [req.passengerId, value]
-        );
-        await client.query(
-          `INSERT INTO wallet_transactions (passenger_id, amount, type, source, reference)
-           VALUES ($1, $2, 'credit', 'topup', $3)`,
-          [req.passengerId, value, topup.reference]
-        );
-        await client.query('COMMIT');
-        topup = settled.rows[0];
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-      } finally {
-        client.release();
-      }
+      topup = await creditTopup(topup.id, { reason: 'demo_acceptance' });
       return res.status(201).json({ topup: topupToJson(topup) });
     }
 
@@ -118,14 +94,21 @@ router.post(
       return res.status(201).json({ topup: topupToJson(topup) });
     }
 
-    const charge = await paypack.createCharge({
-      amount: value,
-      phone: String(phone).trim(),
-      description: `FEM C@BS wallet top-up ${reference}`,
-    });
+    let charge;
+    try {
+      charge = await paypack.createCharge({
+        amount: value,
+        phone: String(phone).trim(),
+        idempotencyKey: reference,
+      });
+    } catch (err) {
+      console.error('[wallet] Paypack cashin failed:', err.message);
+      await failTopup(topup.id, { reason: 'provider_error' });
+      throw new ApiError(502, 'We could not start the mobile-money payment. Please try again.');
+    }
     const updated = await getPool().query(
       `UPDATE wallet_topups SET state='processing', external_reference=$2, updated_at=now() WHERE id = $1 RETURNING *`,
-      [topup.id, String(charge.id || charge.reference || '')]
+      [topup.id, String(charge.ref)]
     );
     res.status(201).json({ topup: topupToJson(updated.rows[0]) });
   })
@@ -161,43 +144,13 @@ router.post(
     const charge = await paypack.readCharge(topup.external_reference);
     const chargeStatus = String(charge.status || '').toLowerCase();
 
+    let latest = topup;
     if (chargeStatus === 'successful') {
-      const client = await getPool().connect();
-      try {
-        await client.query('BEGIN');
-        const settled = await client.query(
-          `UPDATE wallet_topups SET status='succeeded', state='succeeded', updated_at=now()
-             WHERE id = $1 AND status != 'succeeded' RETURNING *`,
-          [topup.id]
-        );
-        if (settled.rows[0]) {
-          await client.query(
-            `INSERT INTO wallets (passenger_id, balance) VALUES ($1, $2)
-             ON CONFLICT (passenger_id) DO UPDATE SET balance = wallets.balance + $2, updated_at = now()`,
-            [req.passengerId, Number(topup.amount)]
-          );
-          await client.query(
-            `INSERT INTO wallet_transactions (passenger_id, amount, type, source, reference)
-             VALUES ($1, $2, 'credit', 'topup', $3)`,
-            [req.passengerId, Number(topup.amount), topup.reference]
-          );
-        }
-        await client.query('COMMIT');
-        return res.json({ topup: topupToJson(settled.rows[0] || topup) });
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-      } finally {
-        client.release();
-      }
+      latest = await creditTopup(topup.id, { providerStatus: chargeStatus });
+    } else if (chargeStatus === 'failed') {
+      latest = await failTopup(topup.id, { providerStatus: chargeStatus });
     }
-
-    const failed = chargeStatus === 'failed';
-    const updated = await getPool().query(
-      `UPDATE wallet_topups SET state = $2, status = $3, updated_at = now() WHERE id = $1 RETURNING *`,
-      [topup.id, chargeStatus || topup.state, failed ? 'failed' : topup.status]
-    );
-    res.json({ topup: topupToJson(updated.rows[0]) });
+    res.json({ topup: topupToJson(latest) });
   })
 );
 

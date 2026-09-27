@@ -1,49 +1,113 @@
 const { config } = require('../config');
 
 /**
- * Delivers a verification code to a passenger.
+ * SMS delivery for OTP codes. The provider is chosen by SMS_PROVIDER:
+ *   pindo           — https://api.pindo.io/v1/sms/ (Rwanda; SMS_API_KEY = Pindo token)
+ *   africastalking  — Africa's Talking messaging API (SMS_API_KEY + AT_USERNAME)
+ *   generic         — POST { to, sender, message } JSON to SMS_GATEWAY_URL
+ *   (unset)         — development only: the code is logged server-side.
+ * Production refuses to start without a provider (see config.js).
  *
- * In production this MUST send the code through the configured SMS gateway.
- * It never falls back to returning the code in a response — devPayload() in
- * the routes only reveals codes when DEV_REVEAL_CODES=1.
+ * Codes are never returned in API responses unless DEV_REVEAL_CODES=1.
+ */
+
+/** E.164 for Rwandan numbers: 078... / 78... / 250... -> +25078... */
+function toE164(phone) {
+  const raw = String(phone || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  if (raw.startsWith('+')) return `+${digits}`;
+  if (digits.startsWith('250')) return `+${digits}`;
+  if (digits.startsWith('0') && digits.length === 10) return `+250${digits.slice(1)}`;
+  if (digits.length === 9 && digits.startsWith('7')) return `+250${digits}`;
+  return `+${digits}`;
+}
+
+async function expectOk(res, provider) {
+  if (res.ok) return res.json().catch(() => ({}));
+  const body = await res.text().catch(() => '');
+  throw new Error(`${provider} responded ${res.status}: ${body.slice(0, 300)}`);
+}
+
+async function sendViaPindo(to, text) {
+  const res = await fetch('https://api.pindo.io/v1/sms/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.smsApiKey}`,
+    },
+    body: JSON.stringify({ to, text, sender: config.smsSenderName }),
+  });
+  await expectOk(res, 'Pindo');
+}
+
+async function sendViaAfricasTalking(to, text) {
+  const host = config.atUsername === 'sandbox'
+    ? 'https://api.sandbox.africastalking.com'
+    : 'https://api.africastalking.com';
+  const form = new URLSearchParams({ username: config.atUsername, to, message: text });
+  if (config.smsSenderName && config.atUsername !== 'sandbox') form.set('from', config.smsSenderName);
+  const res = await fetch(`${host}/version1/messaging`, {
+    method: 'POST',
+    headers: {
+      apiKey: config.smsApiKey,
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form.toString(),
+  });
+  const data = await expectOk(res, "Africa's Talking");
+  const recipient = data?.SMSMessageData?.Recipients?.[0];
+  if (!recipient || recipient.status !== 'Success') {
+    throw new Error(`Africa's Talking rejected the message: ${recipient?.status || JSON.stringify(data).slice(0, 200)}`);
+  }
+}
+
+async function sendViaGeneric(to, text) {
+  const res = await fetch(config.smsGatewayUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.smsApiKey}`,
+    },
+    body: JSON.stringify({ to, sender: config.smsSenderName, message: text }),
+  });
+  await expectOk(res, 'SMS gateway');
+}
+
+const PROVIDERS = {
+  pindo: sendViaPindo,
+  africastalking: sendViaAfricasTalking,
+  generic: sendViaGeneric,
+};
+
+/** Sends an SMS. Throws when the provider rejects it. */
+async function sendSms(phone, text) {
+  const send = PROVIDERS[config.smsProvider];
+  if (!send) {
+    console.log(`[otpSender] (no SMS provider — dev log) to ${phone}: ${text}`);
+    return;
+  }
+  await send(toE164(phone), text);
+}
+
+/**
+ * Delivers a verification code to a passenger. Throws if the SMS could not
+ * be sent, so callers can tell the user to retry.
  *
- * @param {{phone: string, email: string}} passenger
+ * @param {{phone: string}} passenger
  * @param {{code: string, purpose: 'signup'|'reset'}} params
  */
 async function sendOtp(passenger, { code, purpose }) {
-  const purposeLabel = purpose === 'signup' ? 'verification' : 'password reset';
-  const text = `${config.smsSenderName}: your ${config.otpLength}-digit ${purposeLabel} code is ${code}. It expires in ${Math.round(
+  const purposeLabel = purpose === 'reset' ? 'password reset' : 'verification';
+  const text = `${config.smsSenderName}: your ${purposeLabel} code is ${code}. It expires in ${Math.round(
     config.otpTtlSeconds / 60
   )} minutes. Do not share it with anyone.`;
-
-  if (config.smsGatewayUrl) {
-    try {
-      // Generic JSON SMS gateway contract — adapt shape to your provider.
-      const { default: fetch } = await import('node-fetch').catch(() => ({ default: global.fetch }));
-      const gatewayFetch = typeof fetch === 'function' ? fetch : global.fetch;
-      await gatewayFetch(config.smsGatewayUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.smsGatewayApiKey}`,
-        },
-        body: JSON.stringify({
-          to: passenger.phone,
-          sender: config.smsSenderName,
-          message: text,
-        }),
-      });
-    } catch (err) {
-      // Never crash the request on a delivery failure — but surface loudly so
-      // operators notice a broken gateway.
-      console.error('[otpSender] SMS delivery failed:', err.message);
-    }
-    return;
+  try {
+    await sendSms(passenger.phone, text);
+  } catch (err) {
+    console.error('[otpSender] SMS delivery failed:', err.message);
+    throw err;
   }
-
-  // Dev/demo: log the code server-side. It is still never exposed via API
-  // unless DEV_REVEAL_CODES=1.
-  console.log(`[otpSender] ${text}\n[otpSender] (delivered to ${passenger.phone})`);
 }
 
-module.exports = { sendOtp };
+module.exports = { sendOtp, sendSms, toE164, SMS_PROVIDERS: Object.keys(PROVIDERS) };

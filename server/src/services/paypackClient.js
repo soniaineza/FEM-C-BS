@@ -2,90 +2,143 @@ const crypto = require('crypto');
 const { config } = require('../config');
 
 /**
- * Minimal Paypack (Rwanda mobile-money) REST client implemented with the
- * platform's public API:
- *   1. POST /auth/token        -> OAuth2 access token
- *   2. POST /payments/collect  -> initiate a client recharge (returns a Pending
- *                                 charge with an id)
- *   3. GET  /payments/:id      -> read a charge's current status
- * Webhook payloads are signed with X-Paypack-Signature (HMAC-SHA256 of the raw
- * body using the Paypack app secret) — see verifyWebhookSignature().
+ * Paypack (Rwanda mobile-money) REST client, per https://docs.paypack.rw:
+ *   POST /api/auth/agents/authorize     { client_id, client_secret } -> { access, refresh, expires }
+ *   GET  /api/auth/agents/refresh/:tok  -> same shape
+ *   POST /api/transactions/cashin       { amount, number } -> { ref, status: 'pending', ... }
+ *   GET  /api/transactions/find/:ref    -> { ref, status, amount, client, ... }
+ * Webhooks carry `x-paypack-signature`: base64(HMAC-SHA256(rawBody, webhookSecret)).
  *
- * Credentials live only in server env vars, never in the Flutter app.
+ * Credentials live only in server env vars, never in the app.
  */
 
-let cachedToken = null;
-let cachedTokenAt = 0;
+// Refresh a little before the provider's stated expiry.
+const TOKEN_SAFETY_MS = 60 * 1000;
+let token = null; // { access, refresh, expiresAt }
 
-async function getToken() {
-  if (cachedToken && Date.now() - cachedTokenAt < 3500 * 1000) return cachedToken;
-  const res = await fetch(`${config.paypackBaseUrl}/auth/token`, {
+function apiUrl(path) {
+  // PAYPACK_BASE_URL is the host (https://payments.paypack.rw); tolerate a
+  // value that already includes /api.
+  const base = config.paypackBaseUrl.replace(/\/+$/, '').replace(/\/api$/, '');
+  return `${base}/api${path}`;
+}
+
+function expiryFrom(expires) {
+  // The docs don't pin down `expires`' unit, so accept a unix timestamp in
+  // ms or s, or a lifetime in seconds. Missing/unparseable -> 10 minutes.
+  const n = Number(expires);
+  if (Number.isFinite(n) && n > 0) {
+    if (n > 1e12) return n;
+    if (n > 1e9) return n * 1000;
+    return Date.now() + n * 1000;
+  }
+  return Date.now() + 10 * 60 * 1000;
+}
+
+async function readJson(res, what) {
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Paypack ${what} failed (${res.status}): ${text.slice(0, 300)}`);
+  }
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Paypack ${what} returned invalid JSON.`);
+  }
+}
+
+async function authorize() {
+  const res = await fetch(apiUrl('/auth/agents/authorize'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
       client_id: config.paypackClientId,
       client_secret: config.paypackClientSecret,
     }),
   });
-  if (!res.ok) {
-    throw new Error(`Paypack token request failed (${res.status}).`);
+  return readJson(res, 'authorize');
+}
+
+async function refresh(refreshToken) {
+  const res = await fetch(apiUrl(`/auth/agents/refresh/${encodeURIComponent(refreshToken)}`), {
+    headers: { Accept: 'application/json' },
+  });
+  return readJson(res, 'token refresh');
+}
+
+async function getAccessToken() {
+  if (token && Date.now() < token.expiresAt - TOKEN_SAFETY_MS) return token.access;
+  let data = null;
+  if (token?.refresh) {
+    data = await refresh(token.refresh).catch(() => null);
   }
-  const data = await res.json();
-  cachedToken = data.access_token;
-  cachedTokenAt = Date.now();
-  return cachedToken;
+  if (!data?.access) data = await authorize();
+  if (!data.access) throw new Error('Paypack authorize returned no access token.');
+  token = { access: data.access, refresh: data.refresh, expiresAt: expiryFrom(data.expires) };
+  return token.access;
 }
 
 function isConfigured() {
   return Boolean(config.paypackClientId && config.paypackClientSecret);
 }
 
-/** Creates a mobile-money charge request for a client phone number. */
-async function createCharge({ amount, phone, description }) {
-  const token = await getToken();
-  const res = await fetch(`${config.paypackBaseUrl}/payments/collect`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      amount: Number(amount).toFixed(2),
-      client_tel: phone, // e.g. "078xxxxxxx" — Paypack accepts the national number
-      client_reference: description || 'FEM CABS fare',
-    }),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Paypack collect failed (${res.status}): ${errText}`);
-  }
-  return res.json(); // { id, status: 'Pending', reference: ... }
-}
-
-/** Reads the current status of a previously initiated charge. */
-async function readCharge(chargeId) {
-  const token = await getToken();
-  const res = await fetch(`${config.paypackBaseUrl}/payments/${chargeId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error(`Paypack status lookup failed (${res.status}).`);
-  return res.json();
+/** Paypack expects the national format, e.g. 0781234567. */
+function toNationalNumber(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.startsWith('250') && digits.length === 12) return `0${digits.slice(3)}`;
+  if (digits.length === 9 && digits.startsWith('7')) return `0${digits}`;
+  return digits;
 }
 
 /**
- * Verifies an incoming Paypack webhook. Returns true only when the signature
- * matches the shared secret; when no secret is configured it still verifies a
- * SHA256 body checksum so development deployments do not silently accept
- * forged events.
+ * Requests a mobile-money cash-in (the customer approves it on their phone).
+ * `idempotencyKey` (max 32 chars) makes a retried request charge only once.
+ * Returns the Paypack transaction: { ref, status: 'pending', amount, ... }.
+ */
+async function createCharge({ amount, phone, idempotencyKey }) {
+  const access = await getAccessToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    Authorization: `Bearer ${access}`,
+  };
+  if (idempotencyKey) headers['Idempotency-Key'] = String(idempotencyKey).slice(0, 32);
+  const res = await fetch(apiUrl('/transactions/cashin'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      amount: Math.round(Number(amount)),
+      number: toNationalNumber(phone),
+    }),
+  });
+  const charge = await readJson(res, 'cashin');
+  if (!charge.ref) throw new Error('Paypack cashin returned no transaction ref.');
+  return charge;
+}
+
+/** Reads a transaction's current status by its Paypack ref. */
+async function readCharge(ref) {
+  const access = await getAccessToken();
+  const res = await fetch(apiUrl(`/transactions/find/${encodeURIComponent(ref)}`), {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${access}` },
+  });
+  return readJson(res, 'transaction lookup');
+}
+
+/**
+ * Verifies an incoming webhook: the header must equal
+ * base64(HMAC-SHA256(rawBody, PAYPACK_WEBHOOK_SECRET)). Without a configured
+ * secret every delivery is rejected.
  */
 function verifyWebhookSignature(rawBody, signatureHeader) {
-  if (!signatureHeader) return false;
+  if (!config.paypackWebhookSecret || !signatureHeader || !rawBody) return false;
   const expected = crypto
-    .createHmac('sha256', config.paypackWebhookSecret || config.jwtSecret)
+    .createHmac('sha256', config.paypackWebhookSecret)
     .update(rawBody)
-    .digest('hex');
-  const received = String(signatureHeader).toLowerCase();
-  return received.startsWith('sha256=') ? received === `sha256=${expected}` : received === expected;
+    .digest('base64');
+  const a = Buffer.from(String(signatureHeader).trim());
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 module.exports = {
@@ -93,4 +146,5 @@ module.exports = {
   createCharge,
   readCharge,
   verifyWebhookSignature,
+  toNationalNumber,
 };

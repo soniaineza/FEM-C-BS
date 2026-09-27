@@ -118,15 +118,32 @@ if (payment.method === 'cash') return payment; // settled in person
       );
       return payment;
     }
-    const charge = await paypack.createCharge({
-      amount: payment.amount,
-      phone,
-      description: `FEM C@BS trip ${ride.id.slice(0, 8)}`,
-    });
+    let charge;
+    try {
+      charge = await paypack.createCharge({
+        amount: payment.amount,
+        phone,
+        idempotencyKey: payment.reference,
+      });
+    } catch (err) {
+      console.error('[payments] Paypack cashin failed:', err.message);
+      await getPool().query(
+        `UPDATE payments SET state='failed', status='failed', updated_at=now(),
+           metadata=$2::jsonb WHERE id = $1`,
+        [payment.id, JSON.stringify({ reason: 'provider_error' })]
+      );
+      await pushNotification(payment.passenger_id, {
+        title: 'Payment failed',
+        body: 'We could not start the mobile-money payment. Please retry or pay in cash.',
+        type: 'payment',
+        rideId: ride.id,
+      });
+      return payment;
+    }
     await getPool().query(
       `UPDATE payments SET provider='paypack', state='processing',
          external_reference=$2, updated_at=now(), metadata=$3::jsonb WHERE id = $1`,
-      [payment.id, String(charge.id || charge.reference || ''), JSON.stringify(charge)]
+      [payment.id, String(charge.ref), JSON.stringify(charge)]
     );
   }
   return payment;
@@ -139,14 +156,15 @@ async function refreshPaymentStatus(payment) {
 
   const charge = await paypack.readCharge(payment.external_reference);
   const chargeStatus = String(charge.status || '').toLowerCase();
+  // Paypack statuses: pending | successful | failed.
+  const state =
+    chargeStatus === 'successful' ? 'succeeded' : chargeStatus === 'failed' ? 'failed' : 'processing';
   const { rows } = await getPool().query(
-    `UPDATE payments SET state = $2, updated_at = now(), metadata = $3::jsonb
+    `UPDATE payments SET state = $2,
+       status = CASE WHEN $2 = 'failed' AND status != 'succeeded' THEN 'failed' ELSE status END,
+       updated_at = now(), metadata = $3::jsonb
       WHERE id = $1 RETURNING *`,
-    [
-      payment.id,
-      'successful' === chargeStatus ? 'succeeded' : chargeStatus,
-      JSON.stringify(charge),
-    ]
+    [payment.id, state, JSON.stringify(charge)]
   );
   const updated = rows[0];
   if (chargeStatus === 'successful') {

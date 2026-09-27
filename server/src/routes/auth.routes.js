@@ -7,6 +7,15 @@ const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { signToken } = require('../utils/jwt');
 const { issueCode, verifyCode } = require('../utils/otp');
 const { sendOtp } = require('../services/otpSender');
+
+/** Sends an OTP, turning a provider failure into a retryable 502. */
+async function deliverOtp(passenger, params) {
+  try {
+    await sendOtp(passenger, params);
+  } catch {
+    throw new ApiError(502, 'We could not send the SMS code. Please try again in a moment.');
+  }
+}
 const { passengerToJson } = require('../utils/serialize');
 const { requireAuth } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimit');
@@ -79,7 +88,9 @@ router.post(
       token,
       ...devPayload(code),
     });
-    sendOtp(passenger, { code, purpose: 'signup' });
+    // The account already exists; if delivery fails the app's "resend code"
+    // retries it (and surfaces the error there).
+    sendOtp(passenger, { code, purpose: 'signup' }).catch(() => {});
   })
 );
 
@@ -160,7 +171,7 @@ router.post(
       [req.passengerId]
     );
     const passenger = passengerRows[0];
-    sendOtp(passenger, { code, purpose });
+    await deliverOtp(passenger, { code, purpose });
     res.json({ ...devPayload(code), message: 'A new verification code was sent.' });
   })
 );
@@ -182,7 +193,7 @@ router.post(
         passengerId: passenger.id,
         purpose: 'reset',
       });
-      sendOtp(passenger, { code, purpose: 'reset' });
+      await deliverOtp(passenger, { code, purpose: 'reset' });
       res.json({
         message: `We sent a verification code to ${identifier}.`,
         ...devPayload(code),
