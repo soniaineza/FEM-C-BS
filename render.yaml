@@ -1,0 +1,51 @@
+# Render blueprint for the FEM C@BS API (https://render.com/docs/blueprint-spec).
+#
+# `starter` is Render's smallest paid instance: unlike `free` it never sleeps,
+# so there is no ~24s cold start on the first request after idle.
+#
+# Existing service: rather than syncing this blueprint (which would create a
+# second service), switch the current service's Instance Type to Starter in
+# the Render dashboard and add the env vars below under Environment.
+# The server refuses to start in production if any required one is missing.
+services:
+  - type: web
+    name: fem-cabs-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_API_KEY
+        generateValue: true
+      # OTP SMS: pindo | africastalking | generic
+      - key: SMS_PROVIDER
+        sync: false
+      - key: SMS_API_KEY
+        sync: false
+      - key: SMS_SENDER_NAME
+        sync: false
+      # Paypack mobile money; webhook URL: https://<host>/api/webhooks/paypack
+      - key: PAYPACK_CLIENT_ID
+        sync: false
+      - key: PAYPACK_CLIENT_SECRET
+        sync: false
+      - key: PAYPACK_WEBHOOK_SECRET
+        sync: false
+      - key: EMERGENCY_CALL_CENTER_PHONE
+        sync: false
+      - key: DEV_REVEAL_CODES
+        value: "0"
+      - key: DEMO_PAYMENTS
+        value: "0"
+      - key: DEV_AUTO_VERIFY_DRIVERS
+        value: "0"
