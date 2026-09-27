@@ -126,7 +126,7 @@ async function acceptRide(driverId, rideId) {
   });
 }
 
-/** Driver declines a newly assigned ride (the KIMU-style offer's "Decline"
+/** Driver declines a newly assigned ride (the timed-offer overlay's "Decline"
  * action, which our matcher never had — it only ever offered a single
  * silently-accepted assignment before this). The ride goes back to
  * searchingDriver and is immediately re-matched against another driver;

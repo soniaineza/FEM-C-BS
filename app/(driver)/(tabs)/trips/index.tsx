@@ -14,8 +14,8 @@ const FILTER_KEYS: Record<(typeof FILTERS)[number], string> = {
   cancelled: 'driverFilterCancelled',
 };
 
-// Trip history — a leaner stand-in for KIMU driver's month-grid calendar
-// (kimu.ride.driver.app.ui.trips.TripMonthGrid): status filter chips over a
+// Trip history — a leaner stand-in for the reference driver app's month-grid calendar
+// (its TripMonthGrid): status filter chips over a
 // flat list instead of a calendar picker, to keep this within scope. See
 // the migration report for what a full calendar view would add.
 export default function DriverTripsScreen() {

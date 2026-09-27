@@ -28,7 +28,7 @@ const CANCEL_REASONS: { id: string; key: string }[] = [
   { id: 'Other', key: 'driverCancelOther' },
 ];
 
-// The active-trip screen — mirrors kimu.ride.driver.app.ui.journey.JourneySheet:
+// The active-trip screen — mirrors the reference driver app's JourneySheet:
 // rider card, "enter the rider's code" pad at arrival, a running trip meter,
 // and complete/cancel actions. One ride per screen (rideId param), backed by
 // hooks/useDriverRideDetails' poll loop.

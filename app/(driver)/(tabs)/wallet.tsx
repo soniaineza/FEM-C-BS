@@ -21,9 +21,9 @@ function earningStatusKey(status: string): string {
 }
 
 // Earnings + payouts — the driver-app counterpart to the rider Wallet tab,
-// matching kimu.ride.driver.app.ui.wallet.WalletScreen's balance hero +
+// matching the reference driver app's WalletScreen balance hero +
 // bucketed summary + transaction ledger (top-up/withdraw are not included:
-// KIMU gates going online on a prepaid balance our backend has no concept
+// The reference app gates going online on a prepaid balance our backend has no concept
 // of — see the migration report).
 export default function DriverWalletScreen() {
   const { t } = useTranslation();

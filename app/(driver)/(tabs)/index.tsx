@@ -238,7 +238,7 @@ function StatColumn({
   );
 }
 
-// KIMU's OfferOverlay: a full-screen prompt with a countdown badge and
+// The reference driver app's OfferOverlay: a full-screen prompt with a countdown badge and
 // Accept/Decline — auto-declines when the countdown reaches zero, matching
 // its OfferCountdownBadge behavior (client-side only; the backend has no
 // server-side offer-expiry timer of its own, see rideDriverOps.js's
