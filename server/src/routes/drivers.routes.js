@@ -119,7 +119,7 @@ passengerFacing.get(
       .map((r) => ({ ...r, distanceKm: haversineKm(lat, lng, r.latitude, r.longitude) }))
       .filter((r) => r.distanceKm <= 5)
       .sort((a, b) => a.distanceKm - b.distanceKm)
-      .slice(0, 15);
+      .slice(0, 24);
     res.json({
       serverTime: now,
       drivers: nearby.map((r) => ({

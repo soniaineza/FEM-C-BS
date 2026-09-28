@@ -68,6 +68,22 @@ const FLEET = [
   ['Esther Uwase', 'fem_economy', 'Hyundai i10', 'Silver'],
   ['Innocent Hakizimana', 'fem_economy', 'Toyota Allion', 'White'],
   ['Solange Mukeshimana', 'fem_comfort', 'Toyota Prado', 'Black'],
+  ['Beatrice Uwamahoro', 'fem_economy', 'Toyota Corolla', 'Blue'],
+  ['Claude Nkurunziza', 'fem_comfort', 'Toyota RAV4', 'White'],
+  ['Sandrine Mutesi', 'fem_economy', 'Hyundai i10', 'Red'],
+  ['Fabrice Niyonsenga', 'fem_xl', 'Toyota Noah', 'Silver'],
+  ['Clarisse Uwingabire', 'fem_economy', 'Suzuki Swift', 'Grey'],
+  ['Thierry Rukundo', 'fem_comfort', 'Kia Sportage', 'Black'],
+  ['Nadine Irakoze', 'fem_economy', 'Toyota Vitz', 'White'],
+  ['Didier Manzi', 'fem_economy', 'Nissan Note', 'Silver'],
+  ['Alice Umutesi', 'fem_comfort', 'Toyota Harrier', 'Blue'],
+  ['Pascal Rwema', 'fem_economy', 'Hyundai Elantra', 'Grey'],
+  ['Ange Uwimana', 'fem_xl', 'Toyota Hiace', 'White'],
+  ['Yves Nshimiyimana', 'fem_economy', 'Toyota Premio', 'Black'],
+  ['Christelle Mukiza', 'fem_comfort', 'Mitsubishi Outlander', 'Silver'],
+  ['Kevin Niyigena', 'fem_economy', 'Toyota Allion', 'Blue'],
+  ['Aurore Mukamana', 'fem_economy', 'Suzuki Swift', 'White'],
+  ['Mugisha Habumuremyi', 'fem_comfort', 'Toyota Prado', 'Grey'],
 ];
 
 const PLATE_LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ';

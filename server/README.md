@@ -173,7 +173,7 @@ minutes) and `osrm/Dockerfile` bakes it into a deployable image. Point the
 API at it with `OSRM_URL=http://<host>:5000/route/v1/driving`. Matching and
 pickup ETAs use OSRM's table service to rank nearby cars by road time.
 
-**Demo fleet** (`DEMO_FLEET=1`, refused in production): 16 simulated
+**Demo fleet** (`DEMO_FLEET=1`, refused in production): 32 simulated
 drivers drive real Kigali roads between real places and serve rides end to
 end (accept, drive to the pickup, start with the PIN, drive, complete)
 through the same code paths as the driver app. `FLEET_DEBUG=1` logs each
