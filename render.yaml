@@ -13,15 +13,22 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    rootDir: server
-    buildCommand: npm ci --omit=dev
-    startCommand: npm start
+    buildCommand: npm ci && ./node_modules/.bin/expo export --platform web && cd server && npm ci --omit=dev
+    startCommand: cd server && npm start
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
+        sync: false
+      - key: EXPO_PUBLIC_API_BASE_URL
+        value: https://fem-cabs-api.onrender.com/api
+      - key: OSRM_URL
+        sync: false
+      - key: PHOTON_URL
+        sync: false
+      - key: PHOTON_REVERSE_URL
         sync: false
       - key: JWT_SECRET
         generateValue: true

@@ -66,6 +66,7 @@ export default function DriverAcceptedScreen() {
           </View>
         }
       >
+        {!driverLocation ? <Text className="mb-3 text-sm text-error">{t('driverLocationUnavailable')}</Text> : null}
         <View className="flex-row items-center rounded-2xl border border-border p-3.5">
           <View className="h-12 w-12 items-center justify-center rounded-full bg-ink">
             <Text className="text-base font-bold text-white">{initials}</Text>

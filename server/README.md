@@ -22,7 +22,9 @@ migrated deliberately.
    The schema in `src/schema.sql` (tables + the vehicle catalogue seed) is applied
    automatically on every start — it's idempotent, safe to run repeatedly.
 
-Once the server is up, point the Flutter app at it (see "Wiring up the app" below).
+The Expo app reads `EXPO_PUBLIC_API_BASE_URL` at build time. The Render
+blueprint builds its web export from the repository root and serves it with
+this API.
 
 ## API summary
 
@@ -53,7 +55,10 @@ signup/login). All responses are JSON; errors are `{ "error": "message" }`.
 - `POST /api/rides/:id/cancel` (auth)
 - `POST /api/rides/:id/rate` (auth) `{ rating: 1-5, comment? }`
 
-- `POST /api/payments` (auth) `{ rideId, method: cash|mtn_momo|airtel_money|card }`
+- `POST /api/payments` (auth) `{ rideId }` — initiates the ride's selected method.
+  `{ rideId, method: "cash" }` is available only after a previous payment is
+  confirmed failed. The assigned driver then calls
+  `POST /api/drivers/rides/:id/confirm-cash` after collecting cash.
 
 - `GET /api/notifications` (auth)
 - `POST /api/notifications/:id/read` (auth)
@@ -100,6 +105,15 @@ payments and wallet top-ups (each one exactly once, even if the event is
 delivered twice). The app's refresh endpoints poll Paypack as a fallback.
 
 **SOS.** `EMERGENCY_CALL_CENTER_PHONE` is the number the SOS button dials.
+The API also sends a reference-bearing SMS alert to that number. Operators
+must monitor `GET /api/admin/emergencies`, call the rider, and resolve the
+event through `POST /api/admin/emergencies/:id/resolve`. Failed SMS sends stay
+in the queue and are retried. Confirm provider delivery and staff coverage
+before opening this workflow to riders.
+
+**Maps.** Production requires private or contracted `OSRM_URL`, `PHOTON_URL`
+and `PHOTON_REVERSE_URL` endpoints. Optional Nominatim fallback must also be
+private. The public demonstration endpoints are development defaults only.
 
 **Driver verification.** New drivers start unverified and can't go online
 until an operator approves them. Set `ADMIN_API_KEY` (at least 24 random
@@ -109,7 +123,8 @@ characters) and call the admin API with the `X-Admin-Key` header:
 H="X-Admin-Key: $ADMIN_API_KEY"; API=https://<api-host>/api/admin
 curl -H "$H" "$API/drivers?verified=false"          # awaiting review, with documents
 curl -H "$H" -X POST "$API/documents/<docId>/review" \
-     -H 'Content-Type: application/json' -d '{"status":"approved"}'
+     -H 'Content-Type: application/json' \
+     -d '{"status":"approved","reviewer":"operator-id","method":"in_person","evidenceReference":"inspection-log-id"}'
      # or {"status":"rejected","reason":"Photo unreadable"}
 curl -H "$H" -X POST "$API/drivers/<driverId>/verify"
 curl -H "$H" -X POST "$API/drivers/<driverId>/suspend" \
@@ -117,6 +132,20 @@ curl -H "$H" -X POST "$API/drivers/<driverId>/suspend" \
 ```
 
 The driver gets an in-app notification for each decision.
+Inspect the original license, national ID, vehicle registration and insurance
+in person before recording approval. All four current documents must be
+approved before driver verification and dispatch. Driver-submitted filenames
+and URLs alone are not evidence. Verified drivers cannot change their vehicle
+details through self service. Operators can use
+`PUT /api/admin/drivers/:id/vehicle` to change those details; this takes the
+driver offline and requires fresh registration and insurance review.
+
+Monitor `GET /api/admin/payment-exceptions` for provider charges that arrive
+after a ride was settled another way; these require operator reconciliation
+and a refund where appropriate. Record the provider refund or investigation
+reference through `POST /api/admin/payment-exceptions/:id/resolve` with
+`{"resolution":"refunded","reference":"provider-refund-id"}` (or
+`resolution: "no_refund_due"` with an investigation reference).
 
 **Demo switches.** `DEV_REVEAL_CODES`, `DEMO_PAYMENTS` and
 `DEV_AUTO_VERIFY_DRIVERS` must be `0`.
@@ -159,13 +188,6 @@ returns the place a rider meant (needs `TYPESAFE_API_KEY`).
 
 ## Wiring up the app
 
-The Flutter services under `lib/services/` (`auth_service.dart`,
-`ride_service.dart`, `payment_service.dart`, `notification_service.dart`,
-`support_service.dart`) currently run a local, backend-disconnected preview
-mode gated by `AppConstants.backendConnected` in
-`lib/core/constants/app_constants.dart`. Pointing the app at this API means:
-add an HTTP client (e.g. `http` or `dio`) with the API base URL, replace each
-`TODO(backend)` call with the matching endpoint above, store the JWT
-(`flutter_secure_storage` recommended) and send it as `Authorization: Bearer
-<token>`, then flip `backendConnected` to `true`. Happy to do that wiring next
-if you'd like.
+The current Expo passenger and driver clients use the service modules at the
+repository root. Set `EXPO_PUBLIC_API_BASE_URL` to the deployed API URL ending
+in `/api` before exporting web or building native clients.

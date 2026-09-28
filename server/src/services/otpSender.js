@@ -36,6 +36,7 @@ async function sendViaPindo(to, text) {
       Authorization: `Bearer ${config.smsApiKey}`,
     },
     body: JSON.stringify({ to, text, sender: config.smsSenderName }),
+    signal: AbortSignal.timeout(10000),
   });
   await expectOk(res, 'Pindo');
 }
@@ -54,6 +55,7 @@ async function sendViaAfricasTalking(to, text) {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: form.toString(),
+    signal: AbortSignal.timeout(10000),
   });
   const data = await expectOk(res, "Africa's Talking");
   const recipient = data?.SMSMessageData?.Recipients?.[0];
@@ -70,6 +72,7 @@ async function sendViaGeneric(to, text) {
       Authorization: `Bearer ${config.smsApiKey}`,
     },
     body: JSON.stringify({ to, sender: config.smsSenderName, message: text }),
+    signal: AbortSignal.timeout(10000),
   });
   await expectOk(res, 'SMS gateway');
 }

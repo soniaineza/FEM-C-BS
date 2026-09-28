@@ -15,6 +15,7 @@ const DRIVER_ACTIVE_RIDE_STATUSES = [
   'driverArrived',
   'pinVerified',
   'inProgress',
+  'paymentPending',
 ];
 
 async function authenticateDriver(phone, password) {
@@ -168,7 +169,7 @@ async function markArrived(driverId, rideId) {
     type: 'ride',
     rideId,
   });
-  return pin;
+  // Never return the code to the driver who must request it from the rider.
 }
 
 async function verifyPin(driverId, rideId, pin) {
@@ -177,7 +178,7 @@ async function verifyPin(driverId, rideId, pin) {
   if (ride.status !== 'driverArrived') {
     throw new ApiError(400, 'The PIN can only be verified after arrival.');
   }
-  if (!ride.ride_pin_hash || String(pin) !== String(ride.ride_pin)) {
+  if (!ride.ride_pin_hash || !(await bcrypt.compare(String(pin), ride.ride_pin_hash))) {
     throw new ApiError(400, 'Incorrect PIN.');
   }
   await transitionRide(rideId, 'pinVerified', { changedBy: 'driver' });

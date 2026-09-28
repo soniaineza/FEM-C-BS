@@ -7,6 +7,7 @@ export interface Passenger {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   isProfileComplete: boolean;
+  isVerified: boolean;
 }
 
 export function passengerHasEmergencyContact(p: Passenger): boolean {
@@ -23,5 +24,6 @@ export function passengerFromBackendJson(json: any): Passenger {
     emergencyContactName: json.emergencyContactName ?? json.emergency_contact_name ?? undefined,
     emergencyContactPhone: json.emergencyContactPhone ?? json.emergency_contact_phone ?? undefined,
     isProfileComplete: Boolean(json.isProfileComplete ?? json.is_profile_complete ?? false),
+    isVerified: Boolean(json.isVerified ?? json.verified_at),
   };
 }

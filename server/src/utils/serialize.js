@@ -10,6 +10,7 @@ function passengerToJson(row) {
     emergencyContactName: row.emergency_contact_name,
     emergencyContactPhone: row.emergency_contact_phone,
     isProfileComplete: row.is_profile_complete,
+    isVerified: Boolean(row.verified_at),
   };
 }
 
@@ -97,7 +98,7 @@ function riderFromRide(row) {
   };
 }
 
-function rideToJson(row) {
+function rideToJson(row, { passengerView = false } = {}) {
   return {
     id: row.id,
     rideType: row.ride_type || 'private',
@@ -123,7 +124,9 @@ function rideToJson(row) {
     finalFare: row.final_fare == null ? null : Number(row.final_fare),
     driver: driverFromRide(row),
     rider: riderFromRide(row),
-    pin: row.ride_pin || null,
+    // The trip PIN is a passenger-held secret. Driver routes use the default
+    // view, including when they SELECT r.* from the rides table.
+    pin: passengerView ? row.ride_pin || null : null,
     cancellationReason: row.cancellation_reason || null,
     cancelledBy: row.cancelled_by || null,
     scheduledFor: row.scheduled_for || null,

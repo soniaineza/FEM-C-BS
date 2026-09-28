@@ -65,6 +65,8 @@ const config = {
   nominatimUrl: process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org/search',
   nominatimReverseUrl:
     process.env.NOMINATIM_REVERSE_URL || 'https://nominatim.openstreetmap.org/reverse',
+  photonUrl: process.env.PHOTON_URL || 'https://photon.komoot.io/api/',
+  photonReverseUrl: process.env.PHOTON_REVERSE_URL || 'https://photon.komoot.io/reverse',
   osrmUrl:
     process.env.OSRM_URL || 'https://router.project-osrm.org/route/v1/driving',
   // Maps provider key (e.g. Mapbox) — used only when NOMINATIM_URL is private.
@@ -150,6 +152,11 @@ function ensureConfig() {
     if (config.devAutoVerifyDrivers) problems.push('DEV_AUTO_VERIFY_DRIVERS (must be "0")');
     if (config.demoPayments) problems.push('DEMO_PAYMENTS (must be "0")');
     if (config.demoFleet) problems.push('DEMO_FLEET (must be "0")');
+    if (!process.env.OSRM_URL || /router\.project-osrm\.org/.test(config.osrmUrl)) problems.push('OSRM_URL (private capacity)');
+    if (!process.env.PHOTON_URL || /photon\.komoot\.io/.test(config.photonUrl)) problems.push('PHOTON_URL (private capacity)');
+    if (!process.env.PHOTON_REVERSE_URL || /photon\.komoot\.io/.test(config.photonReverseUrl)) problems.push('PHOTON_REVERSE_URL (private capacity)');
+    if (process.env.NOMINATIM_URL && /nominatim\.openstreetmap\.org/.test(config.nominatimUrl)) problems.push('NOMINATIM_URL (public service disallowed)');
+    if (process.env.NOMINATIM_REVERSE_URL && /nominatim\.openstreetmap\.org/.test(config.nominatimReverseUrl)) problems.push('NOMINATIM_REVERSE_URL (public service disallowed)');
 
     // Real OTP delivery.
     if (!['pindo', 'africastalking', 'generic'].includes(config.smsProvider)) {

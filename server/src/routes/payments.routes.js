@@ -8,7 +8,6 @@ const {
   createPaymentForRide,
   chargePayment,
   refreshPaymentStatus,
-  confirmCashPayment,
 } = require('../services/payments');
 
 const router = express.Router();
@@ -27,7 +26,7 @@ async function loadOwnedPayment(paymentId, passengerId) {
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { rideId } = req.body || {};
+    const { rideId, method } = req.body || {};
     if (!rideId) throw new ApiError(400, 'rideId is required.');
     const { rows } = await getPool().query(
       'SELECT * FROM rides WHERE id = $1 AND passenger_id = $2',
@@ -43,8 +42,33 @@ router.post(
       `SELECT * FROM payments WHERE ride_id = $1 ORDER BY created_at DESC LIMIT 1`,
       [rideId]
     );
-    if (existing.rows[0]) {
-      return res.json({ payment: paymentToJson(existing.rows[0]) });
+    const previous = existing.rows[0];
+    if (method === 'cash') {
+      if (ride.payment_method === 'cash' && previous) {
+        return res.json({ payment: paymentToJson(previous) });
+      }
+      if (!previous || previous.status !== 'failed') {
+        throw new ApiError(409, 'Wait for the previous payment to fail before switching to cash.');
+      }
+      if (previous.provider === 'paypack') {
+        if (!previous.external_reference) {
+          throw new ApiError(409, 'Payment outcome is uncertain. Contact support before paying in cash.');
+        }
+        const confirmed = await refreshPaymentStatus(previous);
+        if (confirmed.status !== 'failed') {
+          throw new ApiError(409, 'The mobile-money payment has not definitively failed.');
+        }
+      }
+      const switched = await getPool().query(
+        `UPDATE rides SET payment_method='cash' WHERE id=$1 AND passenger_id=$2 AND status='paymentPending'
+           RETURNING *`, [rideId, req.passengerId]
+      );
+      if (!switched.rows[0]) throw new ApiError(409, 'Ride is no longer awaiting payment.');
+      const cash = await createPaymentForRide(switched.rows[0]);
+      return res.status(201).json({ payment: paymentToJson(cash) });
+    }
+    if (previous) {
+      return res.json({ payment: paymentToJson(previous) });
     }
 
     const payment = await createPaymentForRide(ride);
@@ -71,17 +95,6 @@ router.post(
     if (!payment) throw new ApiError(404, 'Payment not found.');
     const updated = await refreshPaymentStatus(payment);
     res.json({ payment: paymentToJson(updated) });
-  })
-);
-
-// POST /api/payments/:id/confirm-cash — passenger confirms they paid in cash.
-router.post(
-  '/:id/confirm-cash',
-  asyncHandler(async (req, res) => {
-    const payment = await loadOwnedPayment(req.params.id, req.passengerId);
-    if (!payment) throw new ApiError(404, 'Payment not found.');
-    const settled = await confirmCashPayment(payment);
-    res.json({ payment: paymentToJson(settled) });
   })
 );
 

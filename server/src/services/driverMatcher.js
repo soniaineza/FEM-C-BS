@@ -1,6 +1,7 @@
 const { getPool } = require('../db');
 const { getTravelTimes } = require('./routing');
 const { haversineKm, bearingDegrees, bearingDiffDegrees } = require('../utils/distance');
+const { eligibleDriverSql } = require('./driverKyc');
 
 const MATCH_CANDIDATES = 8;
 const DEFAULT_MAX_MATCH_KM = 5;
@@ -39,10 +40,12 @@ async function findPoolableRide(ride) {
     `SELECT r.*, v.capacity AS vehicle_capacity
        FROM rides r
        JOIN vehicles v ON v.id = r.vehicle_id
+       JOIN drivers d ON d.id = r.driver_id
       WHERE r.ride_type = 'shared'
         AND r.vehicle_id = $1
         AND r.status = ANY($2)
-        AND r.driver_id IS NOT NULL`,
+        AND r.driver_id IS NOT NULL
+        AND d.verified = TRUE ${eligibleDriverSql}`,
     [ride.vehicle_id, POOLABLE_STATUSES]
   );
   if (!candidates.length) return null;
@@ -121,6 +124,7 @@ async function findNearestDriver(ride) {
         AND d.status = 'active'
         AND d.current_latitude IS NOT NULL
         AND d.current_longitude IS NOT NULL
+        ${eligibleDriverSql}
       ORDER BY d.rating DESC NULLS LAST
       LIMIT 100`
   );

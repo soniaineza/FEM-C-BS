@@ -11,8 +11,10 @@ CREATE TABLE IF NOT EXISTS passengers (
   referral_code TEXT UNIQUE,
   referred_by UUID,
   is_profile_complete BOOLEAN NOT NULL DEFAULT FALSE,
+  verified_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE passengers ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS verification_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -24,6 +26,10 @@ CREATE TABLE IF NOT EXISTS verification_codes (
   attempts INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+UPDATE passengers p SET verified_at = v.used_at
+  FROM (SELECT passenger_id, MIN(used_at) AS used_at FROM verification_codes
+        WHERE purpose='signup' AND used_at IS NOT NULL GROUP BY passenger_id) v
+  WHERE p.id=v.passenger_id AND p.verified_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS saved_places (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -331,6 +337,28 @@ CREATE TABLE IF NOT EXISTS emergency_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at TIMESTAMPTZ
 );
+ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS reference TEXT;
+ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ;
+ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS dispatch_started_at TIMESTAMPTZ;
+ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS dispatch_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS dispatch_error TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_emergency_reference ON emergency_events(reference);
+
+-- Provider charges that succeeded after a ride was settled another way need
+-- operator refund/reconciliation, never another ride completion or earnings.
+CREATE TABLE IF NOT EXISTS payment_exceptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_id UUID NOT NULL UNIQUE REFERENCES payments(id),
+  ride_id UUID NOT NULL REFERENCES rides(id),
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  resolution TEXT,
+  resolution_reference TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ
+);
+ALTER TABLE payment_exceptions ADD COLUMN IF NOT EXISTS resolution TEXT;
+ALTER TABLE payment_exceptions ADD COLUMN IF NOT EXISTS resolution_reference TEXT;
 
 CREATE TABLE IF NOT EXISTS trip_shares (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

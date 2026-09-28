@@ -6,6 +6,8 @@ const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { config } = require('../config');
 const { pushNotification } = require('../services/notify');
+const { dispatchEmergency } = require('../services/emergencyDispatch');
+const { apiLimiter } = require('../middleware/rateLimit');
 
 // The FEM C@BS call center the app's SOS button reaches. Server-side config
 // (EMERGENCY_CALL_CENTER_PHONE) so it can be rotated without an app release;
@@ -34,12 +36,18 @@ router.get(
 // and the client dials the FEM C@BS call center with the OS dialer.
 router.post(
   '/',
+  apiLimiter({ max: 5 }),
   asyncHandler(async (req, res) => {
     const { rideId, latitude, longitude, address, details } = req.body || {};
+    if (rideId) {
+      const owned = await getPool().query('SELECT id FROM rides WHERE id=$1 AND passenger_id=$2', [rideId, req.passengerId]);
+      if (!owned.rows[0]) throw new ApiError(404, 'Ride not found.');
+    }
+    const reference = `EM-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
     const { rows } = await getPool().query(
       `INSERT INTO emergency_events
-         (ride_id, passenger_id, latitude, longitude, address, details, status)
-       VALUES ($1,$2,$3,$4,$5,$6,'pending')
+         (ride_id, passenger_id, latitude, longitude, address, details, status, reference)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending',$7)
        RETURNING *`,
       [
         rideId || null,
@@ -48,26 +56,19 @@ router.post(
         longitude ?? null,
         address ?? null,
         details ?? null,
+        reference,
       ]
     );
     const event = rows[0];
-
-    const pax = await getPool().query('SELECT * FROM passengers WHERE id = $1', [
-      req.passengerId,
-    ]);
-    const passenger = pax.rows[0];
-    if (passenger?.emergency_contact_phone) {
-      // The actual call is made on the device; we log that contacts were
-      // advised so support can follow up.
-      await getPool().query(
-        'UPDATE emergency_events SET details = COALESCE(details,\'\') || \' [contact advised]\' WHERE id = $1',
-        [event.id]
-      );
+    try {
+      await dispatchEmergency(event.id);
+    } catch (err) {
+      console.error('[emergency] dispatch failed:', event.id, err.message);
+      throw new ApiError(502, 'SOS was recorded but the operator alert has not been delivered. Please call the center now.');
     }
-
     await pushNotification(req.passengerId, {
-      title: 'Help is on the way',
-      body: 'We recorded your emergency and notified the FEM C@BS call center.',
+      title: 'SOS alert submitted',
+      body: 'The call center alert was submitted. Please place the call if you can.',
       type: 'safety',
       rideId: rideId || null,
     });
@@ -75,9 +76,9 @@ router.post(
     res.status(201).json({
       emergency: {
         id: event.id,
-        status: event.status,
+        status: 'dispatched',
         createdAt: event.created_at,
-        reference: `EM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+        reference,
         callCenterPhone: callCenterNumber(),
       },
     });

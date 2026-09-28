@@ -4,6 +4,10 @@ const { transitionRide } = require('./rideStateMachine');
 const { activateScheduledRide, matchAndAssign } = require('./rideService');
 const { pushNotification } = require('./notify');
 const driverMatcher = require('./driverMatcher');
+const { retryEmergencies } = require('./emergencyDispatch');
+const { reconcilePendingPayments } = require('./payments');
+const { reconcilePendingTopups } = require('./walletTopups');
+const { LOCATION_MAX_AGE_SECONDS } = require('./driverKyc');
 
 let timer = null;
 const RUN_EVERY_MS = 30 * 1000;
@@ -107,10 +111,20 @@ async function sweepExpiredSearches() {
  }
 }
 
+async function sweepStaleOnlineDrivers() {
+  await getPool().query(
+    `UPDATE drivers d SET status='offline'
+       WHERE d.status='active' AND d.last_online_at < now() - interval '90 seconds'
+         AND NOT EXISTS (SELECT 1 FROM driver_locations dl WHERE dl.driver_id=d.id
+           AND dl.recorded_at > now() - ($1 || ' seconds')::interval)`,
+    [LOCATION_MAX_AGE_SECONDS]
+  );
+}
+
 function startScheduler() {
   if (timer) return;
   timer = setInterval(() => {
-    Promise.all([sweepDueScheduledRides(), sweepStaleAssignments(), sweepExpiredSearches()]).catch((err) =>
+    Promise.all([sweepDueScheduledRides(), sweepStaleAssignments(), sweepExpiredSearches(), sweepStaleOnlineDrivers(), retryEmergencies(), reconcilePendingPayments(), reconcilePendingTopups()]).catch((err) =>
       console.error('[scheduler] sweep failed:', err)
     );
   }, RUN_EVERY_MS);
@@ -123,4 +137,4 @@ function stopScheduler() {
   }
 }
 
-module.exports = { startScheduler, stopScheduler, sweepDueScheduledRides, sweepStaleAssignments, sweepExpiredSearches };
+module.exports = { startScheduler, stopScheduler, sweepDueScheduledRides, sweepStaleAssignments, sweepExpiredSearches, sweepStaleOnlineDrivers };

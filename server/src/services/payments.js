@@ -70,7 +70,7 @@ async function chargePayment(payment, ride) {
   );
   const phone = phoneRows[0]?.phone || '';
 
-if (payment.method === 'cash') return payment; // settled in person
+  if (payment.method === 'cash') return payment; // settled in person
   if (payment.method === 'wallet') {
     const ok = await debitWallet(payment.passenger_id, payment.amount, payment.reference);
     if (!ok) {
@@ -152,6 +152,7 @@ if (payment.method === 'cash') return payment; // settled in person
 
 /** Pulls the latest Paypack status for a still-pending provider payment. */
 async function refreshPaymentStatus(payment) {
+  if (payment.status === 'succeeded') return payment;
   if (payment.provider !== 'paypack' || !payment.external_reference) return payment;
   if (!paypack.isConfigured()) return payment;
 
@@ -161,7 +162,7 @@ async function refreshPaymentStatus(payment) {
   const state =
     chargeStatus === 'successful' ? 'succeeded' : chargeStatus === 'failed' ? 'failed' : 'processing';
   const { rows } = await getPool().query(
-    `UPDATE payments SET state = $2,
+    `UPDATE payments SET state = CASE WHEN status='succeeded' THEN 'succeeded' ELSE $2 END,
        status = CASE WHEN $2 = 'failed' AND status != 'succeeded' THEN 'failed' ELSE status END,
        updated_at = now(), metadata = $3::jsonb
       WHERE id = $1 RETURNING *`,
@@ -177,6 +178,19 @@ async function refreshPaymentStatus(payment) {
   return updated;
 }
 
+async function reconcilePendingPayments() {
+  if (!paypack.isConfigured()) return;
+  const { rows } = await getPool().query(
+    `SELECT * FROM payments WHERE provider='paypack' AND status='pending'
+       AND external_reference IS NOT NULL AND created_at < now() - interval '30 seconds'
+       ORDER BY created_at LIMIT 30`
+  );
+  for (const payment of rows) {
+    try { await refreshPaymentStatus(payment); }
+    catch (err) { console.error('[payments] reconciliation failed', payment.id, err); }
+  }
+}
+
 async function confirmCashPayment(payment) {
   if (payment.method !== 'cash') {
     throw new ApiError(400, 'This payment was not a cash payment.');
@@ -184,6 +198,9 @@ async function confirmCashPayment(payment) {
   const { rows: rideRows } = await getPool().query('SELECT * FROM rides WHERE id = $1', [
     payment.ride_id,
   ]);
+  if (rideRows[0]?.status !== 'paymentPending') {
+    throw new ApiError(409, 'This ride is not awaiting cash settlement.');
+  }
   await settleSucceededPayment(payment, rideRows[0]);
   const { rows } = await getPool().query('SELECT * FROM payments WHERE id = $1', [payment.id]);
   return rows[0];
@@ -199,12 +216,28 @@ async function confirmCashPayment(payment) {
  */
 async function settleSucceededPayment(payment, ride) {
   if (!ride) return;
-  if (ride.status !== 'paymentPending') return; // already settled — idempotent
 
   const client = await getPool().connect();
   let paid;
   try {
     await client.query('BEGIN');
+    const { rows: lockedRides } = await client.query('SELECT * FROM rides WHERE id=$1 FOR UPDATE', [ride.id]);
+    const currentRide = lockedRides[0];
+    if (!currentRide) throw new ApiError(404, 'Ride not found.');
+    if (currentRide.status !== 'paymentPending' || currentRide.payment_method !== payment.method) {
+      // A delayed provider success is real money even if this ride was paid
+      // another way. Record it for an operator refund without double credit.
+      if (payment.provider === 'paypack' && payment.status !== 'succeeded') {
+        await client.query("UPDATE payments SET status='succeeded', state='succeeded', updated_at=now() WHERE id=$1", [payment.id]);
+        await client.query(
+          `INSERT INTO payment_exceptions (payment_id, ride_id, reason)
+           VALUES ($1,$2,'provider_success_after_ride_changed') ON CONFLICT (payment_id) DO NOTHING`,
+          [payment.id, ride.id]
+        );
+      }
+      await client.query('COMMIT');
+      return;
+    }
     const { rows } = await client.query(
       `UPDATE payments SET status='succeeded', state='succeeded', updated_at=now()
         WHERE id = $1 AND status != 'succeeded' RETURNING *`,
@@ -276,6 +309,7 @@ module.exports = {
   createPaymentForRide,
   chargePayment,
   refreshPaymentStatus,
+  reconcilePendingPayments,
   confirmCashPayment,
   settleSucceededPayment,
   getPaymentForRide,

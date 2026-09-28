@@ -14,14 +14,15 @@ const {
 } = require('../services/rideService');
 const {
   getPaymentForRide,
-  confirmCashPayment,
 } = require('../services/payments');
 
 const { quoteTrip } = require('../services/pricing');
 const { recentTrail } = require('../services/driverTrails');
+const { LOCATION_MAX_AGE_SECONDS } = require('../services/driverKyc');
 
 const router = express.Router();
 router.use(requireAuth);
+const riderRideToJson = (ride) => rideToJson(ride, { passengerView: true });
 
 async function loadOwnedRide(rideId, passengerId) {
   const { rows } = await getPool().query(
@@ -37,7 +38,7 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const ride = await createRide(req.passengerId, req.body || {});
-    res.status(201).json({ ride: rideToJson(ride) });
+    res.status(201).json({ ride: riderRideToJson(ride) });
   })
 );
 
@@ -74,7 +75,7 @@ router.get(
       'SELECT * FROM rides WHERE passenger_id = $1 ORDER BY created_at DESC LIMIT 100',
       [req.passengerId]
     );
-    res.json({ rides: rows.map(rideToJson) });
+    res.json({ rides: rows.map(riderRideToJson) });
   })
 );
 
@@ -133,7 +134,7 @@ router.get(
         ORDER BY created_at DESC LIMIT 1`,
       [req.passengerId]
     );
-    res.json({ ride: rows[0] ? rideToJson(rows[0]) : null });
+    res.json({ ride: rows[0] ? riderRideToJson(rows[0]) : null });
   })
 );
 
@@ -143,7 +144,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const ride = await loadOwnedRide(req.params.id, req.passengerId);
     if (!ride) throw new ApiError(404, 'Ride not found.');
-    res.json({ ride: rideToJson(ride) });
+    res.json({ ride: riderRideToJson(ride) });
   })
 );
 
@@ -155,8 +156,9 @@ router.get(
     if (!ride) throw new ApiError(404, 'Ride not found.');
     if (!ride.driver_id) return res.json({ location: null });
     const { rows } = await getPool().query(
-      'SELECT * FROM driver_locations WHERE driver_id = $1',
-      [ride.driver_id]
+      `SELECT * FROM driver_locations WHERE driver_id = $1
+         AND recorded_at > now() - ($2 || ' seconds')::interval`,
+      [ride.driver_id, LOCATION_MAX_AGE_SECONDS]
     );
     const loc = rows[0];
     const now = Date.now();
@@ -240,7 +242,7 @@ router.get(
     res.flushHeaders();
 
     const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
-    send({ type: 'ride', ride: rideToJson(ride) });
+    send({ type: 'ride', ride: riderRideToJson(ride) });
 
     const unsubscribe = onRideEvent(ride.id, (payload) => {
       const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
@@ -254,12 +256,13 @@ router.get(
         res.end();
         return;
       }
-      send({ type: 'ride', ride: rideToJson(current) });
+      send({ type: 'ride', ride: riderRideToJson(current) });
 
       if (current.driver_id) {
         const loc = await getPool().query(
-          'SELECT * FROM driver_locations WHERE driver_id = $1',
-          [current.driver_id]
+          `SELECT * FROM driver_locations WHERE driver_id = $1
+             AND recorded_at > now() - ($2 || ' seconds')::interval`,
+          [current.driver_id, LOCATION_MAX_AGE_SECONDS]
         );
         if (loc.rows[0]) {
           send({
@@ -293,7 +296,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { reason } = req.body || {};
     const ride = await cancelRide(req.passengerId, req.params.id, reason);
-    res.json({ ride: rideToJson(ride) });
+    res.json({ ride: riderRideToJson(ride) });
   })
 );
 
@@ -306,7 +309,7 @@ router.post(
       req.params.id,
       req.body?.destination
     );
-    res.json({ ride: rideToJson(ride) });
+    res.json({ ride: riderRideToJson(ride) });
   })
 );
 
@@ -316,7 +319,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { rating, comment } = req.body || {};
     const ride = await rateRide(req.passengerId, req.params.id, rating, comment);
-    res.json({ ride: rideToJson(ride) });
+    res.json({ ride: riderRideToJson(ride) });
   })
 );
 
@@ -326,22 +329,6 @@ router.get(
   asyncHandler(async (req, res) => {
     const payment = await getPaymentForRide(req.params.id, req.passengerId);
     res.json({ payment: paymentToJson(payment) });
-  })
-);
-
-// POST /api/rides/:id/pay-cash — passenger confirms in-person cash settlement.
-router.post(
-  '/:id/pay-cash',
-  asyncHandler(async (req, res) => {
-    const ride = await loadOwnedRide(req.params.id, req.passengerId);
-    if (!ride) throw new ApiError(404, 'Ride not found.');
-    if (ride.status !== 'paymentPending') {
-      throw new ApiError(400, 'There is nothing to pay for this ride right now.');
-    }
-    const payment = await getPaymentForRide(ride.id, req.passengerId);
-    if (!payment) throw new ApiError(404, 'No payment found for this ride.');
-    const settled = await confirmCashPayment(payment);
-    res.json({ payment: paymentToJson(settled) });
   })
 );
 

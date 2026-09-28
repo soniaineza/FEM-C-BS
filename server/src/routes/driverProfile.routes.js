@@ -10,6 +10,7 @@ const { requireDriverAuth } = require('../middleware/auth');
 const { signDriverToken } = require('../utils/jwt');
 const { apiLimiter } = require('../middleware/rateLimit');
 const { pushDriverNotification } = require('../services/driverNotify');
+const { missingApprovedDocuments } = require('../services/driverKyc');
 
 const router = express.Router();
 router.use(requireDriverAuth);
@@ -33,6 +34,11 @@ router.put('/me', asyncHandler(async (req, res) => {
     preferredLanguage,
     vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate,
   } = req.body || {};
+
+  const vehiclePatch = { vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate };
+  if (Object.values(vehiclePatch).some((value) => value !== undefined)) {
+    throw new ApiError(400, 'Update vehicle details through /driver/vehicle.');
+  }
 
   const { rows } = await getPool().query(
     `UPDATE drivers SET
@@ -76,6 +82,8 @@ router.put('/status', asyncHandler(async (req, res) => {
     if (!me[0]?.verified) {
       throw new ApiError(403, 'Your account is still being verified. Upload your documents and we will notify you once approved.');
     }
+    const missing = await missingApprovedDocuments(req.driverId);
+    if (missing.length) throw new ApiError(403, `Driver documents need current in-person approval: ${missing.join(', ')}.`);
   }
 
   const { rows } = await getPool().query(
@@ -119,6 +127,13 @@ router.get('/vehicle', asyncHandler(async (req, res) => {
 // PUT /api/driver/vehicle — update vehicle info.
 router.put('/vehicle', asyncHandler(async (req, res) => {
   const { vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate, licenseNumber } = req.body || {};
+  const { rows: current } = await getPool().query('SELECT * FROM drivers WHERE id=$1', [req.driverId]);
+  if (!current[0]) throw new ApiError(404, 'Driver not found.');
+  const changed = Object.entries({ vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate, licenseNumber })
+    .some(([key, value]) => value !== undefined && String(value) !== String(current[0][key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)] ?? ''));
+  if (changed && (current[0].verified || current[0].status === 'busy')) {
+    throw new ApiError(409, 'Verified vehicle details require a new operator review. Contact support to update them.');
+  }
   const { rows } = await getPool().query(
     `UPDATE drivers SET
        vehicle_make = COALESCE($2, vehicle_make),
@@ -161,7 +176,7 @@ router.get('/documents', asyncHandler(async (req, res) => {
 
 // POST /api/driver/documents — submit a document.
 router.post('/documents', asyncHandler(async (req, res) => {
-  const { docType, fileUrl, fileName, expiresAt } = req.body || {};
+  const { docType, fileName, expiresAt } = req.body || {};
   const validTypes = ['license', 'national_id', 'vehicle_registration', 'insurance', 'profile_photo', 'vehicle_photo', 'other'];
   if (!docType || !validTypes.includes(docType)) {
     throw new ApiError(400, `docType must be one of: ${validTypes.join(', ')}`);
@@ -170,7 +185,7 @@ router.post('/documents', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
     `INSERT INTO driver_documents (driver_id, doc_type, file_url, file_name, expires_at)
      VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [req.driverId, docType, fileUrl || null, fileName || null, expiresAt || null]
+    [req.driverId, docType, null, fileName || null, expiresAt || null]
   );
   res.status(201).json({
     document: {

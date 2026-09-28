@@ -17,7 +17,7 @@ async function deliverOtp(passenger, params) {
   }
 }
 const { passengerToJson } = require('../utils/serialize');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireSession } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
@@ -116,12 +116,12 @@ router.post(
 );
 
 // POST /api/auth/logout — stateless JWT: the client discards the token.
-router.post('/logout', requireAuth, (req, res) => res.status(204).end());
+router.post('/logout', requireSession, (req, res) => res.status(204).end());
 
 // POST /api/auth/refresh — re-issues a token for a currently valid session.
 router.post(
   '/refresh',
-  requireAuth,
+  requireSession,
   asyncHandler(async (req, res) => {
     const { rows } = await getPool().query('SELECT * FROM passengers WHERE id = $1', [
       req.passengerId,
@@ -138,7 +138,7 @@ router.post(
 // cooldown. Protected route because the passenger is already signed in.
 router.post(
   '/resend-otp',
-  requireAuth,
+  requireSession,
   otpLimiter,
   asyncHandler(async (req, res) => {
     const { purpose = 'signup' } = req.body || {};
@@ -248,6 +248,7 @@ router.post(
       code,
     });
     if (!result.ok) throw new ApiError(400, 'Invalid or expired verification code.');
+    await getPool().query('UPDATE passengers SET verified_at=COALESCE(verified_at, now()) WHERE id=$1', [passengerId]);
     await result.processCode();
     res.json({ verified: true });
   })
@@ -256,7 +257,7 @@ router.post(
 // GET /api/auth/me
 router.get(
   '/me',
-  requireAuth,
+  requireSession,
   asyncHandler(async (req, res) => {
     const { rows } = await getPool().query('SELECT * FROM passengers WHERE id = $1', [
       req.passengerId,
@@ -315,7 +316,7 @@ router.put(
 // DELETE /api/auth/account
 router.delete(
   '/account',
-  requireAuth,
+  requireSession,
   asyncHandler(async (req, res) => {
     await getPool().query('DELETE FROM passengers WHERE id = $1', [req.passengerId]);
     res.status(204).end();

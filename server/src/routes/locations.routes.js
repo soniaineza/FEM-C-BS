@@ -9,8 +9,8 @@ const { haversineKm } = require('../utils/distance');
 const router = express.Router();
 router.use(requireAuth);
 
-const PHOTON_BASE = 'https://photon.komoot.io/api/';
-const PHOTON_REVERSE_BASE = 'https://photon.komoot.io/reverse';
+const PHOTON_BASE = config.photonUrl;
+const PHOTON_REVERSE_BASE = config.photonReverseUrl;
 
 // Rwanda's bounding box (minLon, minLat, maxLon, maxLat). Applied to every
 // forward-geocoding query so results stay inside the country the app serves —
@@ -109,7 +109,8 @@ router.get(
     // hasn't indexed yet — retry with Nominatim before giving up.
     const features = Array.isArray(data?.features) && data.features.length
       ? data.features
-      : (await fallbackNominatim(q).catch(() => ({ features: [] }))).features;
+      : (config.env === 'production' && !process.env.NOMINATIM_URL
+          ? [] : (await fallbackNominatim(q).catch(() => ({ features: [] }))).features);
 
     res.json({ results: rankResults(q, features).slice(0, 8) });
   })
@@ -138,7 +139,9 @@ router.get(
     } catch {
       // fall through to Nominatim
     }
-    if (!address) address = await nominatimReverse(lat, lng).catch(() => null);
+    if (!address && (config.env !== 'production' || process.env.NOMINATIM_REVERSE_URL)) {
+      address = await nominatimReverse(lat, lng).catch(() => null);
+    }
     if (!address) throw new ApiError(502, 'Location service unavailable.');
     reverseCache.set(key, { address, at: Date.now() });
     if (reverseCache.size > 2000) reverseCache.delete(reverseCache.keys().next().value);
@@ -259,4 +262,3 @@ function rankResults(query, features) {
 }
 
 module.exports.rankResults = rankResults;
-

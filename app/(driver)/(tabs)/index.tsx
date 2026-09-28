@@ -9,7 +9,6 @@ import { StatusBar } from 'expo-status-bar';
 import { Button } from '../../../components/Button';
 import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
 import { useDriverActiveRide } from '../../../hooks/useDriverActiveRide';
-import { useDriverLocationReporting } from '../../../hooks/useDriverLocationReporting';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { setDriverStatus, acceptDriverRide, declineDriverRide } from '../../../services/driver-service';
 import { getDriverEarningsSummary } from '../../../services/driver-profile-service';
@@ -55,14 +54,14 @@ export default function DriverHomeScreen() {
   const [toggleError, setToggleError] = useState<string | undefined>();
   const isOnline = currentDriver?.status === 'active' || currentDriver?.status === 'busy';
 
-  useDriverLocationReporting(isOnline);
   const { rides, primaryRide } = useDriverActiveRide(!!currentDriver);
 
   const [summary, setSummary] = useState<DriverEarningsSummary | null>(null);
   useFocusEffect(
     useCallback(() => {
+      refreshDriver().catch(() => {});
       getDriverEarningsSummary().then(setSummary).catch(() => {});
-    }, [])
+    }, [refreshDriver])
   );
 
   const offeredRide = primaryRide && primaryRide.status === 'driverAssigned' ? primaryRide : null;

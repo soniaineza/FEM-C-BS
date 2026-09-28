@@ -7,6 +7,7 @@ import { Button } from '../../components/Button';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAppModeStore } from '../../stores/useAppModeStore';
 import { useLocaleStore } from '../../stores/useLocaleStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 // Direct port of lib/screens/auth/welcome_screen.dart's layout: a top hero
 // panel (gradient + two soft "blob" decorations + the car photo in a
@@ -18,9 +19,11 @@ export default function WelcomeScreen() {
   const { t } = useTranslation();
   const setMode = useAppModeStore((s) => s.setMode);
   const hasChosenLanguage = useLocaleStore((s) => s.hasChosenLanguage);
+  const pendingPassenger = useAuthStore((s) => s.pendingPassenger);
 
   // Language must be chosen before login on first launch.
   if (!hasChosenLanguage) return <Redirect href="/(auth)/language" />;
+  if (pendingPassenger) return <Redirect href="/(auth)/verification" />;
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">

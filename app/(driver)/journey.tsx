@@ -12,9 +12,8 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 import { BackHeader } from '../../components/BackHeader';
 import { RideMap, RideMapMarker } from '../../components/RideMap';
 import { useDriverRideDetails } from '../../hooks/useDriverRideDetails';
-import { useDriverLocationReporting } from '../../hooks/useDriverLocationReporting';
 import { useTranslation } from '../../hooks/useTranslation';
-import { markDriverArrived, verifyDriverRidePin, completeDriverTrip, cancelDriverRide } from '../../services/driver-service';
+import { markDriverArrived, verifyDriverRidePin, completeDriverTrip, confirmDriverCashPayment, cancelDriverRide } from '../../services/driver-service';
 import { formatFare, RoutePoint } from '../../types/ride';
 import { MapDefaults, getRoute } from '../../services/location-service';
 import { ApiError } from '../../services/driver-api-client';
@@ -42,7 +41,6 @@ export default function DriverJourneyScreen() {
   // clear of the gesture bar / 3-button nav.
   const insets = useSafeAreaInsets();
 
-  useDriverLocationReporting(true);
 
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   // Polyline from pickup → destination so the driver sees the whole planned
@@ -108,6 +106,19 @@ export default function DriverJourneyScreen() {
     }
   }
 
+  async function handleConfirmCash() {
+    setActionError(undefined);
+    setActionLoading(true);
+    try {
+      await confirmDriverCashPayment(ride!.id);
+      router.replace('/(driver)/(tabs)' as any);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : t('driverUpdateTripFailed'));
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function handleCancel(reason: string) {
     setCancelSheetOpen(false);
     try {
@@ -118,7 +129,9 @@ export default function DriverJourneyScreen() {
     }
   }
 
-  if (completion) {
+  if (completion || ride.status === 'paymentPending') {
+    const fare = completion?.fare ?? ride.finalFare ?? ride.estimatedFare;
+    const method = completion?.method ?? ride.paymentMethod.id;
     return (
       <SafeAreaViewPlaceholder className="flex-1 bg-white">
         <View className="flex-1 items-center justify-center px-8">
@@ -126,10 +139,16 @@ export default function DriverJourneyScreen() {
             <Ionicons name="checkmark" size={32} color="#16A34A" />
           </View>
           <Text className="mt-4 text-xl font-bold text-ink">{t('driverTripComplete')}</Text>
-          <Text className="mt-1 text-3xl font-bold text-primary">{formatFare(completion.fare)}</Text>
+          <Text className="mt-1 text-3xl font-bold text-primary">{formatFare(fare)}</Text>
           <Text className="mt-1 text-sm text-text-secondary">
-            {completion.method === 'cash' ? t('driverCollectCash') : t('driverPaymentSettledAuto')}
+            {method === 'cash' ? t('driverCollectCash') : t('driverPaymentPending')}
           </Text>
+          {method === 'cash' ? (
+            <View className="mt-6 w-full">
+              <Button title={t('confirmCashPayment')} onPress={handleConfirmCash} loading={actionLoading} />
+            </View>
+          ) : null}
+          {actionError ? <View className="mt-3"><ErrorMessage message={actionError} /></View> : null}
           <View className="mt-8 w-full">
             <Button title={t('driverBackToCockpit')} onPress={() => router.replace('/(driver)/(tabs)' as any)} />
           </View>

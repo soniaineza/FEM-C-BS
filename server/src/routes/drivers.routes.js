@@ -11,6 +11,8 @@ const { signDriverToken } = require('../utils/jwt');
 const { requireDriverAuth, requireAuth } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimit');
 const { haversineKm } = require('../utils/distance');
+const { confirmCashPayment } = require('../services/payments');
+const { eligibleDriverSql } = require('../services/driverKyc');
 const {
   authenticateDriver,
   getActiveRide,
@@ -104,11 +106,12 @@ passengerFacing.get(
       throw new ApiError(400, 'lat and lng are required.');
     }
     const { rows } = await getPool().query(
-      `SELECT id, current_latitude AS latitude, current_longitude AS longitude,
-              current_heading AS heading, current_vehicle_id AS vehicle_id
-         FROM drivers
-        WHERE status = 'active' AND verified = TRUE
-          AND current_latitude IS NOT NULL AND current_longitude IS NOT NULL
+      `SELECT d.id, d.current_latitude AS latitude, d.current_longitude AS longitude,
+              d.current_heading AS heading, d.current_vehicle_id AS vehicle_id
+         FROM drivers d
+        WHERE d.status = 'active' AND d.verified = TRUE
+          AND d.current_latitude IS NOT NULL AND d.current_longitude IS NOT NULL
+          ${eligibleDriverSql}
         LIMIT 300`
     );
     const now = Date.now();
@@ -192,8 +195,8 @@ active.post(
 active.post(
   '/rides/:id/arrived',
   asyncHandler(async (req, res) => {
-    const pin = await markArrived(req.driverId, req.params.id);
-    res.json({ pin, rideId: req.params.id, message: 'Arrival recorded.' });
+    await markArrived(req.driverId, req.params.id);
+    res.json({ rideId: req.params.id, message: 'Arrival recorded.' });
   })
 );
 
@@ -225,6 +228,19 @@ active.post(
     });
   })
 );
+
+// The driver confirms that cash was actually collected after the trip.
+active.post('/rides/:id/confirm-cash', asyncHandler(async (req, res) => {
+  const { rows } = await getPool().query(
+    `SELECT p.* FROM payments p JOIN rides r ON r.id = p.ride_id
+      WHERE r.id = $1 AND r.driver_id = $2 AND r.status = 'paymentPending'
+        AND p.method = 'cash' ORDER BY p.created_at DESC LIMIT 1`,
+    [req.params.id, req.driverId]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Cash payment awaiting this driver was not found.');
+  const payment = await confirmCashPayment(rows[0]);
+  res.json({ payment: { id: payment.id, status: payment.status } });
+}));
 
 // POST /api/drivers/rides/:id/cancel — driver-initiated cancellation of an
 // already-accepted ride (e.g. a no-show passenger).

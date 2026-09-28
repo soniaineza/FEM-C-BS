@@ -55,6 +55,7 @@ async function authorize() {
       client_id: config.paypackClientId,
       client_secret: config.paypackClientSecret,
     }),
+    signal: AbortSignal.timeout(10000),
   });
   return readJson(res, 'authorize');
 }
@@ -62,6 +63,7 @@ async function authorize() {
 async function refresh(refreshToken) {
   const res = await fetch(apiUrl(`/auth/agents/refresh/${encodeURIComponent(refreshToken)}`), {
     headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(10000),
   });
   return readJson(res, 'token refresh');
 }
@@ -110,6 +112,7 @@ async function createCharge({ amount, phone, idempotencyKey }) {
       amount: Math.round(Number(amount)),
       number: toNationalNumber(phone),
     }),
+    signal: AbortSignal.timeout(10000),
   });
   const charge = await readJson(res, 'cashin');
   if (!charge.ref) throw new Error('Paypack cashin returned no transaction ref.');
@@ -121,6 +124,7 @@ async function readCharge(ref) {
   const access = await getAccessToken();
   const res = await fetch(apiUrl(`/transactions/find/${encodeURIComponent(ref)}`), {
     headers: { Accept: 'application/json', Authorization: `Bearer ${access}` },
+    signal: AbortSignal.timeout(10000),
   });
   return readJson(res, 'transaction lookup');
 }

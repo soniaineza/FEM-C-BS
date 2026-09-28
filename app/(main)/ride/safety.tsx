@@ -50,6 +50,9 @@ export default function SafetyScreen() {
       callPhoneNumber(result.callCenterPhone ?? callCenterPhone ?? '');
     } catch (err) {
       setSosError(err instanceof ApiError ? err.message : t('sosFailed'));
+      // An alert may be queued for retry, but delivery is unconfirmed. Give
+      // the rider the direct call path immediately when we have a number.
+      if (callCenterPhone) callPhoneNumber(callCenterPhone);
     } finally {
       setSosLoading(false);
     }

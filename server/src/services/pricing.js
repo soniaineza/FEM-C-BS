@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { getPool } = require('../db');
 const { haversineKm } = require('../utils/distance');
 const { getRoadRoute, getTravelTimes, estimateSeconds } = require('./routing');
+const { eligibleDriverSql } = require('./driverKyc');
 
 // Upfront, server-authoritative pricing in the style of Uber's upfront fares:
 //
@@ -40,9 +41,10 @@ async function surgeAt(point) {
         WHERE status = 'searchingDriver' AND created_at > now() - interval '10 minutes'`
     ),
     getPool().query(
-      `SELECT current_latitude AS lat, current_longitude AS lng FROM drivers
-        WHERE verified = TRUE AND status = 'active'
-          AND current_latitude IS NOT NULL AND current_longitude IS NOT NULL`
+      `SELECT d.current_latitude AS lat, d.current_longitude AS lng FROM drivers d
+        WHERE d.verified = TRUE AND d.status = 'active'
+          AND d.current_latitude IS NOT NULL AND d.current_longitude IS NOT NULL
+          ${eligibleDriverSql}`
     ),
   ]);
   const near = (r) => haversineKm(point.latitude, point.longitude, r.lat, r.lng) <= SURGE_RADIUS_KM;
@@ -69,10 +71,11 @@ async function pickupEtas(point) {
   if (hit && Date.now() - hit.at < ETA_CACHE_MS) return hit.etas;
 
   const { rows } = await getPool().query(
-    `SELECT current_vehicle_id AS vehicle_id, current_latitude AS lat, current_longitude AS lng
-       FROM drivers
-      WHERE verified = TRUE AND status = 'active'
-        AND current_latitude IS NOT NULL AND current_longitude IS NOT NULL`
+    `SELECT d.current_vehicle_id AS vehicle_id, d.current_latitude AS lat, d.current_longitude AS lng
+       FROM drivers d
+      WHERE d.verified = TRUE AND d.status = 'active'
+        AND d.current_latitude IS NOT NULL AND d.current_longitude IS NOT NULL
+        ${eligibleDriverSql}`
   );
   const perClass = new Map();
   for (const r of rows) {

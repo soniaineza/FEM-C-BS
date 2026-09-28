@@ -1,4 +1,5 @@
 const { getPool } = require('../db');
+const paypack = require('./paypackClient');
 
 /**
  * Marks a wallet top-up succeeded and credits the passenger's wallet —
@@ -53,4 +54,21 @@ async function failTopup(topupId, metadata) {
   return cur.rows[0];
 }
 
-module.exports = { creditTopup, failTopup };
+async function reconcilePendingTopups() {
+  if (!paypack.isConfigured()) return;
+  const { rows } = await getPool().query(
+    `SELECT id, external_reference FROM wallet_topups WHERE status='pending'
+       AND external_reference IS NOT NULL AND created_at < now() - interval '30 seconds'
+       ORDER BY created_at LIMIT 30`
+  );
+  for (const topup of rows) {
+    try {
+      const charge = await paypack.readCharge(topup.external_reference);
+      const status = String(charge.status || '').toLowerCase();
+      if (status === 'successful') await creditTopup(topup.id, { providerStatus: status });
+      if (status === 'failed') await failTopup(topup.id, { providerStatus: status });
+    } catch (err) { console.error('[wallet] reconciliation failed', topup.id, err); }
+  }
+}
+
+module.exports = { creditTopup, failTopup, reconcilePendingTopups };

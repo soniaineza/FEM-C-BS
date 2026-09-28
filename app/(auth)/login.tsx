@@ -44,7 +44,8 @@ export default function LoginScreen() {
     setError(undefined);
     setLoading(true);
     try {
-      await logIn({ identifier: identifier.trim(), password });
+      const passenger = await logIn({ identifier: identifier.trim(), password });
+      if (!passenger.isVerified) router.replace('/(auth)/verification');
       // Stack.Protected in the root layout swaps to profile-setup or (main)
       // automatically once currentUser updates — no manual navigation here.
     } catch (err) {

@@ -33,8 +33,14 @@ CREATE TABLE IF NOT EXISTS driver_documents (
   rejection_reason TEXT,
   expires_at TIMESTAMPTZ,
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  reviewed_at TIMESTAMPTZ
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by TEXT,
+  verification_method TEXT,
+  evidence_reference TEXT
 );
+ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS verification_method TEXT;
+ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS evidence_reference TEXT;
 CREATE INDEX IF NOT EXISTS idx_driver_documents_driver ON driver_documents(driver_id, doc_type);
 
 -- Driver-specific notifications (separate from passenger notifications).

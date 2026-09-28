@@ -5,6 +5,7 @@ const { settleSucceededPayment } = require('../services/payments');
 const { creditTopup, failTopup } = require('../services/walletTopups');
 const paypack = require('../services/paypackClient');
 const { pushNotification } = require('../services/notify');
+const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 
 const router = express.Router();
 
@@ -17,24 +18,18 @@ router.head('/paypack', (_req, res) => res.sendStatus(200));
 //     data: { ref, kind: 'CASHIN', status: 'successful'|'failed', amount, client, ... } }
 // This router MUST be mounted with express.raw({ type: 'application/json' })
 // so the raw body is available to verify x-paypack-signature.
-router.post('/paypack', async (req, res) => {
+router.post('/paypack', asyncHandler(async (req, res) => {
   if (!paypack.verifyWebhookSignature(req.rawBody, req.headers['x-paypack-signature'])) {
-    return res.status(401).json({ error: 'Invalid webhook signature.' });
+    throw new ApiError(401, 'Invalid webhook signature.');
   }
   const data = req.body?.data;
   if (!data || typeof data !== 'object' || !data.ref) {
-    return res.status(400).json({ error: 'Malformed webhook payload.' });
+    throw new ApiError(400, 'Malformed webhook payload.');
   }
-
-  // Acknowledge first so Paypack doesn't retry while we settle.
+  // Return success only after durable settlement. Failures let the provider retry.
+  await handleTransaction(data);
   res.status(200).json({ received: true });
-
-  try {
-    await handleTransaction(data);
-  } catch (err) {
-    console.error('[webhooks] failed to process Paypack event', data.ref, err);
-  }
-});
+}));
 
 async function handleTransaction(data) {
   const ref = String(data.ref);
@@ -77,7 +72,8 @@ async function handleTransaction(data) {
     return;
   }
 
-  console.warn('[webhooks] received event for unknown Paypack ref:', ref);
+  // The webhook may beat the API's external_reference update. Retry later.
+  throw new ApiError(503, 'Payment reference is not recorded yet.');
 }
 
 async function handleRidePayment(payment, data, success) {
@@ -87,11 +83,12 @@ async function handleRidePayment(payment, data, success) {
   const ride = rideRows[0];
 
   if (success) {
-    await settleSucceededPayment({ ...payment, status: 'succeeded', state: 'succeeded' }, ride);
+    await settleSucceededPayment(payment, ride);
     return;
   }
   await getPool().query(
-    `UPDATE payments SET status='failed', state='failed', updated_at=now(),
+    `UPDATE payments SET status='failed',
+       state=CASE WHEN status='succeeded' THEN 'succeeded' ELSE 'failed' END, updated_at=now(),
        metadata=COALESCE(metadata,'{}'::jsonb) || $2::jsonb
      WHERE id = $1 AND status != 'succeeded'`,
     [payment.id, JSON.stringify({ webhookStatus: data.status })]

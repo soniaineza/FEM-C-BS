@@ -265,19 +265,14 @@ async function cancelRide(passengerId, rideId, reason) {
   const ride = await loadRide(rideId);
   if (!ride || ride.passenger_id !== passengerId) throw new ApiError(404, 'Ride not found.');
 
-  // paymentPending is cancellable too — the state machine allows it and a
-  // passenger stuck on an unpayable ride (e.g. provider misconfigured) would
-  // otherwise be trapped with an active ride forever (duplicate guard blocks
-  // any new booking). 'pinVerified'/'inProgress'/'arrived' stay
-  // non-cancellable: once the trip has physically started the passenger
-  // can't just walk away — that's a driver-side completion.
+  // A completed physical trip cannot be cancelled while collection is in
+  // flight: a provider can settle after the cancellation request arrives.
   const canCancel = [
     'scheduled',
     'searchingDriver',
     'driverAssigned',
     'driverArriving',
     'driverArrived',
-    'paymentPending',
   ].includes(ride.status);
   if (!canCancel) {
     throw new ApiError(400, 'This ride can no longer be cancelled.');

@@ -37,7 +37,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   hydrate: async () => {
     const passenger = await authService.restoreSession();
-    set({ currentUser: passenger, isHydrated: true });
+    set({ currentUser: passenger?.isVerified ? passenger : null,
+      pendingPassenger: passenger && !passenger.isVerified ? passenger : null, isHydrated: true });
   },
 
   signUp: async (params) => {
@@ -47,7 +48,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logIn: async (params) => {
     const passenger = await authService.logIn(params);
-    set({ currentUser: passenger });
+    set({ currentUser: passenger.isVerified ? passenger : null,
+      pendingPassenger: passenger.isVerified ? null : passenger });
     return passenger;
   },
 
@@ -55,7 +57,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const pending = get().pendingPassenger;
     if (!pending?.id) throw new Error('No pending signup to verify.');
     await authService.verifyOtp({ passengerId: pending.id, code });
-    set({ currentUser: pending, pendingPassenger: null, devCode: null });
+    const verified = await authService.restoreSession();
+    if (!verified?.isVerified) throw new Error('Verification could not be confirmed.');
+    set({ currentUser: verified, pendingPassenger: null, devCode: null });
   },
 
   resendOtp: async (purpose = 'signup') => {

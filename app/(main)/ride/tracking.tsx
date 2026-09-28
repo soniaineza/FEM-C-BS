@@ -9,7 +9,7 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { useMapScene } from '../../../hooks/useMapScene';
 import { useTripMap } from '../../../hooks/useTripMap';
-import { getPaymentForRide, confirmCashPayment, initiatePayment, refreshPaymentStatus } from '../../../services/payment-service';
+import { getPaymentForRide, initiatePayment, refreshPaymentStatus } from '../../../services/payment-service';
 import { PaymentRecord, isPaymentSettled } from '../../../types/payment';
 import { formatFare } from '../../../types/ride';
 
@@ -24,6 +24,7 @@ export default function TrackingScreen() {
 
   const [payment, setPayment] = useState<PaymentRecord | null>(null);
   const [payLoading, setPayLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
     if (ride && ride.status === 'completed') {
@@ -35,25 +36,31 @@ export default function TrackingScreen() {
     if (!ride || (ride.status !== 'paymentPending' && ride.status !== 'arrived')) return;
     getPaymentForRide(ride.id).then((p) => {
       if (p) setPayment(p);
-      else if (ride.status === 'paymentPending') initiatePayment(ride.id).then(setPayment);
-    });
+      else if (ride.status === 'paymentPending') initiatePayment(ride.id).then(setPayment).catch(() => setPaymentError(t('paymentPendingNotice')));
+    }).catch(() => setPaymentError(t('paymentPendingNotice')));
   }, [ride?.status, ride?.id]);
-
-  async function handleConfirmCash() {
-    if (!ride) return;
-    setPayLoading(true);
-    try {
-      setPayment(await confirmCashPayment(ride.id));
-    } finally {
-      setPayLoading(false);
-    }
-  }
 
   async function handleRefreshStatus() {
     if (!payment) return;
     setPayLoading(true);
     try {
       setPayment(await refreshPaymentStatus(payment.id));
+      setPaymentError(null);
+    } catch {
+      setPaymentError(t('paymentPendingNotice'));
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function handleCashFallback() {
+    if (!ride) return;
+    setPayLoading(true);
+    try {
+      setPayment(await initiatePayment(ride.id, 'cash'));
+      setPaymentError(null);
+    } catch {
+      setPaymentError(t('cashFallbackUnavailable'));
     } finally {
       setPayLoading(false);
     }
@@ -84,6 +91,7 @@ export default function TrackingScreen() {
         }
         footer={<Button title={t('safety')} variant="outline" icon="shield-checkmark-outline" onPress={() => router.push({ pathname: '/(main)/ride/safety', params: { rideId: ride.id } })} />}
       >
+        {!driverLocation && !awaitingPayment ? <Text className="mb-3 text-sm text-error">{t('driverLocationUnavailable')}</Text> : null}
         {ride.driver ? (
           <View className="flex-row items-center rounded-2xl border border-border p-3">
             <View className="flex-1">
@@ -104,11 +112,14 @@ export default function TrackingScreen() {
                 <Text className="mt-2 text-primary">{t('depositReceived')}</Text>
               ) : payment.method === 'cash' ? (
                 <View className="mt-3">
-                  <Button title={t('confirmCashPayment')} onPress={handleConfirmCash} loading={payLoading} />
+                  <Text className="text-sm text-text-secondary">{t('cashAwaitingDriver')}</Text>
                 </View>
               ) : (
                 <View className="mt-3">
                   <Text className="text-sm text-text-secondary">{t('paymentPendingNotice')}</Text>
+                  {payment.status === 'failed' ? (
+                    <View className="mt-3"><Button title={t('payCashInstead')} onPress={handleCashFallback} loading={payLoading} /></View>
+                  ) : null}
                   <View className="mt-3">
                     <Button title={t('checkPaymentStatus')} variant="outline" onPress={handleRefreshStatus} loading={payLoading} />
                   </View>
@@ -117,6 +128,7 @@ export default function TrackingScreen() {
             ) : (
               <ActivityIndicator className="mt-3" color="#16A34A" />
             )}
+            {paymentError ? <Text className="mt-2 text-error">{paymentError}</Text> : null}
           </View>
         ) : null}
       </MapSheet>
