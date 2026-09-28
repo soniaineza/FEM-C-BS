@@ -367,7 +367,7 @@ async function changeDestination(passengerId, rideId, destination) {
 async function generateRidePin(rideId) {
   const pin = String(crypto.randomInt(0, 10000)).padStart(config.ridePinLength, '0');
   const pinHash = await bcrypt.hash(pin, 8);
-  await getPool().query('UPDATE rides SET ride_pin = $1, ride_pin_hash = $2 WHERE id = $3', [
+  await getPool().query('UPDATE rides SET ride_pin = $1, ride_pin_hash = $2, pin_attempts=0 WHERE id = $3', [
     pin,
     pinHash,
     rideId,

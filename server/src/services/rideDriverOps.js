@@ -173,11 +173,18 @@ async function markArrived(driverId, rideId) {
 }
 
 async function verifyPin(driverId, rideId, pin) {
+  if (!/^\d{4}$/.test(String(pin))) throw new ApiError(400, 'Enter the 4-digit ride PIN.');
   const ride = await getActiveRideById(driverId, rideId);
   if (!ride) throw new ApiError(404, 'No assigned ride found.');
   if (ride.status !== 'driverArrived') {
     throw new ApiError(400, 'The PIN can only be verified after arrival.');
   }
+  const { rows: attempts } = await getPool().query(
+    `UPDATE rides SET pin_attempts=pin_attempts+1
+       WHERE id=$1 AND status='driverArrived' AND pin_attempts<5 RETURNING pin_attempts`,
+    [rideId]
+  );
+  if (!attempts[0]) throw new ApiError(429, 'Too many PIN attempts. Contact support.');
   if (!ride.ride_pin_hash || !(await bcrypt.compare(String(pin), ride.ride_pin_hash))) {
     throw new ApiError(400, 'Incorrect PIN.');
   }

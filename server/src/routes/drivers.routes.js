@@ -203,6 +203,7 @@ active.post(
 // POST /api/drivers/rides/:id/verify-pin
 active.post(
   '/rides/:id/verify-pin',
+  apiLimiter({ max: 15 }),
   asyncHandler(async (req, res) => {
     const { pin } = req.body || {};
     if (!pin) throw new ApiError(400, 'A ride PIN is required.');
