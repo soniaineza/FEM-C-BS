@@ -34,7 +34,7 @@ export default function RideDetailsScreen() {
 
   if (loading && !ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white" edges={['top', 'left', 'right']}>
         <ActivityIndicator color="#16A34A" />
       </SafeAreaViewPlaceholder>
     );
@@ -42,7 +42,7 @@ export default function RideDetailsScreen() {
 
   if (error && !ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
         <View className="flex-1 px-6 pt-2">
           <BackHeader />
           <View className="mt-10 items-center">
@@ -59,7 +59,7 @@ export default function RideDetailsScreen() {
   if (!ride) return null;
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('rideDetails')}</Text>

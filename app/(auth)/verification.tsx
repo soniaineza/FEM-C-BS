@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../../components/Button';
@@ -73,9 +74,8 @@ export default function VerificationScreen() {
       <View className="px-5 pt-1">
         <BackHeader />
       </View>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled"
         contentContainerClassName="flex-grow justify-center px-6 pb-10 pt-2"
-        keyboardShouldPersistTaps="handled"
       >
         <View className="w-full max-w-[440px] self-center">
           <Text className="text-center text-2xl font-bold text-ink">{t('verifyAccount')}</Text>
@@ -111,7 +111,7 @@ export default function VerificationScreen() {
             </Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

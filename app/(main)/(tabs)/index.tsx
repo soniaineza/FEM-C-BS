@@ -105,7 +105,10 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['top']}>
-      <StatusBar style="light" />
+      {/* White status-bar icons only while this green header is on screen;
+          tab screens stay mounted, so an unconditional one would leave white
+          icons on every white screen after it (root layout sets dark). */}
+      {isFocused ? <StatusBar style="light" /> : null}
       <View className="bg-primary px-5 pb-6 pt-3">
         <View className="flex-row items-center justify-between">
           <View className="flex-1 pr-3">

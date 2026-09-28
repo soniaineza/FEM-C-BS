@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../../components/SafeAreaViewPlaceholder';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -61,6 +62,7 @@ export default function DriverTicketThreadScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{ticket.subject}</Text>
@@ -88,6 +90,7 @@ export default function DriverTicketThreadScreen() {
           </View>
         ) : null}
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaViewPlaceholder>
   );
 }

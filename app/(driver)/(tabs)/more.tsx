@@ -24,7 +24,7 @@ export default function DriverMoreScreen() {
   const setMode = useAppModeStore((s) => s.setMode);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
       <ScrollView contentContainerClassName="px-5 pb-6 pt-6">
         <Text className="text-xl font-bold text-ink">{t('account')}</Text>
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, TextInput } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../../../components/Button';
@@ -82,6 +83,7 @@ export default function SavedPlacesScreen() {
       </View>
 
       <Modal visible={modalOpen} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <View className="flex-1 items-center justify-center bg-black/40 px-6">
           <View className="w-full rounded bg-white p-6">
             <Text className="text-lg font-bold text-ink">{t('addAPlace')}</Text>
@@ -107,6 +109,7 @@ export default function SavedPlacesScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaViewPlaceholder>
   );

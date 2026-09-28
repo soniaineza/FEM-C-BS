@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Linking } from 'react-native';
 import { router } from 'expo-router';
@@ -54,7 +55,7 @@ export default function HelpSupportScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pt-2 pb-10" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('helpSupportTitle')}</Text>
         <Text className="mt-1 text-text-secondary">{t('helpIntro')}</Text>
@@ -124,7 +125,7 @@ export default function HelpSupportScreen() {
             <Text className="mt-1 text-sm text-text-secondary">{t(a)}</Text>
           </View>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

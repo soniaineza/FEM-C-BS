@@ -74,7 +74,7 @@ export default function RideHistoryScreen() {
   ];
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
       <View className="flex-1 px-6 pt-4">
         <Text className="text-2xl font-bold text-ink">{t('myRides')}</Text>
 

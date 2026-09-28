@@ -31,7 +31,7 @@ export default function WalletScreen() {
   useFocusEffect(load);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
       <View className="px-5 pt-4">
         <Text className="text-xl font-bold text-ink">{t('wallet')}</Text>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -178,6 +179,7 @@ export default function DriverJourneyScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <View className="h-56 w-full">
         <RideMap
           center={center}
@@ -264,6 +266,7 @@ export default function DriverJourneyScreen() {
           </View>
         </View>
       </Modal>
+      </KeyboardAvoidingView>
     </SafeAreaViewPlaceholder>
   );
 }

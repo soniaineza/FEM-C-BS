@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -76,7 +77,7 @@ export default function DriverDocumentsScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pt-2 pb-10" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('documents')}</Text>
         <Text className="mt-1 text-sm text-text-secondary">{t('driverDocumentsIntro')}</Text>
@@ -129,7 +130,7 @@ export default function DriverDocumentsScreen() {
         <View className="mt-4">
           <Button title={t('driverSubmitDocument')} onPress={handleSubmit} loading={submitting} />
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

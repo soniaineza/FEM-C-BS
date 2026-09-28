@@ -3,6 +3,8 @@ import '../global.css';
 import { useEffect, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StatusBar } from 'expo-status-bar';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import * as SplashScreen from 'expo-splash-screen';
 import { Platform, BackHandler } from 'react-native';
 import {
@@ -103,6 +105,12 @@ export default function RootLayout() {
   // guards the same automatic way login/logout already does.
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+    {/* Keyboard-aware scrolling/avoiding for every form screen (Android is
+        edge-to-edge, so the window no longer resizes for the keyboard). */}
+    <KeyboardProvider>
+    {/* Default: dark clock/battery icons for the app's light screens.
+        Screens with a dark or green header override it while focused. */}
+    <StatusBar style="dark" />
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={mode === 'passenger' && !currentUser}>
         <Stack.Screen name="(auth)" />
@@ -124,6 +132,7 @@ export default function RootLayout() {
         <Stack.Screen name="(driver)" />
       </Stack.Protected>
     </Stack>
+    </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

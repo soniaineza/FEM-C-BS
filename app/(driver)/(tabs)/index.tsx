@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
@@ -41,6 +41,7 @@ function greetingKey(): 'driverGoodMorning' | 'driverGoodAfternoon' | 'driverGoo
 // (those exist verbatim on the passenger side already) — see the migration
 // report for that call.
 export default function DriverHomeScreen() {
+  const isFocused = useIsFocused();
   const { t } = useTranslation();
   // Bottom sheets render inside a transparent full-screen Modal, which gets
   // no SafeArea automatically — the OfferOverlay pads its own bottom edge by
@@ -103,8 +104,9 @@ export default function DriverHomeScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-primary">
-      <StatusBar style="light" />
+    <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['top', 'left', 'right']}>
+      {/* See the passenger home: white icons only while this header shows. */}
+      {isFocused ? <StatusBar style="light" /> : null}
       <View className="bg-primary px-5 pb-8 pt-3">
         <View className="flex-row items-center">
           <View className="h-11 w-11 items-center justify-center rounded-xl bg-white">

@@ -27,7 +27,7 @@ export default function DriverTripDetailScreen() {
 
   if (!ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
         <View className="flex-1 px-6 pt-2">
           <BackHeader />
           {!error ? (
@@ -46,7 +46,7 @@ export default function DriverTripDetailScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('rideDetails')}</Text>

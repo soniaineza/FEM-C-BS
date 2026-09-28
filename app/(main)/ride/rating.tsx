@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -36,6 +37,7 @@ export default function RatingScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <Text className="mt-4 text-2xl font-bold text-ink">{t('howWasRide')}</Text>
@@ -57,6 +59,7 @@ export default function RatingScreen() {
           <Button title={t('submitRating')} onPress={handleSubmit} loading={loading} />
         </View>
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaViewPlaceholder>
   );
 }

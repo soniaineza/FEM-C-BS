@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
+import { goBack } from '../../utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../components/Button';
@@ -60,24 +62,20 @@ export default function LoginScreen() {
       setPassword('');
       setStep('identifier');
     } else {
-      router.back();
+      goBack();
     }
   }
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Back affordance pinned above the centered content; ScrollView keeps
+      <View style={{ flex: 1 }}>
+        {/* Back affordance pinned above the centered content; the keyboard-aware scroll view keeps
             everything reachable when the keyboard is up or on short screens. */}
         <View className="px-5 pt-1">
           <BackHeader onBack={back} />
         </View>
-        <ScrollView
+        <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled"
           contentContainerClassName="flex-grow justify-center px-6 pb-10 pt-2"
-          keyboardShouldPersistTaps="handled"
         >
           <View className="w-full max-w-[420px] self-center">
             <View className="items-center">
@@ -156,8 +154,8 @@ export default function LoginScreen() {
               </Pressable>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
     </SafeAreaViewPlaceholder>
   );
 }

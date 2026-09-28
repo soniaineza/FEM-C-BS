@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../components/Button';
@@ -61,7 +62,7 @@ export default function DriverProfileSetupScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="flex-grow px-6 pt-6 pb-8" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-6 pb-8">
         <Text className="text-xl font-bold text-ink">{t('driverCompleteProfile')}</Text>
 
         <View className="mt-6 items-center">
@@ -98,7 +99,7 @@ export default function DriverProfileSetupScreen() {
         <View className="mt-7">
           <Button title={t('continueLabel')} onPress={handleContinue} loading={loading} />
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

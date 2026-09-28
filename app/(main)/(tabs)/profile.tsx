@@ -30,7 +30,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
+    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
       <ScrollView contentContainerClassName="px-5 pb-6 pt-4">
         <Text className="text-xl font-bold text-ink">{t('profile')}</Text>
 

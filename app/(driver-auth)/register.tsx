@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
@@ -55,7 +56,7 @@ export default function DriverRegisterScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="flex-grow px-6 pt-2 pb-8" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
         <BackHeader />
         <Text className="mt-4 text-2xl font-bold text-ink">{t('driverBecomeDriver')}</Text>
         <Text className="mt-1 text-text-secondary">{t('driverCreateAccountSubtitle')}</Text>
@@ -96,7 +97,7 @@ export default function DriverRegisterScreen() {
             <Text className="font-semibold text-primary">{t('login')}</Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
   );
 }
