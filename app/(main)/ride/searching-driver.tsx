@@ -126,7 +126,9 @@ export default function SearchingDriverScreen() {
       >
         <Text className="leading-relaxed text-text-secondary">{t('matchingDriver')}</Text>
         {cars.length ? (
-          <Text className="mt-1 text-xs font-semibold text-primary">{t('carsNearby', { count: cars.length })}</Text>
+          <Text className="mt-1 text-xs font-semibold text-primary">
+            {cars.length === 1 ? t('oneDriverNearby') : t('multipleDriversNearby', { count: cars.length })}
+          </Text>
         ) : null}
         {searchSlow ? (
           <View className="mt-3 w-full rounded-xl border border-border bg-bg-light px-4 py-3" accessibilityRole="text">

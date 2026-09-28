@@ -85,7 +85,7 @@ test.describe('Passenger authentication', () => {
     const hint = await page.getByText(/Demo OTP code: \d+/).textContent();
     const code = hint!.match(/(\d{4,8})/)![1];
     await page.getByLabel('Verification code').fill(code);
-    await page.getByLabel('New password').fill('NewSecret456');
+    await page.getByRole('textbox', { name: 'New password' }).fill('NewSecret456');
     await page.getByLabel('Repeat password').fill('NewSecret456');
     await page.getByText('Set new password').click();
     await expect(page.getByText(/Password reset/)).toBeVisible();

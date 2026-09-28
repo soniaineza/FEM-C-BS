@@ -31,9 +31,9 @@ const NOT_TRANSLATIONS = new Set(['languageName']);
 const RECENT_KEYS = [
   'minAway', 'dropoffAt', 'noCarsNearby', 'fareBreakdown', 'baseFare', 'distanceFare', 'timeFare',
   'bookingFee', 'surgeApplied', 'minimumFareApplied', 'sharedDiscount', 'totalLabel', 'upfrontPriceNote',
-  'surgeNotice', 'routeEstimateNotice', 'carsNearby', 'driverArrivingIn', 'driverHere', 'tripEndsAt',
+  'surgeNotice', 'routeEstimateNotice', 'oneDriverNearby', 'multipleDriversNearby', 'driverArrivingIn', 'driverHere', 'tripEndsAt',
   'onTheWayToDestination', 'shareYourPin', 'confirmPickup', 'confirmDestination', 'movePinHint',
-  'cashAwaitingDriver',
+  'cashAwaitingDriver', 'shareLinkCopied', 'shareLinkCopiedHint',
 ];
 
 test('every locale has every English key', () => {

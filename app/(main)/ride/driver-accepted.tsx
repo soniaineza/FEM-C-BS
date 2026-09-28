@@ -45,6 +45,7 @@ export default function DriverAcceptedScreen() {
   const driver = ride.driver;
   const arrived = ride.status === 'driverArrived';
   const initials = driver.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const vehicleSummary = [driver.vehicleColor, driver.vehicleModel].filter(Boolean).join(' ');
 
   return (
     <View style={{ flex: 1 }}>
@@ -75,12 +76,17 @@ export default function DriverAcceptedScreen() {
             <Text className="text-base font-bold text-ink">{driver.name}</Text>
             <View className="mt-0.5 flex-row items-center">
               <Ionicons name="star" size={13} color="#111" />
-              <Text className="ml-1 text-[13px] text-text-secondary">{driver.rating.toFixed(1)} · {driver.vehicleColor} {driver.vehicleModel}</Text>
+              <Text className="ml-1 text-[13px] text-text-secondary">
+                {driver.rating > 0 ? driver.rating.toFixed(1) : t('driverNoRatingYet')}
+                {vehicleSummary ? ` · ${vehicleSummary}` : ''}
+              </Text>
             </View>
           </View>
-          <View className="rounded-lg border-2 border-ink bg-white px-2.5 py-1">
-            <Text className="text-[13px] font-bold tracking-wider text-ink">{driver.licensePlate}</Text>
-          </View>
+          {driver.licensePlate ? (
+            <View className="rounded-lg border-2 border-ink bg-white px-2.5 py-1">
+              <Text className="text-[13px] font-bold tracking-wider text-ink">{driver.licensePlate}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View className="mt-3 flex-row gap-3">

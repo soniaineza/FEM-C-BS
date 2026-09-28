@@ -8,16 +8,19 @@ test('Home opens on a live nearby-driver map with booking controls in reach', as
   await signInPassenger(page, rider);
   await page.goto('/');
 
-  await expect(page.getByRole('region', { name: 'Map' })).toBeVisible();
-  await expect(page.locator('.maplibregl-canvas')).toBeVisible();
-  await expect(page.getByText(/cars nearby/i)).toBeVisible();
+  const maps = page.locator('.maplibregl-canvas');
+  await expect(maps).toHaveCount(1);
+  const map = maps.first();
+  await expect(map).toBeVisible();
+  await expect(page.getByText('Loading map…').last()).toBeHidden({ timeout: 45_000 });
+  await expect(page.getByText(/driver nearby|drivers nearby/i)).toBeVisible();
   await expect(page.getByText('Where are you going?')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Find Ride' })).toBeVisible();
   await expect(page.getByRole('radio', { name: 'Private ride' })).toHaveAttribute('aria-checked', 'true');
 
-  const map = await page.getByRole('region', { name: 'Map' }).boundingBox();
+  const mapBounds = await map.boundingBox();
   const panel = await page.getByText('Where are you going?').boundingBox();
-  expect(map).toBeTruthy();
+  expect(mapBounds).toBeTruthy();
   expect(panel).toBeTruthy();
   expect(panel!.y).toBeGreaterThan(page.viewportSize()!.height * 0.45);
 

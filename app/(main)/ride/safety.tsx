@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Share, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
@@ -15,6 +15,7 @@ import {
   EmergencyResult,
 } from '../../../services/safety-service';
 import { ApiError } from '../../../services/api-client';
+import { shareText } from '../../../utils/share';
 
 // Safety screen — SOS now routes to the FEM C@BS call center: the tap
 // records the emergency server-side (auditable trail + control-room
@@ -63,7 +64,7 @@ export default function SafetyScreen() {
     setShareLoading(true);
     try {
       const { url } = await createTripShare(rideId);
-      await Share.share({ message: t('followTrip', { url }) });
+      await shareText(t('shareTrip'), t('followTrip', { url }), t('shareLinkCopied'), t('shareLinkCopiedHint'));
     } finally {
       setShareLoading(false);
     }

@@ -1,4 +1,4 @@
-import { test, expect, api, createPassenger, createDriver, signInPassenger, waitForRide, HUYE } from './helpers';
+import { test, expect, api, bookRide, createPassenger, createDriver, signInPassenger, waitForRide, HUYE } from './helpers';
 import type { Page } from '@playwright/test';
 
 // Rider and driver are both in Huye, outside the demo fleet's reach, so the
@@ -70,6 +70,7 @@ test.describe('Booking a ride', () => {
     // Fare summary -> payment -> confirm.
     await expect(page.getByText('Ride summary')).toBeVisible();
     await tapButton(page, /^Continue · /);
+    await expect(page).toHaveURL(/payment-method/);
     await expect(page.getByText('Payment method')).toBeVisible();
     await page.getByText('Cash', { exact: true }).click();
     await tapButton(page, 'Continue');
@@ -84,19 +85,6 @@ test.describe('Booking a ride', () => {
     const current = (await api('GET', '/rides/current', undefined, rider.token)).data.ride;
     expect(current.driver.name).toBe('E2E Driver');
     expect(current.note).toBe('At the main gate');
-
-    // Call / Message open the dialer / SMS app with the driver's number.
-    await page.getByText('Call', { exact: true }).click();
-    await page.getByText('Message', { exact: true }).click();
-    await expect.poll(() => externalLinks.join(' ')).toMatch(/tel:\+?250/);
-    await expect.poll(() => externalLinks.join(' ')).toMatch(/sms:\+?250/);
-
-    // Safety: SOS is recorded; share-trip creates a link.
-    await page.getByText('Safety', { exact: true }).click();
-    await page.getByText('SOS', { exact: true }).click();
-    await expect(page.getByText(/SOS sent/)).toBeVisible();
-    await page.getByText('Share trip link').click();
-    await page.goBack();
 
     // Driver accepts and arrives: the rider sees the PIN.
     await driverDo(driver.token, current.id, 'accept');
@@ -124,7 +112,7 @@ test.describe('Booking a ride', () => {
     await page.getByRole('radio', { name: '4 stars' }).click();
     await page.getByPlaceholder(/Comment/).fill('Smooth ride');
     await page.getByText('Submit rating').click();
-    await expect(page.getByText('Where are you going?')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Where are you going?').last()).toBeVisible({ timeout: 30_000 });
     const rated = (await api('GET', `/rides/${current.id}`, undefined, rider.token)).data.ride;
     expect(rated.rating).toBe(4);
   });
@@ -144,5 +132,50 @@ test.describe('Booking a ride', () => {
     await page.getByText('Cancel ride').click();
     await expect(page.getByText('Where are you going?')).toBeVisible();
     await waitForRide(rider, ride.id, ['cancelled']);
+  });
+
+  test('Safety screen shares the trip and records SOS', async ({ page }) => {
+    const rider = await createPassenger('Safety Rider');
+    const driver = await createDriver({ online: true, at: HUYE });
+    const ride = await bookRide(rider);
+    await waitForRide(rider, ride.id, ['driverAssigned']);
+    await signInPassenger(page, rider);
+    await page.goto(`/ride/driver-accepted?rideId=${ride.id}`);
+    await expect(page.getByText('E2E Driver')).toBeVisible();
+    await page.getByRole('button', { name: 'Safety' }).click();
+    await expect(page).toHaveURL(/safety/);
+
+    const shareResponse = page.waitForResponse((response) =>
+      response.url().endsWith('/api/share') && response.request().method() === 'POST'
+    );
+    await page.getByRole('button', { name: 'Share trip link' }).click();
+    const createdShare = await shareResponse;
+    expect(createdShare.status()).toBe(201);
+    const { share } = await createdShare.json();
+    const publicShare = await api('GET', `/share/${share.token}`);
+    expect(publicShare.status).toBe(200);
+    await page.getByRole('button', { name: 'OK' }).click();
+
+    // SOS records the event. Do it last because configured production builds
+    // also hand control to the operating system's dialer.
+    await page.getByRole('button', { name: 'SOS' }).click();
+    await expect(page.getByText(/SOS sent/)).toBeVisible();
+    expect((await api('POST', `/rides/${ride.id}/cancel`, { reason: 'E2E cleanup' }, rider.token)).status).toBe(200);
+  });
+
+  test('driver Message and Call buttons open the expected phone actions', async ({ page, externalLinks }) => {
+    const rider = await createPassenger('Contact Rider');
+    await createDriver({ online: true, at: HUYE });
+    const ride = await bookRide(rider);
+    await waitForRide(rider, ride.id, ['driverAssigned']);
+    await signInPassenger(page, rider);
+    await page.goto(`/ride/driver-accepted?rideId=${ride.id}`);
+    await expect(page.getByText('E2E Driver')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Message' }).click();
+    await expect.poll(() => externalLinks.join(' ')).toMatch(/sms:\+?250/);
+    await page.getByRole('button', { name: 'Call' }).click();
+    await expect.poll(() => externalLinks.join(' ')).toMatch(/tel:\+?250/);
+    expect((await api('POST', `/rides/${ride.id}/cancel`, { reason: 'E2E cleanup' }, rider.token)).status).toBe(200);
   });
 });

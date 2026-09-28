@@ -1,14 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 
 import { LiveMap } from './LiveMap';
-import type { MapScene } from './map-types';
-import { KIGALI_CENTER } from './map-types';
 import { useMapStageStore } from '../../stores/useMapStageStore';
 import { useTranslation } from '../../hooks/useTranslation';
-
-const IDLE_SCENE: MapScene = {
-  camera: { mode: 'center', center: KIGALI_CENTER, zoom: 13 },
-};
 
 /**
  * The persistent map behind the ride-flow screens. Mounted once by the
@@ -23,11 +17,18 @@ const IDLE_SCENE: MapScene = {
  */
 export function MapStage() {
   const scene = useMapStageStore((s) => s.scene);
+  const owner = useMapStageStore((s) => s.owner);
   const { t } = useTranslation();
+  // Home renders its own live fleet map. Keeping this persistent ride-flow
+  // canvas mounted underneath it creates a second WebGL context and delays
+  // the map the rider actually sees. Mount the warm shared canvas only on
+  // screens designed to display it. Ride screens publish their scene while
+  // focused, so no active owner means there is no stage to render.
+  if (!scene || !owner) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <LiveMap
-        scene={scene ? { ...scene, interactive: false } : IDLE_SCENE}
+        scene={{ ...scene, interactive: false }}
         loadingLabel={t('mapLoading')}
         errorLabel={t('mapError')}
         retryLabel={t('tryAgain')}

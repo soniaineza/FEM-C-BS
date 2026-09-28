@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { DefaultTheme, Stack, ThemeProvider, useLocalSearchParams } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, usePathname } from 'expo-router';
 import { MapStage } from '../../components/map/MapStage';
 import { usePushRegistration } from '../../hooks/usePushRegistration';
 import { useLocationPermission } from '../../hooks/useLocationPermission';
 import { useTranslation } from '../../hooks/useTranslation';
 
 export default function MainLayout() {
+  const pathname = usePathname();
   usePushRegistration(true);
   const { ensureInitialized, permissionStatus } = useLocationPermission();
   const { t } = useTranslation();
@@ -33,7 +34,7 @@ export default function MainLayout() {
   // transparent.
   return (
     <View style={{ flex: 1 }}>
-      <MapStage />
+      {MAP_STAGE_PATHS.some((path) => pathname.endsWith(path)) ? <MapStage /> : null}
       {/* The navigator's own background must be transparent for the map to
           show through; every screen then paints the usual opaque background
           itself unless it is one of the map screens. */}
@@ -57,4 +58,7 @@ const MAP_SCREENS = [
   'ride/searching-driver',
   'ride/driver-accepted',
   'ride/tracking',
+  'ride/safety',
 ];
+
+const MAP_STAGE_PATHS = ['/vehicle-selection', '/fare-estimate', '/searching-driver', '/driver-accepted', '/tracking'];

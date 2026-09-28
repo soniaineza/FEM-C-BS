@@ -16,7 +16,6 @@ import { useNearbyCars } from '../../../hooks/useNearbyCars';
 import { getCurrentPlace, MapDefaults } from '../../../services/location-service';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
-import { RideType } from '../../../types/ride';
 
 function greetingKey(): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
   const hour = new Date().getHours();
@@ -130,7 +129,9 @@ export default function HomeScreen() {
         <View className="absolute left-4 right-4 top-3 flex-row items-start justify-between" pointerEvents="box-none">
           <View className="max-w-[78%] rounded-2xl bg-white px-4 py-3 shadow-sm">
             <Text className="text-base font-bold text-ink" numberOfLines={1}>{t('homeGreetingPrefix')} {firstName}</Text>
-            <Text className="mt-0.5 text-xs font-medium text-text-secondary">{t('carsNearby', { count: nearbyCars.length })}</Text>
+            <Text className="mt-0.5 text-xs font-medium text-text-secondary">
+              {nearbyCars.length === 1 ? t('oneDriverNearby') : t('multipleDriversNearby', { count: nearbyCars.length })}
+            </Text>
           </View>
           <Pressable
             accessibilityRole="button"
