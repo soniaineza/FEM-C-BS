@@ -44,7 +44,15 @@ export default function RatingScreen() {
 
         <View className="mt-6 flex-row justify-center gap-2">
           {[1, 2, 3, 4, 5].map((n) => (
-            <Pressable key={n} onPress={() => setStars(n)} hitSlop={8}>
+            <Pressable
+              key={n}
+              onPress={() => setStars(n)}
+              hitSlop={8}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: n === stars }}
+              aria-checked={n === stars}
+              accessibilityLabel={`${n} ${n === 1 ? 'star' : 'stars'}`}
+            >
               <Ionicons name={n <= stars ? 'star' : 'star-outline'} size={38} color={n <= stars ? '#16A34A' : '#E5E7EB'} />
             </Pressable>
           ))}

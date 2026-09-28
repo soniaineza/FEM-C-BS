@@ -29,6 +29,7 @@ interface RideMapProps {
   retryLabel?: string;
   loadingLabel?: string;
   errorLabel?: string;
+  rounded?: boolean;
 }
 
 /**
@@ -49,6 +50,7 @@ export function RideMap({
   retryLabel,
   loadingLabel,
   errorLabel,
+  rounded = true,
 }: RideMapProps) {
   const scene = useMemo<MapScene>(() => {
     const pins: MapMarker[] = [];
@@ -75,7 +77,7 @@ export function RideMap({
   return (
     <LiveMap
       scene={scene}
-      rounded
+      rounded={rounded}
       onPress={onMapPress ? (latitude, longitude) => onMapPress({ latitude, longitude }) : undefined}
       retryLabel={retryLabel}
       loadingLabel={loadingLabel}

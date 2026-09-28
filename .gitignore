@@ -44,3 +44,5 @@ yarn-error.*
 # local build artifacts
 .tmp-apk/
 server/*.log
+/tests/e2e/report/
+/tests/e2e/results/

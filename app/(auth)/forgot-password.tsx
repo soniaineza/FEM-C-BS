@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
-import { router } from 'expo-router';
 import { goBack } from '../../utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -140,7 +139,9 @@ export default function ForgotPasswordScreen() {
               <Button
                 title={t('backToLogin')}
                 icon="arrow-back-outline"
-                onPress={() => router.replace('/(auth)/login')}
+                // Login is already underneath this screen: go back to it
+                // instead of stacking a second login screen.
+                onPress={() => goBack('/(auth)/login')}
               />
             </View>
           </>

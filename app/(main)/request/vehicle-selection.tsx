@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { appAlert } from '../../../utils/dialog';
+import { router, useIsFocused } from 'expo-router';
 import { goBack } from '../../../utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -26,6 +27,7 @@ const SHEET_PADDING = { top: 90, bottom: 430, left: 40, right: 40 };
 // drop-off time from one GET /rides/quote.
 export default function VehicleSelectionScreen() {
   const { t } = useTranslation();
+  const isFocused = useIsFocused();
   const pickup = useRideWizardStore((s) => s.pickup);
   const destination = useRideWizardStore((s) => s.destination);
   const rideType = useRideWizardStore((s) => s.rideType);
@@ -61,13 +63,14 @@ export default function VehicleSelectionScreen() {
   }, [pickup, destination, rideType]);
 
   useEffect(() => {
+    if (!isFocused) return;
     if (!ready) {
       router.replace('/(main)/(tabs)');
       return;
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [load]);
+  }, [load, isFocused]);
 
   const scene = useMemo<MapScene | null>(() => {
     if (!pickupPoint || !destination) return null;
@@ -99,7 +102,7 @@ export default function VehicleSelectionScreen() {
     const option = quote?.options.find((o) => o.vehicleId === selectedId);
     const vehicle = vehicles.find((v) => v.id === selectedId);
     if (!quote || !option || !vehicle) {
-      Alert.alert(t('locationDialogTitle'), t('chooseVehicleFirst'));
+      appAlert(t('locationDialogTitle'), t('chooseVehicleFirst'));
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -215,7 +218,8 @@ function VehicleRow({
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      accessibilityState={{ checked: selected }}
+      aria-checked={selected}
       onPress={onPress}
       className="mb-2 rounded-2xl px-3 py-3"
       style={{ borderWidth: selected ? 2 : 1, borderColor: selected ? '#111111' : '#E5E7EB', opacity: eta == null ? 0.55 : 1 }}

@@ -47,7 +47,7 @@ export const Button = memo(function Button({
           : undefined
       }
     >
-      <Pressable className={`${styles} ${className ?? ''}`} disabled={isDisabled} {...rest}>
+      <Pressable accessibilityRole="button" accessibilityLabel={title} className={`${styles} ${className ?? ''}`} disabled={isDisabled} {...rest}>
         {loading ? (
           <ActivityIndicator color={destructive ? '#DC2626' : variant === 'primary' ? '#fff' : '#16A34A'} />
         ) : (

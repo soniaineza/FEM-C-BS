@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +8,6 @@ import { StatusBar } from 'expo-status-bar';
 import { Button } from '../../../components/Button';
 import { LocationField } from '../../../components/LocationField';
 import { RideMap } from '../../../components/RideMap';
-import { FEMMapCard } from '../../../components/FEMMapCard';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -26,13 +25,11 @@ function greetingKey(): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
   return 'goodEvening';
 }
 
-// Home = greeting header + booking section + a framed map card, matching a
-// production ride-hailing home: the map reads as a section of the page (never
-// swallowing the screen) and the Find Ride button always stays inside the
-// SafeArea above the tab bar. Booking logic (pickup/destination/ride type/
-// active-ride guard) is unchanged.
+// Keep the live fleet visible on arrival. Booking sits in a compact panel
+// above the tab bar; longer choices scroll within the panel.
 export default function HomeScreen() {
   const { t } = useTranslation();
+  const { height: screenHeight } = useWindowDimensions();
   const currentUser = useAuthStore((s) => s.currentUser);
   const pickup = useRideWizardStore((s) => s.pickup);
   const destination = useRideWizardStore((s) => s.destination);
@@ -43,6 +40,7 @@ export default function HomeScreen() {
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [mapCenter, setMapCenter] = useState(MapDefaults);
   const [mapLocating, setMapLocating] = useState(false);
+  const [recenterToken, setRecenterToken] = useState(0);
 
   // Restores an active ride after app restart and blocks duplicate booking:
   // while a ride is live, Home shows a resume banner and the Find Ride flow
@@ -50,7 +48,7 @@ export default function HomeScreen() {
   // another ride while an active ride exists" + restart recovery.
   const { activeRide, checking, canRequestRide } = useActiveRideRestore();
 
-  // Live cars around the rider on the map card, polled only while Home is
+  // Live cars around the rider on the full home map, polled only while Home is
   // on screen.
   const isFocused = useIsFocused();
   const mapPoint = pickup?.latitude != null && pickup?.longitude != null
@@ -82,6 +80,12 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (pickup?.latitude != null && pickup?.longitude != null) {
+      setMapCenter({ latitude: pickup.latitude, longitude: pickup.longitude, zoom: 15 });
+    }
+  }, [pickup?.latitude, pickup?.longitude]);
+
   // Greeting name: first word of the rider's full name ("Muraho, Sonia").
   const firstName = (currentUser?.fullName ?? '').trim().split(/\s+/)[0] ?? '';
 
@@ -96,6 +100,7 @@ export default function HomeScreen() {
     try {
       const place = await getCurrentPlace();
       setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 16 });
+      setRecenterToken((n) => n + 1);
     } catch {
       // Never block the booking flow on GPS — the map simply stays where it is.
     } finally {
@@ -104,34 +109,56 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['top']}>
-      {/* White status-bar icons only while this green header is on screen;
-          tab screens stay mounted, so an unconditional one would leave white
-          icons on every white screen after it (root layout sets dark). */}
-      {isFocused ? <StatusBar style="light" /> : null}
-      <View className="bg-primary px-5 pb-6 pt-3">
-        <View className="flex-row items-center justify-between">
-          <View className="flex-1 pr-3">
-            <Text className="text-lg font-bold text-white" numberOfLines={1}>
-              {t('homeGreetingPrefix')} {firstName}
-            </Text>
-            <Text className="mt-0.5 text-xs font-medium text-white/85">{t('homeHeroSub')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top']}>
+      {isFocused ? <StatusBar style="dark" /> : null}
+      <View className="flex-1 bg-gray-light">
+        <RideMap
+          center={mapCenter}
+          zoom={mapCenter.zoom ?? 15}
+          recenterToken={recenterToken}
+          markers={pickup?.latitude != null && pickup?.longitude != null
+            ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
+            : []}
+          cars={nearbyCars}
+          serverTimeOffsetMs={serverTimeOffsetMs}
+          retryLabel={t('tryAgain')}
+          loadingLabel={t('mapLoading')}
+          errorLabel={t('mapError')}
+          rounded={false}
+        />
+
+        <View className="absolute left-4 right-4 top-3 flex-row items-start justify-between" pointerEvents="box-none">
+          <View className="max-w-[78%] rounded-2xl bg-white px-4 py-3 shadow-sm">
+            <Text className="text-base font-bold text-ink" numberOfLines={1}>{t('homeGreetingPrefix')} {firstName}</Text>
+            <Text className="mt-0.5 text-xs font-medium text-text-secondary">{t('carsNearby', { count: nearbyCars.length })}</Text>
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('profile')}
-            className="h-11 w-11 items-center justify-center rounded-full bg-white/20"
+            className="h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm"
             onPress={() => router.push('/(main)/(tabs)/profile')}
           >
-            <Ionicons name="person-outline" color="#fff" size={22} />
+            <Ionicons name="person-outline" color="#111111" size={22} />
           </Pressable>
         </View>
-      </View>
 
-      {/* flexGrow makes the sheet fill the viewport even when content is
-          short: leftover space wraps the cards instead of pooling as a dead
-          white gap under the button. On small screens it simply scrolls. */}
-      <ScrollView className="-mt-4 flex-1 rounded-t-[28px] bg-bg-light" contentContainerClassName="flex-grow px-5 pb-4 pt-5">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('useCurrentLocation')}
+          disabled={mapLocating}
+          onPress={recenterMap}
+          className="absolute right-4 h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm"
+          style={{ bottom: Math.min(380, Math.max(270, screenHeight * 0.42)) + 14, opacity: mapLocating ? 0.5 : 1 }}
+        >
+          {mapLocating ? <ActivityIndicator color="#16A34A" /> : <Ionicons name="locate" size={22} color="#16A34A" />}
+        </Pressable>
+
+        <View
+          className="absolute bottom-0 left-0 right-0 overflow-hidden rounded-t-[28px] bg-white"
+          style={{ maxHeight: Math.min(380, Math.max(270, screenHeight * 0.42)), elevation: 12, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 18 }}
+        >
+          <View className="items-center pt-2"><View className="h-1 w-10 rounded-full bg-border" /></View>
+          <ScrollView className="px-5" contentContainerClassName="pb-2 pt-3" keyboardShouldPersistTaps="handled">
         {activeRide ? (
           <Pressable
             className="mb-4 flex-row items-center rounded-2xl border border-primary bg-white p-4"
@@ -178,63 +205,26 @@ export default function HomeScreen() {
           </ScrollView>
         ) : null}
 
-        {/* Framed map card: fixed aspect via responsive height, rounded
-            corners, recenter control. Shows pickup when known, else Kigali
-            default; never consumes the whole screen. */}
-        <View className="mt-4">
-          <Text className="mb-2 text-sm font-semibold text-text-secondary">{t('homeMapTitle')}</Text>
-          <FEMMapCard height={160} onRecenter={recenterMap} recenterDisabled={mapLocating} recenterLabel={t('useCurrentLocation')}>
-            <RideMap
-              center={pickup?.latitude && pickup?.longitude ? { latitude: pickup.latitude, longitude: pickup.longitude } : mapCenter}
-              zoom={14}
-              markers={
-                pickup?.latitude && pickup?.longitude
-                  ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
-                  : []
-              }
-              cars={nearbyCars}
-              serverTimeOffsetMs={serverTimeOffsetMs}
-              retryLabel={t('tryAgain')}
-              loadingLabel={t('mapLoading')}
-              errorLabel={t('mapError')}
-            />
-          </FEMMapCard>
-          {mapLocating ? (
-            <View className="mt-2 flex-row items-center">
-              <ActivityIndicator size="small" color="#16A34A" />
-              <Text className="ml-2 text-xs text-text-secondary">{t('gettingLocationPermission')}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <View className="mt-4 flex-1 justify-center gap-4">
+        <View className="mt-4 flex-row gap-2" accessibilityRole="radiogroup">
           <RideOptionCard
-            type="private"
             selected={rideType === 'private'}
             title={t('privateRide')}
-            subtitle={t('privateRideDescription')}
-            features={[
-              { icon: 'person-outline', label: '1-4' },
-              { icon: 'car-outline', label: 'Sedan / SUV' },
-              { icon: 'shield-checkmark-outline', label: t('featureSafe') },
-            ]}
+            icon="car-sport-outline"
             onPress={() => setRideType('private')}
           />
           <RideOptionCard
-            type="shared"
             selected={rideType === 'shared'}
             title={t('shareRide')}
-            subtitle={t('shareRideDescription')}
-            features={[
-              { icon: 'person-outline', label: '1-4' },
-              { icon: 'car-outline', label: t('featureComfortable') },
-              { icon: 'leaf-outline', label: t('featureEcoFriendly') },
-            ]}
+            icon="people-outline"
             onPress={() => setRideType('shared')}
           />
         </View>
+        <Text className="mt-2 text-xs text-text-secondary">
+          {rideType === 'private' ? t('privateRideDescription') : t('shareRideDescription')}
+        </Text>
 
-        <View className="mt-4">
+          </ScrollView>
+          <View className="border-t border-border bg-white px-5 pb-4 pt-3">
           <Button
             title={t('findRide')}
             icon="arrow-forward"
@@ -242,58 +232,40 @@ export default function HomeScreen() {
             disabled={!pickup || !destination || !canRequestRide}
           />
           {checking ? <Text className="mt-2 text-center text-xs text-text-secondary">{t('checkingActiveRide')}</Text> : null}
+          </View>
         </View>
-      </ScrollView>
+      </View>
     </SafeAreaViewPlaceholder>
   );
 }
 
 function RideOptionCard({
-  type,
   selected,
   title,
-  subtitle,
-  features,
+  icon,
   onPress,
 }: {
-  type: RideType;
   selected: boolean;
   title: string;
-  subtitle: string;
-  features: { icon: keyof typeof Ionicons.glyphMap; label: string }[];
+  icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
 }) {
-  const isShared = type === 'shared';
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      className="rounded-2xl p-4"
+      accessibilityState={{ checked: selected }}
+      aria-checked={selected}
+      accessibilityLabel={title}
+      className="min-h-12 flex-1 flex-row items-center justify-center rounded-xl px-3 py-3"
       style={{
         backgroundColor: selected ? 'rgba(22,163,74,0.06)' : '#fff',
-        borderWidth: selected ? 2 : 1,
+        borderWidth: 1,
         borderColor: selected ? '#16A34A' : '#E5E7EB',
       }}
       onPress={onPress}
     >
-      <View className="flex-row items-center">
-        <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
-          <Ionicons name={isShared ? 'people' : 'car-sport'} size={30} color="#15803D" />
-        </View>
-        <View className="ml-3.5 flex-1">
-          <Text className="text-lg font-bold text-ink">{title}</Text>
-          <Text className="mt-0.5 text-[13px] leading-4 text-text-secondary">{subtitle}</Text>
-        </View>
-        <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={24} color={selected ? '#16A34A' : '#C7CCD1'} />
-      </View>
-      <View className="mt-3 flex-row items-center flex-wrap gap-x-4 gap-y-1">
-        {features.map((f) => (
-          <View key={f.label} className="flex-row items-center">
-            <Ionicons name={f.icon} size={15} color="#6B7280" />
-            <Text className="ml-1 text-xs font-medium text-text-secondary">{f.label}</Text>
-          </View>
-        ))}
-      </View>
+      <Ionicons name={icon} size={19} color={selected ? '#15803D' : '#6B7280'} />
+      <Text className={`ml-2 text-sm font-semibold ${selected ? 'text-primary' : 'text-ink'}`}>{title}</Text>
     </Pressable>
   );
 }

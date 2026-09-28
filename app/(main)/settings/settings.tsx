@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, Pressable, Modal, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, Modal, ScrollView } from 'react-native';
+import { appAlert } from '../../../utils/dialog';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -32,7 +33,7 @@ export default function SettingsScreen() {
           <MenuTile
             icon="location-outline"
             label={t('locationPermission')}
-            onPress={() => Alert.alert(t('locationDialogTitle'), t('locationDialogBody'))}
+            onPress={() => appAlert(t('locationDialogTitle'), t('locationDialogBody'))}
           />
           <MenuTile
             icon="language-outline"
@@ -44,9 +45,9 @@ export default function SettingsScreen() {
             icon="color-palette-outline"
             label={t('appearance')}
             trailing={t('light')}
-            onPress={() => Alert.alert(t('appearance'), t('appearanceNotice'))}
+            onPress={() => appAlert(t('appearance'), t('appearanceNotice'))}
           />
-          <MenuTile icon="lock-closed-outline" label={t('security')} onPress={() => Alert.alert(t('securityTitle'), t('securityBody'))} />
+          <MenuTile icon="lock-closed-outline" label={t('security')} onPress={() => appAlert(t('securityTitle'), t('securityBody'))} />
           <MenuTile icon="shield-checkmark-outline" label={t('privacyPolicy')} onPress={() => router.push('/(main)/settings/privacy')} />
           <MenuTile icon="document-text-outline" label={t('termsOfService')} onPress={() => router.push('/(main)/settings/terms')} />
         </View>

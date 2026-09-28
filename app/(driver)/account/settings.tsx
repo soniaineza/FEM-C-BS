@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
+import { appAlert } from '../../../utils/dialog';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -26,7 +27,7 @@ export default function DriverSettingsScreen() {
     // Alert buttons need plain strings from the active dictionary —
     // Alert.alert doesn't re-render on locale change, which is fine: the
     // dialog is transient and built from the locale at press time.
-    Alert.alert(t('logOutConfirmTitle'), undefined, [
+    appAlert(t('logOutConfirmTitle'), undefined, [
       { text: t('stay'), style: 'cancel' },
       { text: t('logout'), style: 'destructive', onPress: () => logout() },
     ]);

@@ -1,4 +1,5 @@
-import { View, Text, ScrollView, Alert } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
+import { appAlert } from '../../../utils/dialog';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
@@ -23,7 +24,7 @@ export default function ProfileScreen() {
   const setMode = useAppModeStore((s) => s.setMode);
 
   function confirmLogout() {
-    Alert.alert(t('logoutQuestion'), undefined, [
+    appAlert(t('logoutQuestion'), undefined, [
       { text: t('stay'), style: 'cancel' },
       { text: t('logout'), style: 'destructive', onPress: () => logout() },
     ]);

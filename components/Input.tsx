@@ -42,10 +42,20 @@ export const Input = memo(function Input({
           } ${className ?? ''}`}
           placeholderTextColor="#6B7280"
           secureTextEntry={isPasswordField && !revealed}
+          // The visible label doubles as the field's accessible name, so
+          // screen readers announce "Phone number, edit box" rather than
+          // just "edit box".
+          accessibilityLabel={rest.accessibilityLabel ?? label ?? rest.placeholder}
           {...rest}
         />
         {isPasswordField ? (
-          <Pressable className="absolute right-3.5 z-10" onPress={() => setRevealed((v) => !v)}>
+          <Pressable
+            className="absolute right-3.5 z-10"
+            onPress={() => setRevealed((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            hitSlop={8}
+          >
             <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
           </Pressable>
         ) : null}

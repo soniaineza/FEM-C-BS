@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ActivityIndicator, Pressable } from 'react-native';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import { goBack } from '../../../utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,6 +23,7 @@ const PADDING = { top: 90, bottom: 460, left: 40, right: 40 };
 // choice (itemised), the road route on the shared map, and the arrival time.
 export default function FareEstimateScreen() {
   const { t } = useTranslation();
+  const isFocused = useIsFocused();
   const pickup = useRideWizardStore((s) => s.pickup);
   const destination = useRideWizardStore((s) => s.destination);
   const vehicle = useRideWizardStore((s) => s.vehicle);
@@ -37,6 +38,7 @@ export default function FareEstimateScreen() {
   // Fallback when there is no locked quote (e.g. an older entry point):
   // the server estimate plus the road route, as before.
   const load = useCallback(() => {
+    if (!isFocused) return;
     if (!pickup || !destination || !vehicle) {
       router.replace('/(main)/request/pickup');
       return;
@@ -56,7 +58,7 @@ export default function FareEstimateScreen() {
       .catch((err) => setLoadError(err instanceof Error ? err.message : t('requestFailed')))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickup, destination, vehicle, rideType]);
+  }, [pickup, destination, vehicle, rideType, isFocused]);
 
   useEffect(() => {
     load();

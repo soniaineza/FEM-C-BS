@@ -52,7 +52,8 @@ export default function LanguageScreen() {
                 <Pressable
                   key={l}
                   accessibilityRole="radio"
-                  accessibilityState={{ selected: active }}
+                  accessibilityState={{ checked: active }}
+                  aria-checked={active}
                   onPress={() => setSelected(l)}
                   className="flex-row items-center rounded-2xl px-4 py-4"
                   style={{

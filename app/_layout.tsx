@@ -5,6 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { DialogHost } from '../components/DialogHost';
 import * as SplashScreen from 'expo-splash-screen';
 import { Platform, BackHandler } from 'react-native';
 import {
@@ -132,6 +133,8 @@ export default function RootLayout() {
         <Stack.Screen name="(driver)" />
       </Stack.Protected>
     </Stack>
+    {/* appAlert() dialogs on web (react-native-web's Alert.alert is a no-op). */}
+    <DialogHost />
     </KeyboardProvider>
     </GestureHandlerRootView>
   );

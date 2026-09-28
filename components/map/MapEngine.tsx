@@ -156,6 +156,12 @@ class CarLayer implements maplibregl.CustomLayerInterface {
     const t = now + this.serverOffsetMs - RENDER_DELAY_MS;
     const zoom = this.map.getZoom();
     let moving = false;
+    // Relative-to-centre rendering: the GPU works in 32-bit floats, and an
+    // absolute Web-Mercator position (~0.58) only resolves to ~1.4 m there —
+    // cars tore into shards from zoom ~19. Cars are placed relative to an
+    // origin at the map centre, and the origin is folded into the camera
+    // matrix here in 64-bit JS, so the GPU only sees small, precise numbers.
+    const origin = maplibregl.MercatorCoordinate.fromLngLat(this.map.getCenter(), 0);
 
     for (const entry of this.cars.values()) {
       const st = entry.track.sample(t);
@@ -190,7 +196,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       const m = entry.group.matrix;
       m.makeRotationZ((-entry.heading * Math.PI) / 180);
       m.premultiply(new THREE.Matrix4().makeScale(s, -s, s));
-      m.premultiply(new THREE.Matrix4().makeTranslation(mc.x, mc.y, mc.z));
+      m.premultiply(new THREE.Matrix4().makeTranslation(mc.x - origin.x, mc.y - origin.y, mc.z - origin.z));
       entry.group.matrixWorldNeedsUpdate = true;
 
       const ring = entry.group.getObjectByName('ring');
@@ -200,7 +206,9 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       }
     }
 
-    this.camera.projectionMatrix = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix as unknown as number[]);
+    this.camera.projectionMatrix = new THREE.Matrix4()
+      .fromArray(args.defaultProjectionData.mainMatrix as unknown as number[])
+      .multiply(new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z));
     this.renderer.resetState();
     this.renderer.render(this.scene, this.camera);
 
@@ -294,6 +302,11 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     }
     map.touchZoomRotate.disableRotation();
     mapRef.current = map;
+    if (process.env.NODE_ENV !== 'production') {
+      // Dev/test hook: lets end-to-end tests drive the camera and inspect cars.
+      const w = window as unknown as { __femMaps?: unknown[] };
+      (w.__femMaps ??= []).push({ map, cars: () => carsRef.current });
+    }
 
     map.on('load', () => {
       // Compact attribution starts expanded; keep it collapsed until tapped.
