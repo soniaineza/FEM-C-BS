@@ -26,18 +26,28 @@ export function useRideTracking(rideId: string | null) {
   const [ride, setRide] = useState<Ride | null>(null);
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [serverTimeOffsetMs, setOffset] = useState(0);
 
   useEffect(() => {
     if (!rideId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
+    let offset: number | null = null;
+
     async function poll() {
+      const sentAt = Date.now();
       try {
         const [details, location] = await Promise.all([getRideDetails(rideId!), getDriverLocation(rideId!)]);
         if (cancelled) return;
         setRide(details);
         setDriverLocation(location);
+        if (location?.serverTime) {
+          // Smoothed server-minus-device clock offset for the map's animation.
+          const sample = location.serverTime - (sentAt + Date.now()) / 2;
+          offset = offset == null ? sample : offset * 0.8 + sample * 0.2;
+          setOffset(Math.round(offset));
+        }
         setError(null);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err : new Error('tracking failed'));
@@ -54,5 +64,5 @@ export function useRideTracking(rideId: string | null) {
     };
   }, [rideId]);
 
-  return { ride, driverLocation, error };
+  return { ride, driverLocation, error, serverTimeOffsetMs };
 }

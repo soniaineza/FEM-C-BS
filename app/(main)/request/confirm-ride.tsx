@@ -47,6 +47,7 @@ export default function ConfirmRideScreen() {
         paymentMethod,
         rideType,
         note: note.trim() || undefined,
+        quoteId: fareEstimate?.quoteId,
       });
       reset();
       router.replace({ pathname: '/(main)/ride/searching-driver', params: { rideId: ride.id } });

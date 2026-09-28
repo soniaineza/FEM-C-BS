@@ -1,6 +1,7 @@
 import { Place } from './place';
 import { Vehicle } from './vehicle';
 import { PaymentMethod } from './payment';
+import type { FareBreakdown } from '../services/ride-service';
 
 // Must match server/src/services/rideStateMachine.js's TRANSITIONS graph
 // exactly — that state machine is authoritative; the client only displays
@@ -116,6 +117,13 @@ export interface FareEstimate {
   estimatedFare: number;
   rideType: RideType;
   isEstimate: boolean;
+  /** Locks this upfront price when the ride is requested. */
+  quoteId?: string;
+  breakdown?: FareBreakdown;
+  pickupEtaMinutes?: number | null;
+  /** Road route as [lng, lat] pairs, for the map. */
+  routeCoordinates?: [number, number][];
+  routeSource?: 'osrm' | 'estimate';
 }
 
 export interface Ride {

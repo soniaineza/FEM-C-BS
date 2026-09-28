@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
@@ -13,6 +13,7 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
+import { useNearbyCars } from '../../../hooks/useNearbyCars';
 import { getCurrentPlace, MapDefaults } from '../../../services/location-service';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
@@ -48,6 +49,14 @@ export default function HomeScreen() {
   // is disabled. Spec: "do not allow the passenger to accidentally request
   // another ride while an active ride exists" + restart recovery.
   const { activeRide, checking, canRequestRide } = useActiveRideRestore();
+
+  // Live cars around the rider on the map card, polled only while Home is
+  // on screen.
+  const isFocused = useIsFocused();
+  const mapPoint = pickup?.latitude != null && pickup?.longitude != null
+    ? { latitude: pickup.latitude, longitude: pickup.longitude }
+    : { latitude: mapCenter.latitude, longitude: mapCenter.longitude };
+  const { cars: nearbyCars, serverTimeOffsetMs } = useNearbyCars(mapPoint, isFocused);
 
   useFocusEffect(
     useCallback(() => {
@@ -174,12 +183,14 @@ export default function HomeScreen() {
           <FEMMapCard height={160} onRecenter={recenterMap} recenterDisabled={mapLocating} recenterLabel={t('useCurrentLocation')}>
             <RideMap
               center={pickup?.latitude && pickup?.longitude ? { latitude: pickup.latitude, longitude: pickup.longitude } : mapCenter}
-              zoom={15}
+              zoom={14}
               markers={
                 pickup?.latitude && pickup?.longitude
                   ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
                   : []
               }
+              cars={nearbyCars}
+              serverTimeOffsetMs={serverTimeOffsetMs}
               retryLabel={t('tryAgain')}
               loadingLabel={t('mapLoading')}
               errorLabel={t('mapError')}

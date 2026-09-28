@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, Pressable } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,10 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
 import { cancelRide } from '../../../services/ride-service';
+import { MapSheet } from '../../../components/map/MapSheet';
+import { useMapScene } from '../../../hooks/useMapScene';
+import { useNearbyCars } from '../../../hooks/useNearbyCars';
+import type { MapScene } from '../../../components/map/map-types';
 
 // The backend auto-cancels rides stuck in searchingDriver after
 // RIDE_SEARCH_TIMEOUT_SECONDS (default 5 min, see server/src/services/
@@ -27,6 +31,25 @@ export default function SearchingDriverScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   usePassengerLocationReporting(!!ride);
+
+  const pickupPoint = ride?.pickup.latitude != null && ride?.pickup.longitude != null
+    ? { latitude: ride.pickup.latitude, longitude: ride.pickup.longitude }
+    : null;
+  const { cars, serverTimeOffsetMs } = useNearbyCars(pickupPoint);
+  const scene = useMemo<MapScene | null>(
+    () =>
+      pickupPoint
+        ? {
+            camera: { mode: 'center', center: pickupPoint, zoom: 15.2, pitch: 40, padding: { top: 40, bottom: 260, left: 0, right: 0 } },
+            markers: [{ id: 'radar', kind: 'radar', ...pickupPoint }],
+            cars,
+            serverTimeOffsetMs,
+          }
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pickupPoint?.latitude, pickupPoint?.longitude, cars, serverTimeOffsetMs]
+  );
+  useMapScene(scene);
 
   // Client-side mirror of the server's search deadline. Started on mount;
   // the tracking hook picks up the server's own auto-cancel if it fires
@@ -90,31 +113,29 @@ export default function SearchingDriverScreen() {
   const seconds = secondsLeft % 60;
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <Pressable className="px-5 pt-2" onPress={() => router.replace('/(main)/(tabs)')}>
-        <Ionicons name="chevron-back" size={26} color="#111111" />
-      </Pressable>
-
-      <View className="flex-1 items-center justify-center px-6">
-        <ActivityIndicator size="large" color="#16A34A" />
-        <Text className="mt-6 text-xl font-bold text-ink">{t('findingDriver')}</Text>
-        <Text className="mt-2 text-center leading-relaxed text-text-secondary">{t('matchingDriver')}</Text>
-
+    <View style={{ flex: 1 }}>
+      <MapSheet
+        collapsible={false}
+        header={
+          <View className="mb-1 flex-row items-center">
+            <ActivityIndicator color="#16A34A" />
+            <Text className="ml-3 text-lg font-bold text-ink">{t('findingDriver')}</Text>
+          </View>
+        }
+        footer={<Button title={t('cancelRide')} variant="outline" onPress={handleCancel} loading={cancelling} />}
+      >
+        <Text className="leading-relaxed text-text-secondary">{t('matchingDriver')}</Text>
+        {cars.length ? (
+          <Text className="mt-1 text-xs font-semibold text-primary">{t('carsNearby', { count: cars.length })}</Text>
+        ) : null}
         {searchSlow ? (
-          <View
-            className="mt-6 w-full rounded-xl border border-border bg-bg-light px-4 py-3"
-            accessibilityRole="text"
-          >
+          <View className="mt-3 w-full rounded-xl border border-border bg-bg-light px-4 py-3" accessibilityRole="text">
             <Text className="text-center text-sm text-text-secondary">
               {t('searchTimedOutCountdown', { minutes: `${minutes}:${String(seconds).padStart(2, '0')}` })}
             </Text>
           </View>
         ) : null}
-      </View>
-
-      <View className="px-6 pb-8">
-        <Button title={t('cancelRide')} variant="outline" onPress={handleCancel} loading={cancelling} />
-      </View>
-    </SafeAreaViewPlaceholder>
+      </MapSheet>
+    </View>
   );
 }

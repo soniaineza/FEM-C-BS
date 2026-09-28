@@ -2,6 +2,7 @@ import '../global.css';
 
 import { useEffect, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import { Platform, BackHandler } from 'react-native';
 import {
@@ -101,6 +102,7 @@ export default function RootLayout() {
   // Switching mode (a link on either welcome screen) re-evaluates these
   // guards the same automatic way login/logout already does.
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={mode === 'passenger' && !currentUser}>
         <Stack.Screen name="(auth)" />
@@ -122,5 +124,6 @@ export default function RootLayout() {
         <Stack.Screen name="(driver)" />
       </Stack.Protected>
     </Stack>
+    </GestureHandlerRootView>
   );
 }

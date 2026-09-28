@@ -1,4 +1,5 @@
 import { apiClient } from './api-client';
+import type { TrailSample } from '../components/map/map-types';
 import { Place } from '../types/place';
 import { PaymentMethod, DEFAULT_PAYMENT_METHODS, BOOKABLE_PAYMENT_METHOD_IDS } from '../types/payment';
 import { Vehicle, vehicleFromBackendJson } from '../types/vehicle';
@@ -114,6 +115,8 @@ export async function requestRide(params: {
   note?: string;
   promotionCode?: string;
   scheduledFor?: string;
+  /** Locks the upfront price the rider was shown (from fetchTripQuote). */
+  quoteId?: string;
 }): Promise<Ride> {
   const body = {
     pickup: { address: params.pickup.address, latitude: params.pickup.latitude, longitude: params.pickup.longitude },
@@ -128,6 +131,7 @@ export async function requestRide(params: {
     rideNote: params.note,
     promotionCode: params.promotionCode,
     scheduledFor: params.scheduledFor,
+    quoteId: params.quoteId,
   };
   const json = await apiClient.post<{ ride: any }>('/rides', body);
   const catalogues = await ridesCatalogues();
@@ -171,11 +175,17 @@ export interface DriverLocation {
   longitude: number;
   heading: number | null;
   recordedAt: string;
+  /** Recent [serverEpochMs, lat, lng, heading] samples for smooth animation. */
+  trail?: TrailSample[];
+  /** Server clock when this was sent, to line samples up with local time. */
+  serverTime?: number;
 }
 
 export async function getDriverLocation(rideId: string): Promise<DriverLocation | null> {
-  const json = await apiClient.get<{ location: DriverLocation | null }>(`/rides/${rideId}/driver-location`);
-  return json.location;
+  const json = await apiClient.get<{ location: DriverLocation | null; serverTime?: number }>(
+    `/rides/${rideId}/driver-location`
+  );
+  return json.location ? { ...json.location, serverTime: json.serverTime } : null;
 }
 
 export async function getRideRoute(rideId: string): Promise<RoutePoint[]> {
@@ -199,10 +209,70 @@ export async function reportPassengerLocation(params: {
   await apiClient.post('/rides/location', params);
 }
 
+export interface NearbyDriver {
+  id: string;
+  latitude: number;
+  longitude: number;
+  heading: number | null;
+  vehicleId: string | null;
+  trail: TrailSample[];
+}
+
 export async function getNearbyDrivers(params: {
   latitude: number;
   longitude: number;
-}): Promise<{ latitude: number; longitude: number; vehicleId: string }[]> {
-  const json = await apiClient.get<{ drivers: any[] }>(`/drivers/nearby?lat=${params.latitude}&lng=${params.longitude}`);
-  return json.drivers;
+}): Promise<{ drivers: NearbyDriver[]; serverTime: number }> {
+  const json = await apiClient.get<{ drivers: NearbyDriver[]; serverTime?: number }>(
+    `/drivers/nearby?lat=${params.latitude}&lng=${params.longitude}`
+  );
+  return { drivers: json.drivers ?? [], serverTime: json.serverTime ?? Date.now() };
+}
+
+export interface FareBreakdown {
+  currency: 'RWF';
+  baseFare: number;
+  distanceFare: number;
+  timeFare: number;
+  bookingFee: number;
+  surgeMultiplier: number;
+  minimumFare: number;
+  minimumApplied: boolean;
+  sharedDiscountPercent: number;
+  total: number;
+}
+
+export interface TripQuoteOption {
+  quoteId: string;
+  vehicleId: string;
+  name: string;
+  description: string;
+  capacity: number;
+  pickupEtaMinutes: number | null;
+  fare: FareBreakdown;
+}
+
+export interface TripQuote {
+  route: {
+    coordinates: [number, number][];
+    source: 'osrm' | 'estimate';
+    distanceKm: number;
+    durationMinutes: number;
+  };
+  surge: { multiplier: number; demand: number; supply: number };
+  expiresAt: string;
+  options: TripQuoteOption[];
+}
+
+/**
+ * Upfront prices for every vehicle class over the real road route, with the
+ * route geometry, surge and pickup ETAs — one request for the whole
+ * vehicle-choice sheet. Each option's quoteId locks its price when booking.
+ */
+export async function fetchTripQuote(params: { pickup: Place; destination: Place; rideType: RideType }): Promise<TripQuote> {
+  const { pickup, destination, rideType } = params;
+  const json = await apiClient.get<{ quote: TripQuote }>(
+    `/rides/quote?rideType=${rideType}` +
+      `&pickup=${pickup.latitude},${pickup.longitude}&destination=${destination.latitude},${destination.longitude}`
+  );
+  return json.quote;
 }

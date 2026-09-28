@@ -1,31 +1,26 @@
-import { useEffect, useState } from 'react';
-import { View, Text, Pressable, Linking } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
+import { useEffect } from 'react';
+import { View, Text, Pressable, Linking, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../../components/Button';
-import { RideMap } from '../../../components/RideMap';
+import { MapSheet } from '../../../components/map/MapSheet';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
+import { useMapScene } from '../../../hooks/useMapScene';
+import { useTripMap } from '../../../hooks/useTripMap';
 import { cancelRide } from '../../../services/ride-service';
-import { MapDefaults, getRoute } from '../../../services/location-service';
-import { RoutePoint } from '../../../types/ride';
+
+const PADDING = { top: 90, bottom: 380, left: 50, right: 50 };
 
 export default function DriverAcceptedScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
-  const { ride, driverLocation } = useRideTracking(rideId ?? null);
-  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+  const { ride, driverLocation, serverTimeOffsetMs } = useRideTracking(rideId ?? null);
   usePassengerLocationReporting(!!ride);
-
-  useEffect(() => {
-    if (!ride) return;
-    getRoute({ from: ride.pickup, to: ride.destination }).then((route) => {
-      setRoutePoints(route?.points ?? []);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ride?.id]);
+  const { scene, etaMinutes } = useTripMap(ride, driverLocation, serverTimeOffsetMs, PADDING);
+  useMapScene(scene);
 
   useEffect(() => {
     if (ride && (ride.status === 'pinVerified' || ride.status === 'inProgress' || ride.status === 'arrived' || ride.status === 'paymentPending')) {
@@ -38,74 +33,84 @@ export default function DriverAcceptedScreen() {
 
   if (!ride || !ride.driver) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
-        <Text className="text-text-secondary">{t('waitingDriver')}</Text>
-      </SafeAreaViewPlaceholder>
+      <MapSheet collapsible={false}>
+        <View className="flex-row items-center py-4">
+          <ActivityIndicator color="#16A34A" />
+          <Text className="ml-3 text-text-secondary">{t('waitingDriver')}</Text>
+        </View>
+      </MapSheet>
     );
   }
 
-  const center = driverLocation ?? { latitude: ride.pickup.latitude ?? MapDefaults.latitude, longitude: ride.pickup.longitude ?? MapDefaults.longitude };
-  const markers = [
-    { id: 'pickup', position: { latitude: ride.pickup.latitude!, longitude: ride.pickup.longitude! }, icon: 'pickup' as const },
-    { id: 'dest', position: { latitude: ride.destination.latitude!, longitude: ride.destination.longitude! }, icon: 'destination' as const },
-    ...(driverLocation ? [{ id: 'driver', position: { latitude: driverLocation.latitude, longitude: driverLocation.longitude }, icon: 'driver' as const }] : []),
-  ];
+  const driver = ride.driver;
+  const arrived = ride.status === 'driverArrived';
+  const initials = driver.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="h-52 w-full">
-        <RideMap
-          center={center}
-          markers={markers}
-          routePolyline={routePoints}
-          retryLabel={t('tryAgain')}
-          loadingLabel={t('mapLoading')}
-          errorLabel={t('mapError')}
-        />
-      </View>
-      <View className="flex-1 px-6 pt-6">
-        <Text className="text-lg font-bold text-primary">{t('driverOnWay')}</Text>
-
-        <View className="mt-4 rounded border border-border p-4">
-          <Text className="text-base font-semibold text-ink">{ride.driver.name}</Text>
-          <Text className="mt-1 text-sm text-text-secondary">
-            {ride.driver.vehicleColor} {ride.driver.vehicleModel} - {ride.driver.licensePlate}
-          </Text>
-          <Text className="mt-1 text-sm text-text-secondary">
-            {t('avgRating')}: {ride.driver.rating.toFixed(1)}
-          </Text>
-
-          <View className="mt-3 flex-row gap-3">
-            <Pressable
-              className="flex-1 items-center rounded border border-primary py-2"
-              onPress={() => Linking.openURL(`tel:${ride.driver!.phone}`)}
-            >
-              <Text className="font-medium text-primary">{t('call')}</Text>
-            </Pressable>
-            <Pressable
-              className="flex-1 items-center rounded border border-primary py-2"
-              onPress={() => Linking.openURL(`sms:${ride.driver!.phone}`)}
-            >
-              <Text className="font-medium text-primary">{t('message')}</Text>
-            </Pressable>
+    <View style={{ flex: 1 }}>
+      <MapSheet
+        header={
+          <View className="mb-3">
+            <Text className="text-xl font-bold text-ink">
+              {arrived ? t('driverHere') : etaMinutes != null ? t('driverArrivingIn', { minutes: etaMinutes }) : t('driverOnWay')}
+            </Text>
+            <Text className="mt-0.5 text-[13px] text-text-secondary" numberOfLines={1}>{ride.pickup.address}</Text>
           </View>
+        }
+        footer={
+          <View className="gap-2">
+            <Button title={t('safety')} variant="outline" icon="shield-checkmark-outline" onPress={() => router.push({ pathname: '/(main)/ride/safety', params: { rideId: ride.id } })} />
+            {ride.status === 'driverAssigned' ? (
+              <Button title={t('cancelRide')} variant="text" onPress={async () => { await cancelRide(ride.id); router.replace('/(main)/(tabs)'); }} />
+            ) : null}
+          </View>
+        }
+      >
+        <View className="flex-row items-center rounded-2xl border border-border p-3.5">
+          <View className="h-12 w-12 items-center justify-center rounded-full bg-ink">
+            <Text className="text-base font-bold text-white">{initials}</Text>
+          </View>
+          <View className="ml-3 flex-1">
+            <Text className="text-base font-bold text-ink">{driver.name}</Text>
+            <View className="mt-0.5 flex-row items-center">
+              <Ionicons name="star" size={13} color="#111" />
+              <Text className="ml-1 text-[13px] text-text-secondary">{driver.rating.toFixed(1)} · {driver.vehicleColor} {driver.vehicleModel}</Text>
+            </View>
+          </View>
+          <View className="rounded-lg border-2 border-ink bg-white px-2.5 py-1">
+            <Text className="text-[13px] font-bold tracking-wider text-ink">{driver.licensePlate}</Text>
+          </View>
+        </View>
+
+        <View className="mt-3 flex-row gap-3">
+          <Pressable
+            accessibilityRole="button"
+            className="flex-1 flex-row items-center justify-center rounded-xl bg-gray-light py-3"
+            onPress={() => Linking.openURL(`tel:${driver.phone}`)}
+          >
+            <Ionicons name="call" size={18} color="#111" />
+            <Text className="ml-2 font-semibold text-ink">{t('call')}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            className="flex-1 flex-row items-center justify-center rounded-xl bg-gray-light py-3"
+            onPress={() => Linking.openURL(`sms:${driver.phone}`)}
+          >
+            <Ionicons name="chatbubble" size={18} color="#111" />
+            <Text className="ml-2 font-semibold text-ink">{t('message')}</Text>
+          </Pressable>
         </View>
 
         {ride.pin ? (
-          <View className="mt-4 items-center rounded bg-gray-light p-4">
-            <Text className="text-sm text-text-secondary">{t('showPinToDriver')}</Text>
-            <Text className="mt-1 text-3xl font-bold tracking-widest text-ink">{ride.pin}</Text>
-            <Text className="mt-1 text-xs text-text-secondary">{t('pinHint')}</Text>
+          <View className="mt-3 flex-row items-center justify-between rounded-2xl bg-primary/10 px-4 py-3">
+            <View className="flex-1 pr-3">
+              <Text className="text-[13px] font-semibold text-ink">{t('shareYourPin')}</Text>
+              <Text className="mt-0.5 text-xs text-text-secondary">{t('pinHint')}</Text>
+            </View>
+            <Text className="text-2xl font-bold tracking-[6px] text-ink">{ride.pin}</Text>
           </View>
         ) : null}
-
-        <View className="mt-auto gap-3 pb-8">
-          <Button title={t('safety')} variant="outline" onPress={() => router.push({ pathname: '/(main)/ride/safety', params: { rideId: ride.id } })} />
-          {ride.status === 'driverAssigned' ? (
-            <Button title={t('cancelRide')} variant="text" onPress={async () => { await cancelRide(ride.id); router.replace('/(main)/(tabs)'); }} />
-          ) : null}
-        </View>
-      </View>
-    </SafeAreaViewPlaceholder>
+      </MapSheet>
+    </View>
   );
 }

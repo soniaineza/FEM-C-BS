@@ -1,54 +1,58 @@
-import { useCallback, useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, ActivityIndicator, Pressable } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../../../components/Button';
-import { BackHeader } from '../../../components/BackHeader';
-import { RideMap } from '../../../components/RideMap';
+import { MapSheet } from '../../../components/map/MapSheet';
+import { FareBreakdownView, clockIn } from '../../../components/FareBreakdownView';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { useMapScene } from '../../../hooks/useMapScene';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { fetchServerEstimate } from '../../../services/ride-service';
-import { getRoute, MapDefaults } from '../../../services/location-service';
+import { getRoute } from '../../../services/location-service';
 import { formatFare, FareEstimate } from '../../../types/ride';
 import { placeHasCoordinates } from '../../../types/place';
+import type { MapScene } from '../../../components/map/map-types';
 
+const PADDING = { top: 90, bottom: 460, left: 40, right: 40 };
+
+// Trip summary before payment: the locked upfront price from the vehicle
+// choice (itemised), the road route on the shared map, and the arrival time.
 export default function FareEstimateScreen() {
   const { t } = useTranslation();
   const pickup = useRideWizardStore((s) => s.pickup);
   const destination = useRideWizardStore((s) => s.destination);
   const vehicle = useRideWizardStore((s) => s.vehicle);
   const rideType = useRideWizardStore((s) => s.rideType);
+  const locked = useRideWizardStore((s) => s.fareEstimate);
   const setFareEstimate = useRideWizardStore((s) => s.setFareEstimate);
 
-  const [estimate, setEstimate] = useState<FareEstimate | null>(null);
-  const [routePoints, setRoutePoints] = useState<{ latitude: number; longitude: number }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [estimate, setEstimate] = useState<FareEstimate | null>(locked?.quoteId ? locked : null);
+  const [loading, setLoading] = useState(!locked?.quoteId);
   const [loadError, setLoadError] = useState<string | undefined>();
 
-  // load is re-runnable so failures get an explicit Try-again instead of an
-  // eternal spinner: previously a failed GET /rides/estimate (cold-start
-  // blip, dropped request) left this screen wedged on the loading state with
-  // no Continue button rendered at all — reported as "buttons stop working".
+  // Fallback when there is no locked quote (e.g. an older entry point):
+  // the server estimate plus the road route, as before.
   const load = useCallback(() => {
     if (!pickup || !destination || !vehicle) {
       router.replace('/(main)/request/pickup');
       return;
     }
+    if (locked?.quoteId) return;
     setLoading(true);
     setLoadError(undefined);
-    Promise.all([
-      fetchServerEstimate({ pickup, destination, vehicle, rideType }),
-      getRoute({ from: pickup, to: destination }),
-    ])
+    Promise.all([fetchServerEstimate({ pickup, destination, vehicle, rideType }), getRoute({ from: pickup, to: destination })])
       .then(([serverEstimate, route]) => {
-        setEstimate(serverEstimate);
-        setFareEstimate(serverEstimate);
-        setRoutePoints(route?.points ?? []);
+        const next: FareEstimate = {
+          ...serverEstimate,
+          routeCoordinates: route?.points.map((p) => [p.longitude, p.latitude] as [number, number]),
+        };
+        setEstimate(next);
+        setFareEstimate(next);
       })
-      .catch((err) => {
-        setLoadError(err instanceof Error ? err.message : t('requestFailed'));
-      })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : t('requestFailed')))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup, destination, vehicle, rideType]);
@@ -57,81 +61,88 @@ export default function FareEstimateScreen() {
     load();
   }, [load]);
 
-  function proceed() {
-    if (!estimate) return;
-    router.push('/(main)/request/payment-method');
-  }
+  const scene = useMemo<MapScene | null>(() => {
+    if (!pickup || !destination || !placeHasCoordinates(pickup) || !placeHasCoordinates(destination)) return null;
+    return {
+      camera: { mode: 'fit', padding: PADDING, zoom: 16 },
+      routes: estimate?.routeCoordinates?.length ? [{ coordinates: estimate.routeCoordinates }] : [],
+      markers: [
+        { id: 'pickup', kind: 'pickup', latitude: pickup.latitude!, longitude: pickup.longitude!, label: pickup.address.split(',')[0] },
+        { id: 'destination', kind: 'destination', latitude: destination.latitude!, longitude: destination.longitude!, label: destination.address.split(',')[0] },
+      ],
+    };
+  }, [pickup, destination, estimate]);
+  useMapScene(scene);
 
-  if (loading || !pickup || !destination) {
-    return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator color="#16A34A" />
-      </SafeAreaViewPlaceholder>
-    );
-  }
+  if (!pickup || !destination) return null;
 
-  // Coordinates are optional on Place (see types/place.ts): only render
-  // map markers when both sides have real coordinates, and keep the map at
-  // the default Kigali view otherwise instead of asserting non-null and
-  // drawing markers at "0,0".
-  const pickupCoords = placeHasCoordinates(pickup) ? { latitude: pickup.latitude!, longitude: pickup.longitude! } : null;
-  const destinationCoords = placeHasCoordinates(destination) ? { latitude: destination.latitude!, longitude: destination.longitude! } : null;
-  const mapMarkers = pickupCoords && destinationCoords
-    ? [
-        { id: 'pickup', position: pickupCoords, icon: 'pickup' as const },
-        { id: 'dest', position: destinationCoords, icon: 'destination' as const },
-      ]
-    : [];
+  const eta = estimate?.pickupEtaMinutes ?? null;
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="h-52 w-full">
-        <RideMap
-          center={pickupCoords ?? MapDefaults}
-          markers={mapMarkers}
-          routePolyline={routePoints}
-          retryLabel={t('retryLabel')}
-          loadingLabel={t('mapLoading')}
-          errorLabel={t('mapError')}
-        />
-      </View>
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-1 text-xl font-bold text-ink">{t('rideSummary')}</Text>
+    <View style={{ flex: 1 }}>
+      <SafeAreaView edges={['top']} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('back')}
+          onPress={() => router.back()}
+          className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-white"
+          style={{ elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6 }}
+        >
+          <Ionicons name="arrow-back" size={22} color="#111" />
+        </Pressable>
+      </SafeAreaView>
 
-        <View className="mt-4 gap-2">
-          <Text className="text-text-secondary">{pickup.address}</Text>
-          <Text className="text-text-secondary">{destination.address}</Text>
+      <MapSheet
+        header={<Text className="mb-3 text-xl font-bold text-ink">{t('rideSummary')}</Text>}
+        footer={
+          <Button
+            title={estimate ? `${t('continueLabel')} · ${formatFare(estimate.estimatedFare)}` : t('continueLabel')}
+            onPress={() => estimate && router.push('/(main)/request/payment-method')}
+            disabled={!estimate}
+          />
+        }
+      >
+        <View className="mb-3 rounded-2xl border border-border p-3.5">
+          <View className="flex-row items-center">
+            <View className="h-2.5 w-2.5 rounded-full bg-ink" />
+            <Text className="ml-3 flex-1 text-[13px] text-ink" numberOfLines={1}>{pickup.address}</Text>
+          </View>
+          <View className="ml-[4px] h-4 w-px bg-border" />
+          <View className="flex-row items-center">
+            <View className="h-2.5 w-2.5 bg-ink" />
+            <Text className="ml-3 flex-1 text-[13px] text-ink" numberOfLines={1}>{destination.address}</Text>
+          </View>
         </View>
 
-        {loadError ? (
-          <View className="mt-6 rounded border border-error/40 bg-error/5 p-4">
+        {loading ? (
+          <ActivityIndicator className="my-6" color="#16A34A" />
+        ) : loadError ? (
+          <View className="rounded-2xl border border-error/40 bg-error/5 p-4">
             <Text className="text-sm text-error">{loadError}</Text>
             <View className="mt-3 self-start">
               <Button title={t('retryLabel')} variant="outline" onPress={load} />
             </View>
           </View>
         ) : estimate ? (
-          <View className="mt-6 rounded border border-border p-4">
-            <View className="flex-row justify-between">
-              <Text className="text-text-secondary">{t('vehicle')}</Text>
-              <Text className="text-ink">{estimate.vehicle.name}</Text>
+          <View>
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text className="text-[15px] font-bold text-ink">{estimate.vehicle.name}</Text>
+              <Text className="text-[13px] text-text-secondary">
+                {estimate.distanceKm.toFixed(1)} km · ~{estimate.durationMinutes} min
+                {eta != null ? ` · ${t('dropoffAt', { time: clockIn(eta + estimate.durationMinutes) })}` : ''}
+              </Text>
             </View>
-            <View className="mt-2 flex-row justify-between">
-              <Text className="text-text-secondary">{estimate.distanceKm.toFixed(1)} km</Text>
-              <Text className="text-text-secondary">~{estimate.durationMinutes} min</Text>
-            </View>
-            <View className="mt-2 flex-row justify-between">
-              <Text className="text-base font-semibold text-ink">{t('fare')}</Text>
-              <Text className="text-lg font-bold text-primary">{formatFare(estimate.estimatedFare)}</Text>
-            </View>
+            {estimate.breakdown ? (
+              <FareBreakdownView breakdown={estimate.breakdown} distanceKm={estimate.distanceKm} durationMinutes={estimate.durationMinutes} />
+            ) : (
+              <View className="flex-row justify-between rounded-2xl bg-gray-light p-3.5">
+                <Text className="text-base font-semibold text-ink">{t('fare')}</Text>
+                <Text className="text-lg font-bold text-ink">{formatFare(estimate.estimatedFare)}</Text>
+              </View>
+            )}
           </View>
         ) : null}
-
-        <View className="mt-auto pb-8">
-          <Button title={t('continueLabel')} onPress={proceed} disabled={!estimate} />
-        </View>
-      </View>
-    </SafeAreaViewPlaceholder>
+      </MapSheet>
+    </View>
   );
 }

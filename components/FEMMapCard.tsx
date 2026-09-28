@@ -18,7 +18,7 @@ interface FEMMapCardProps {
 
 // Reusable framed map container: rounded corners, clipping, subtle border +
 // shadow, padding-free responsive width, and an optional recenter control.
-// Wraps a RideMap child (Leaflet/OSM) without owning any map logic itself.
+// Wraps a RideMap child without owning any map logic itself.
 export const FEMMapCard = memo(function FEMMapCard({
   children,
   height = 160,
