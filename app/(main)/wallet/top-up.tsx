@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
-import { router } from 'expo-router';
+import { goBack } from '../../../utils/navigation';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
@@ -51,7 +52,7 @@ export default function WalletTopUpScreen() {
     try {
       const updated = await refreshWalletTopup(topup.id);
       setTopup(updated);
-      if (updated.status === 'succeeded') router.back();
+      if (updated.status === 'succeeded') goBack();
     } catch {
       // Keep showing the last known state — a transient check failure isn't fatal.
     } finally {
@@ -61,7 +62,7 @@ export default function WalletTopUpScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pb-10" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('topUpTitle')}</Text>
         <Text className="mt-1 text-sm text-text-secondary">{t('topUpSubtitle')}</Text>
@@ -108,7 +109,7 @@ export default function WalletTopUpScreen() {
             ) : null}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ActivityIndicator, Pressable } from 'react-native';
 import { router } from 'expo-router';
+import { goBack } from '../../../utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -84,7 +85,7 @@ export default function FareEstimateScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('back')}
-          onPress={() => router.back()}
+          onPress={() => goBack()}
           className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-white"
           style={{ elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6 }}
         >

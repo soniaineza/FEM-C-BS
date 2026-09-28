@@ -26,10 +26,10 @@ const RWANDA_BBOX = '28.8617,-2.8407,30.8990,-1.0475';
  * shared cloud-hosting IP ranges (like Render's), which made search silently
  * fail for real users while working fine from a home network.
  */
-async function photon(url) {
+async function photon(url, timeoutMs = 8000) {
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new ApiError(502, 'Location service unavailable.');
   return res.json();
@@ -80,7 +80,9 @@ function labelFor(properties) {
     properties.state,
     properties.country,
   ].filter((p) => p && String(p).trim().length > 0);
-  return parts.length ? parts.join(', ') : 'Unknown location';
+  // "KN 4 Avenue, KN 4 Avenue" when a road's name is also its street.
+  const unique = parts.filter((p, i) => parts.findIndex((q) => q.toLowerCase() === p.toLowerCase()) === i);
+  return unique.length ? unique.join(', ') : 'Unknown location';
 }
 
 // GET /api/locations/search?q=... — forward geocoding, biased to Rwanda.
@@ -121,17 +123,48 @@ router.get(
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       throw new ApiError(400, 'lat and lng are required.');
     }
-    const url = `${PHOTON_REVERSE_BASE}?lat=${lat}&lon=${lng}&lang=en`;
-    const data = await photon(url);
-    const features = Array.isArray(data.features) ? data.features : [];
-    const properties = features.length ? features[0].properties || {} : {};
-    res.json({
-      address: features.length ? labelFor(properties) : 'Current location',
-      latitude: lat,
-      longitude: lng,
-    });
+    const key = `${lat.toFixed(4)},${lng.toFixed(4)}`; // ~11 m
+    const hit = reverseCache.get(key);
+    if (hit && Date.now() - hit.at < REVERSE_CACHE_MS) {
+      return res.json({ address: hit.address, latitude: lat, longitude: lng });
+    }
+    // Photon first (fast when healthy, but it can take 5 s+ or fail); then
+    // Nominatim, the same OpenStreetMap data, so pin-drop keeps working.
+    let address = null;
+    try {
+      const data = await photon(`${PHOTON_REVERSE_BASE}?lat=${lat}&lon=${lng}&lang=en`, 3500);
+      const feature = Array.isArray(data.features) ? data.features[0] : null;
+      if (feature) address = labelFor(feature.properties || {});
+    } catch {
+      // fall through to Nominatim
+    }
+    if (!address) address = await nominatimReverse(lat, lng).catch(() => null);
+    if (!address) throw new ApiError(502, 'Location service unavailable.');
+    reverseCache.set(key, { address, at: Date.now() });
+    if (reverseCache.size > 2000) reverseCache.delete(reverseCache.keys().next().value);
+    res.json({ address, latitude: lat, longitude: lng });
   })
 );
+
+const REVERSE_CACHE_MS = 24 * 60 * 60 * 1000;
+const reverseCache = new Map(); // "lat,lng" (4 dp) -> { address, at }
+
+async function nominatimReverse(lat, lng) {
+  const url = `${config.nominatimReverseUrl}?format=jsonv2&zoom=18&addressdetails=1&lat=${lat}&lon=${lng}`;
+  const res = await fetch(url, {
+    headers: { Accept: 'application/json', 'User-Agent': 'FEMCabsApp/1.0 (mobile app; https://femcabs.rw)' },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) return null;
+  const r = await res.json();
+  if (!r || r.error) return null;
+  return labelFor({
+    name: r.name || undefined,
+    street: r.address?.road ?? r.address?.pedestrian ?? undefined,
+    city: r.address?.city ?? r.address?.town ?? r.address?.suburb ?? r.address?.district ?? undefined,
+    country: r.address?.country ?? undefined,
+  });
+}
 
 // GET /api/locations/route?fromLat=&fromLng=&toLat=&toLng= — turn-by-turn
 // route (polyline points, distance, duration) for the ride-request fare

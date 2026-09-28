@@ -32,7 +32,7 @@ const RECENT_KEYS = [
   'minAway', 'dropoffAt', 'noCarsNearby', 'fareBreakdown', 'baseFare', 'distanceFare', 'timeFare',
   'bookingFee', 'surgeApplied', 'minimumFareApplied', 'sharedDiscount', 'totalLabel', 'upfrontPriceNote',
   'surgeNotice', 'routeEstimateNotice', 'carsNearby', 'driverArrivingIn', 'driverHere', 'tripEndsAt',
-  'onTheWayToDestination', 'shareYourPin',
+  'onTheWayToDestination', 'shareYourPin', 'confirmPickup', 'confirmDestination', 'movePinHint',
 ];
 
 test('every locale has every English key', () => {

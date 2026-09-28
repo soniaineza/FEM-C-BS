@@ -1,7 +1,7 @@
 import { View, Text, Pressable } from 'react-native';
 import { memo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { goBack } from '../utils/navigation';
 
 interface BackHeaderProps {
   title?: string;
@@ -23,7 +23,7 @@ export const BackHeader = memo(function BackHeader({ title, onBack, light = fals
     <View className={`flex-row items-center px-1 py-2 ${className ?? ''}`}>
       <Pressable
         className={`h-10 w-10 items-center justify-center rounded-full ${light ? 'bg-white/20' : 'bg-gray-light'}`}
-        onPress={() => (onBack ? onBack() : router.back())}
+        onPress={() => (onBack ? onBack() : goBack())}
         hitSlop={8}
       >
         <Ionicons name="chevron-back" size={22} color={light ? '#fff' : '#111111'} />

@@ -664,5 +664,8 @@
   "driverHere": "Umushoferi wawe yahageze",
   "tripEndsAt": "Uzagera {time}",
   "onTheWayToDestination": "Mu nzira ujya aho ugiye",
-  "shareYourPin": "Ha umushoferi iyi kode"
+  "shareYourPin": "Ha umushoferi iyi kode",
+  "confirmPickup": "Emeza aho bagufatira",
+  "confirmDestination": "Emeza aho ugiye",
+  "movePinHint": "Imura ikarita kugira ngo akamenyetso kagere aho nyirizina"
 }

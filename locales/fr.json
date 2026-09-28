@@ -664,5 +664,8 @@
   "driverHere": "Votre chauffeur est là",
   "tripEndsAt": "Arrivée à {time}",
   "onTheWayToDestination": "En route vers votre destination",
-  "shareYourPin": "Donnez ce code à votre chauffeur"
+  "shareYourPin": "Donnez ce code à votre chauffeur",
+  "confirmPickup": "Confirmer le lieu de prise en charge",
+  "confirmDestination": "Confirmer la destination",
+  "movePinHint": "Déplacez la carte pour placer l'épingle au bon endroit"
 }

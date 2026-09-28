@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
-import { router } from 'expo-router';
+import { goBack } from '../../../utils/navigation';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
@@ -54,7 +55,7 @@ export default function DriverVehicleScreen() {
         vehiclePlate: plate.trim() || undefined,
         licenseNumber: licenseNumber.trim() || undefined,
       });
-      router.back();
+      goBack();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('driverVehicleSaveFailed'));
     } finally {
@@ -72,7 +73,7 @@ export default function DriverVehicleScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pt-2 pb-10" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{t('driverYourVehicle')}</Text>
 
@@ -89,7 +90,7 @@ export default function DriverVehicleScreen() {
         <View className="mt-7">
           <Button title={t('save')} onPress={handleSave} loading={saving} />
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
   );
 }
