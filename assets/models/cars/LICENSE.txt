@@ -1,0 +1,9 @@
+Car models: "Car Kit" (3.1) by Kenney (www.kenney.nl)
+https://kenney.nl/assets/car-kit
+License: Creative Commons Zero (CC0 1.0 Universal)
+http://creativecommons.org/publicdomain/zero/1.0/
+
+Files here are sedan, suv-luxury and van from the kit's GLB folder,
+optimised with @gltf-transform/cli (quantized geometry, meshes and wheel
+nodes kept separate). Regenerate the embedded module after changing them:
+  node scripts/build-car-models.mjs

@@ -8,8 +8,8 @@ import type { DOMProps } from 'expo/dom';
 
 import type { MapCar, MapMarker, MapRoute, MapScene, LngLat } from './map-types';
 import { KIGALI_CENTER } from './map-types';
-import { CAR_LENGTH_M, createCar, createLights } from './carModel';
-import { RENDER_DELAY_MS, Track, lerpAngle, projectOnRoute } from './trackInterpolation';
+import { CAR_LENGTH_M, createCar, createLights, loadCarModels } from './carModel';
+import { RENDER_DELAY_MS, Track, distanceM, lerpAngle, projectOnRoute } from './trackInterpolation';
 
 // The map engine: MapLibre GL JS over OpenFreeMap's OpenStreetMap vector
 // tiles, with 3D buildings and three.js 3D cars in a custom layer that shares
@@ -27,6 +27,7 @@ const FOLLOW_EVERY_MS = 1200;
 const USER_IDLE_MS = 8000; // after panning, wait this long before re-following
 const REMOVE_AFTER_MS = 4000; // a car missing from updates fades out after this
 const EMPTY_FC = { type: 'FeatureCollection', features: [] } as const;
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 
 interface Props {
   scene: MapScene;
@@ -45,6 +46,9 @@ interface CarEntry {
   assigned: boolean;
   color: string | null;
   heading: number;
+  wheelAngle: number;
+  /** Drawn size relative to life (cars are enlarged when zoomed out). */
+  scale: number;
   bornAt: number;
   lastSeenAt: number;
   lat: number;
@@ -68,6 +72,18 @@ class CarLayer implements maplibregl.CustomLayerInterface {
     for (const light of createLights()) this.scene.add(light);
     this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
     this.renderer.autoClear = false;
+    // Cars start as the procedural fallback; swap in the glTF models once
+    // they're decoded (a few hundred ms, from the bundle).
+    loadCarModels().then(() => this.rebuildCars());
+  }
+
+  private rebuildCars() {
+    for (const entry of this.cars.values()) {
+      this.scene.remove(entry.group);
+      entry.group = createCar(entry.vehicleClass, entry.assigned, entry.color);
+      this.scene.add(entry.group);
+    }
+    this.map?.triggerRepaint();
   }
 
   onRemove() {
@@ -104,6 +120,8 @@ class CarLayer implements maplibregl.CustomLayerInterface {
           assigned,
           color,
           heading: car.heading ?? 0,
+          wheelAngle: 0,
+          scale: 1,
           bornAt: now,
           lastSeenAt: now,
           lat: car.latitude,
@@ -143,6 +161,14 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       const st = entry.track.sample(t);
       if (!st) continue;
       moving = moving || st.moving;
+      // Turn the wheels by the distance covered (scaled with the drawn size).
+      const wheels = entry.group.userData.wheels as THREE.Object3D[] | undefined;
+      if (wheels?.length && (st.lat !== entry.lat || st.lng !== entry.lng)) {
+        const movedM = distanceM(entry.lat, entry.lng, st.lat, st.lng);
+        entry.wheelAngle = (entry.wheelAngle + movedM / (entry.group.userData.wheelRadiusM * entry.scale)) % (Math.PI * 2);
+        const roll = new THREE.Quaternion().setFromAxisAngle(X_AXIS, entry.wheelAngle);
+        for (const w of wheels) w.quaternion.copy(roll).multiply(w.userData.baseQuaternion);
+      }
       entry.lat = st.lat;
       entry.lng = st.lng;
       // Ease the body's rotation so corners read as a turn, not a snap.
@@ -158,6 +184,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       let k = Math.max(1, (px * metersPerPixel) / CAR_LENGTH_M);
       const age = now - entry.bornAt;
       if (age < 450) k *= 0.3 + 0.7 * (age / 450); // grow in on appearance
+      entry.scale = k;
       const s = unitsPerMeter * k;
 
       const m = entry.group.matrix;
