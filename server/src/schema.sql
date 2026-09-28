@@ -391,3 +391,22 @@ INSERT INTO vehicles (id, name, description, capacity, base_fare, fare_per_km, e
   ('fem_comfort', 'FEM Comfort', 'Newer cars with extra legroom.', 4, 1800, 700, 6),
   ('fem_xl', 'FEM XL', 'Spacious vehicles for groups and luggage.', 6, 2500, 900, 8)
 ON CONFLICT (id) DO NOTHING;
+-- Upfront pricing (services/pricing.js): per-minute rate, minimum fare and
+-- booking fee per vehicle class. Seeded only where still unset so operator
+-- edits are never overwritten.
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS per_minute DOUBLE PRECISION;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS min_fare DOUBLE PRECISION;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS booking_fee DOUBLE PRECISION;
+UPDATE vehicles SET per_minute = 40, min_fare = 2000, booking_fee = 200
+ WHERE id = 'fem_economy' AND per_minute IS NULL;
+UPDATE vehicles SET per_minute = 60, min_fare = 3000, booking_fee = 250
+ WHERE id = 'fem_comfort' AND per_minute IS NULL;
+UPDATE vehicles SET per_minute = 80, min_fare = 4000, booking_fee = 300
+ WHERE id = 'fem_xl' AND per_minute IS NULL;
+
+-- The itemised fare a ride was booked at, and the surge in effect then.
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS fare_breakdown JSONB;
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS surge_multiplier DOUBLE PRECISION;
+
+-- Direction of travel, so maps can orient the car.
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS current_heading DOUBLE PRECISION;

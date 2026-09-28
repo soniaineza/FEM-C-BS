@@ -118,6 +118,8 @@ function rideToJson(row) {
     distanceKm: Number(row.distance_km),
     durationMinutes: row.duration_minutes,
     estimatedFare: Number(row.estimated_fare),
+    fareBreakdown: row.fare_breakdown || null,
+    surgeMultiplier: row.surge_multiplier == null ? null : Number(row.surge_multiplier),
     finalFare: row.final_fare == null ? null : Number(row.final_fare),
     driver: driverFromRide(row),
     rider: riderFromRide(row),

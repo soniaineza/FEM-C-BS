@@ -17,6 +17,9 @@ const {
   confirmCashPayment,
 } = require('../services/payments');
 
+const { quoteTrip } = require('../services/pricing');
+const { recentTrail } = require('../services/driverTrails');
+
 const router = express.Router();
 router.use(requireAuth);
 
@@ -75,25 +78,46 @@ router.get(
   })
 );
 
-// GET /api/rides/estimate — server-side fare for the confirmation screen.
+function parseLatLng(value) {
+  const [lat, lng] = String(value || '').split(',').map(Number);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { latitude: lat, longitude: lng };
+}
+
+// GET /api/rides/quote?pickup=lat,lng&destination=lat,lng&rideType=private
+// Upfront prices for every vehicle class over the real road route, with the
+// route geometry, surge and per-class pickup ETA (the vehicle-choice sheet).
+router.get(
+  '/quote',
+  asyncHandler(async (req, res) => {
+    const pickup = parseLatLng(req.query.pickup);
+    const destination = parseLatLng(req.query.destination);
+    if (!pickup || !destination) throw new ApiError(400, 'pickup and destination are required as lat,lng.');
+    const rideType = req.query.rideType === 'shared' ? 'shared' : 'private';
+    res.json({ quote: await quoteTrip(pickup, destination, rideType) });
+  })
+);
+
+// GET /api/rides/estimate — server-side fare for one vehicle class.
 router.get(
   '/estimate',
   asyncHandler(async (req, res) => {
-    const { vehicleId, rideType, pickup, destination } = req.query;
+    const { vehicleId, rideType, quoteId } = req.query;
+    const pickup = parseLatLng(req.query.pickup);
+    const destination = parseLatLng(req.query.destination);
+    if (!pickup || !destination) throw new ApiError(400, 'pickup and destination are required as lat,lng.');
     const { rows: vehicleRows } = await getPool().query(
       'SELECT * FROM vehicles WHERE id = $1',
       [vehicleId]
     );
     const vehicle = vehicleRows[0];
     if (!vehicle) throw new ApiError(400, 'Unknown vehicle.');
-    const estimate = computeEstimate(
+    const estimate = await computeEstimate(
       vehicle,
-      { latitude: Number(pickup?.split(',')[0]), longitude: Number(pickup?.split(',')[1]) },
-      {
-        latitude: Number(destination?.split(',')[0]),
-        longitude: Number(destination?.split(',')[1]),
-      },
-      rideType === 'shared' ? 'shared' : 'private'
+      pickup,
+      destination,
+      rideType === 'shared' ? 'shared' : 'private',
+      quoteId
     );
     res.json({ estimate });
   })
@@ -135,13 +159,16 @@ router.get(
       [ride.driver_id]
     );
     const loc = rows[0];
+    const now = Date.now();
     res.json({
+      serverTime: now,
       location: loc
         ? {
             latitude: loc.latitude,
             longitude: loc.longitude,
             heading: loc.heading ?? null,
             recordedAt: loc.recorded_at,
+            trail: recentTrail(ride.driver_id, now),
           }
         : null,
     });

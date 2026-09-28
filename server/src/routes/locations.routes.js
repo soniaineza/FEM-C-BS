@@ -3,6 +3,8 @@ const express = require('express');
 const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
+const { getRoadRoute } = require('../services/routing');
+const { haversineKm } = require('../utils/distance');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -90,7 +92,7 @@ router.get(
 
     // Primary: Photon, restricted to Rwanda's bounding box. Also pass the
     // rider's approximate region for a "near me first" ranking on ties.
-    const url = `${PHOTON_BASE}?limit=8&lang=en&q=${encodeURIComponent(q)}&bbox=${RWANDA_BBOX}`;
+    const url = `${PHOTON_BASE}?limit=15&lang=en&q=${encodeURIComponent(q)}&bbox=${RWANDA_BBOX}`;
     let data;
     try {
       data = await photon(url);
@@ -107,23 +109,10 @@ router.get(
       ? data.features
       : (await fallbackNominatim(q).catch(() => ({ features: [] }))).features;
 
-    res.json({
-      results: features.slice(0, 8).map((f) => {
-        const properties = f.properties || {};
-        const coords = (f.geometry && f.geometry.coordinates) || [];
-        return {
-          address: labelFor(properties),
-          latitude: coords.length > 1 ? Number(coords[1]) : null,
-          longitude: coords.length > 0 ? Number(coords[0]) : null,
-        };
-      }),
-    });
+    res.json({ results: rankResults(q, features).slice(0, 8) });
   })
 );
 
-// GET /api/locations/reverse?lat=&lng=&address= — reverse geocoding for the
-// pick-up "use current location" action (the address text is sent along so
-// the pair stays consistent).
 router.get(
   '/reverse',
   asyncHandler(async (req, res) => {
@@ -160,19 +149,81 @@ router.get(
     if (![fromLat, fromLng, toLat, toLng].every(Number.isFinite)) {
       throw new ApiError(400, 'fromLat, fromLng, toLat and toLng are required.');
     }
-    const url = `${config.osrmUrl}/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
-    const res2 = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res2.ok) throw new ApiError(502, 'Routing service unavailable.');
-    const data = await res2.json();
-    const route = Array.isArray(data.routes) ? data.routes[0] : null;
-    if (!route) throw new ApiError(502, 'No route found.');
-    const coords = route.geometry?.coordinates ?? [];
+    const route = await getRoadRoute(
+      { latitude: fromLat, longitude: fromLng },
+      { latitude: toLat, longitude: toLng }
+    );
     res.json({
-      points: coords.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
-      distanceMeters: route.distance,
-      durationSeconds: route.duration,
+      points: route.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
+      distanceMeters: route.distanceMeters,
+      durationSeconds: route.durationSeconds,
+      source: route.source,
     });
   })
 );
 
 module.exports = router;
+
+// ---- result ranking ----
+// Photon's order sometimes puts a partial match above the exact place
+// ("MTN Centre Nyarutarama" -> "Nyarutarama Medical Center" first). Results
+// are re-ranked by how well the place's NAME matches the query (both ways),
+// then by its full label, with a small preference for Kigali. Deterministic and
+// instant (it runs on every debounced keystroke); ranking quality is
+// measured offline by test/jev-place-search.js.
+const KIGALI = { latitude: -1.9441, longitude: 30.0619 };
+const STOPWORDS = new Set(['the', 'of', 'de', 'la', 'le', 'na', 'ya', 'and', 'in']);
+
+function normalise(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\bcenter\b/g, 'centre')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function tokens(text) {
+  return normalise(text).split(' ').filter((t) => t.length > 1 && !STOPWORDS.has(t));
+}
+
+function coverage(queryTokens, text) {
+  if (!queryTokens.length) return 0;
+  const words = new Set(tokens(text));
+  const hits = queryTokens.filter((t) => words.has(t) || [...words].some((w) => w.startsWith(t) && t.length >= 3));
+  return hits.length / queryTokens.length;
+}
+
+function rankResults(query, features) {
+  const q = tokens(query);
+  const seen = new Set();
+  const candidates = [];
+  features.forEach((f, order) => {
+    const properties = f.properties || {};
+    const coords = (f.geometry && f.geometry.coordinates) || [];
+    const latitude = coords.length > 1 ? Number(coords[1]) : null;
+    const longitude = coords.length > 0 ? Number(coords[0]) : null;
+    // The Rwanda bbox is a rectangle that also covers parts of Uganda,
+    // Burundi, Tanzania and DR Congo.
+    if (properties.country && normalise(properties.country) !== 'rwanda') return;
+    const address = labelFor(properties);
+    const key = normalise(address);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const inKigali = latitude != null && longitude != null &&
+      haversineKm(latitude, longitude, KIGALI.latitude, KIGALI.longitude) <= 20;
+    // Recall: how much of the query the name covers. Precision: how much of
+    // the name the rider actually typed ("MTN Centre" beats "Nyarutarama
+    // Medical Center" for "MTN Centre Nyarutarama").
+    const nameTokens = tokens(properties.name);
+    const precision = nameTokens.length ? coverage(nameTokens, query) : 0;
+    const score = 2 * coverage(q, properties.name) + precision + coverage(q, address) + (inKigali ? 0.3 : 0);
+    candidates.push({ address, latitude, longitude, score, order });
+  });
+  candidates.sort((a, b) => b.score - a.score || a.order - b.order);
+  return candidates.map(({ address, latitude, longitude }) => ({ address, latitude, longitude }));
+}
+
+module.exports.rankResults = rankResults;
+

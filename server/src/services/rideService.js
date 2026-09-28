@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const { getPool } = require('../db');
 const { config } = require('../config');
 const { ApiError } = require('../utils/asyncHandler');
-const { haversineKm, estimateDurationMinutes, estimateFare } = require('../utils/distance');
+const { fareForRide } = require('./pricing');
 const { transitionRide, loadRide } = require('./rideStateMachine');
 const {
   findNearestDriver,
@@ -25,19 +25,19 @@ const BOOKABLE_STATUSES = new Set([
 ]);
 
 /**
- * Server-authoritative fare/duration estimate. The client never supplies
- * fares — it only ever passes coordinates + vehicle + ride type.
+ * Server-authoritative upfront fare over the real road route (see
+ * services/pricing.js). The client never supplies fares — only coordinates,
+ * vehicle, ride type and optionally the id of a quote it was shown.
  */
-function computeEstimate(vehicle, pickup, destination, rideType) {
-  const distanceKm = haversineKm(
-    pickup.latitude,
-    pickup.longitude,
-    destination.latitude,
-    destination.longitude
+async function computeEstimate(vehicle, pickup, destination, rideType, quoteId) {
+  const { distanceKm, durationMinutes, fare } = await fareForRide(
+    vehicle,
+    pickup,
+    destination,
+    rideType,
+    quoteId
   );
-  const durationMinutes = estimateDurationMinutes(distanceKm);
-  const estimatedFare = estimateFare(vehicle, distanceKm, rideType);
-  return { distanceKm, durationMinutes, estimatedFare };
+  return { distanceKm, durationMinutes, estimatedFare: fare.total, fare };
 }
 
 /** Validates and applies an optional promotion to a fare. Returns the adjusted
@@ -78,6 +78,7 @@ async function createRide(passengerId, body) {
     rideNote,
     promotionCode,
     scheduledFor,
+    quoteId,
   } = body || {};
 
   if (
@@ -109,11 +110,12 @@ async function createRide(passengerId, body) {
   const vehicle = vehicleRows[0];
   if (!vehicle) throw new ApiError(400, 'Unknown vehicle.');
 
-  const { distanceKm, durationMinutes, estimatedFare } = computeEstimate(
+  const { distanceKm, durationMinutes, estimatedFare, fare } = await computeEstimate(
     vehicle,
     pickup,
     destination,
-    type
+    type,
+    quoteId
   );
 
   const { discountedFare, discount, promotion } = await applyPromotion(
@@ -133,8 +135,9 @@ async function createRide(passengerId, body) {
        pickup_address, pickup_latitude, pickup_longitude,
        dest_address, dest_latitude, dest_longitude,
        distance_km, duration_minutes, payment_method, estimated_fare,
-       status, ride_note, promotion_id, applied_discount, scheduled_for
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+       status, ride_note, promotion_id, applied_discount, scheduled_for,
+       fare_breakdown, surge_multiplier
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
      RETURNING *`,
     [
       passengerId,
@@ -155,6 +158,8 @@ async function createRide(passengerId, body) {
       promotion ? promotion.id : null,
       discount || null,
       status === 'scheduled' ? new Date(scheduledFor).toISOString() : null,
+      JSON.stringify(fare),
+      fare.surgeMultiplier,
     ]
   );
   const ride = rows[0];
@@ -325,7 +330,7 @@ async function changeDestination(passengerId, rideId, destination) {
     'SELECT * FROM vehicles WHERE id = $1',
     [ride.vehicle_id]
   );
-  const { distanceKm, durationMinutes, estimatedFare } = computeEstimate(
+  const { distanceKm, durationMinutes, estimatedFare, fare } = await computeEstimate(
     vehicleRows[0],
     { latitude: ride.pickup_latitude, longitude: ride.pickup_longitude },
     destination,
@@ -339,7 +344,8 @@ async function changeDestination(passengerId, rideId, destination) {
   const { rows } = await getPool().query(
     `UPDATE rides SET
        dest_address = $1, dest_latitude = $2, dest_longitude = $3,
-       distance_km = $4, duration_minutes = $5, estimated_fare = $6
+       distance_km = $4, duration_minutes = $5, estimated_fare = $6,
+       fare_breakdown = $8, surge_multiplier = $9
      WHERE id = $7 RETURNING *`,
     [
       destination.address || 'Changed destination',
@@ -349,6 +355,8 @@ async function changeDestination(passengerId, rideId, destination) {
       durationMinutes,
       settledFare,
       rideId,
+      JSON.stringify(fare),
+      fare.surgeMultiplier,
     ]
   );
   await getPool().query(

@@ -124,6 +124,11 @@ const config = {
   // Dependency-free development simulator. Replaced entirely by the real
   // driver-matching service — kept only for local UI previews.
   simEnabled: process.env.SIM_ENABLED === '1' && process.env.NODE_ENV !== 'production',
+
+  // Demo fleet (services/demoFleet.js): simulated drivers driving real
+  // Kigali roads and serving rides end to end. Refused in production.
+  demoFleet: process.env.DEMO_FLEET === '1',
+  demoFleetSize: Number(process.env.DEMO_FLEET_SIZE || 16),
   simAcceptDelaySeconds: Number(process.env.SIM_ACCEPT_DELAY || 3),
   simWaitAtPickupSeconds: Number(process.env.SIM_WAIT_AT_PICKUP || 5),
 };
@@ -144,6 +149,7 @@ function ensureConfig() {
     if (config.devRevealCodes) problems.push('DEV_REVEAL_CODES (must be "0")');
     if (config.devAutoVerifyDrivers) problems.push('DEV_AUTO_VERIFY_DRIVERS (must be "0")');
     if (config.demoPayments) problems.push('DEMO_PAYMENTS (must be "0")');
+    if (config.demoFleet) problems.push('DEMO_FLEET (must be "0")');
 
     // Real OTP delivery.
     if (!['pindo', 'africastalking', 'generic'].includes(config.smsProvider)) {

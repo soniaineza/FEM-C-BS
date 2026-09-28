@@ -93,6 +93,11 @@ async function main() {
     console.log(`[server] FEM C@BS API listening on port ${config.port}`);
   });
   startScheduler();
+  if (config.demoFleet) {
+    require('./services/demoFleet')
+      .startDemoFleet()
+      .catch((err) => console.error('[fleet] failed to start:', err));
+  }
 }
 
 main().catch((err) => {

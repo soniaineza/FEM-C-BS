@@ -608,6 +608,7 @@ async function main() {
     ADMIN_API_KEY: ADMIN_KEY,
     RATE_LIMIT_MAX: '100000',
     OTP_RESEND_COOLDOWN: '0',
+    ...(process.env.OSRM_URL ? { OSRM_URL: process.env.OSRM_URL } : {}),
   };
   const server = spawn(process.execPath, ['src/index.js'], { cwd: path.join(__dirname, '..'), env });
   let serverLog = '';

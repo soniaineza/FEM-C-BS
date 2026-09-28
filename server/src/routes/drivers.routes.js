@@ -1,4 +1,6 @@
 const express = require('express');
+const crypto = require('crypto');
+const { recentTrail } = require('../services/driverTrails');
 const bcrypt = require('bcryptjs');
 
 const { getPool } = require('../db');
@@ -102,23 +104,29 @@ passengerFacing.get(
       throw new ApiError(400, 'lat and lng are required.');
     }
     const { rows } = await getPool().query(
-      `SELECT current_latitude AS latitude, current_longitude AS longitude,
-              current_vehicle_id AS vehicle_id
+      `SELECT id, current_latitude AS latitude, current_longitude AS longitude,
+              current_heading AS heading, current_vehicle_id AS vehicle_id
          FROM drivers
         WHERE status = 'active' AND verified = TRUE
           AND current_latitude IS NOT NULL AND current_longitude IS NOT NULL
-        LIMIT 200`
+        LIMIT 300`
     );
+    const now = Date.now();
     const nearby = rows
       .map((r) => ({ ...r, distanceKm: haversineKm(lat, lng, r.latitude, r.longitude) }))
       .filter((r) => r.distanceKm <= 5)
       .sort((a, b) => a.distanceKm - b.distanceKm)
-      .slice(0, 12);
+      .slice(0, 15);
     res.json({
+      serverTime: now,
       drivers: nearby.map((r) => ({
+        // Stable per driver, but not the driver's real id.
+        id: crypto.createHmac('sha256', config.jwtSecret).update(r.id).digest('base64url').slice(0, 12),
         latitude: r.latitude,
         longitude: r.longitude,
+        heading: r.heading ?? null,
         vehicleId: r.vehicle_id,
+        trail: recentTrail(r.id, now),
       })),
     });
   })

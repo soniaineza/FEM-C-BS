@@ -125,6 +125,38 @@ The driver gets an in-app notification for each decision.
 verification flows end to end. Run it against a dev server started with the
 same `PAYPACK_WEBHOOK_SECRET` and `ADMIN_API_KEY`.
 
+## Pricing, routing and the demo fleet
+
+**Upfront pricing** (`src/services/pricing.js`): every fare uses the real
+road route, not the straight line, and is itemised as base + per-km +
+per-minute + booking fee, a minimum fare, surge (demand vs available cars
+within 3 km of the pickup, up to ×2.0) and the shared-ride discount, rounded
+up to 100 RWF. `GET /api/rides/quote` prices every vehicle class at once with
+the route geometry and pickup ETAs by road; each option's `quoteId` locks its
+price for 5 minutes when passed to `POST /api/rides`. Per-class rates live in
+the `vehicles` table (`per_minute`, `min_fare`, `booking_fee`).
+
+**Routing** (`src/services/routing.js`) goes through OSRM. The public
+`router.project-osrm.org` demo is for non-commercial use at up to 1
+request/second, so production must self-host: `osrm/build-rwanda.sh` builds a
+Rwanda graph from the daily Geofabrik extract (about 120 MB of RAM, a few
+minutes) and `osrm/Dockerfile` bakes it into a deployable image. Point the
+API at it with `OSRM_URL=http://<host>:5000/route/v1/driving`. Matching and
+pickup ETAs use OSRM's table service to rank nearby cars by road time.
+
+**Demo fleet** (`DEMO_FLEET=1`, refused in production): 16 simulated
+drivers drive real Kigali roads between real places and serve rides end to
+end (accept, drive to the pickup, start with the PIN, drive, complete)
+through the same code paths as the driver app. `FLEET_DEBUG=1` logs each
+car's decisions. Nearby cars and the assigned driver are served with the
+last ~12 s of their trail so the app can animate them along the road.
+
+**Tests**: `test/invariants.js` (production mode, fake Paypack/SMS, random
+walk with money/state invariants after every step), `test/smoke.js`,
+`test/wallet-flow.js`, `test/production-readiness.js`, and
+`test/jev-place-search.js`, where TypeSafe's Jev judges whether place search
+returns the place a rider meant (needs `TYPESAFE_API_KEY`).
+
 ## Wiring up the app
 
 The Flutter services under `lib/services/` (`auth_service.dart`,

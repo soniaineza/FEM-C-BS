@@ -1,6 +1,8 @@
 const { getPool } = require('../db');
+const { getTravelTimes } = require('./routing');
 const { haversineKm, bearingDegrees, bearingDiffDegrees } = require('../utils/distance');
 
+const MATCH_CANDIDATES = 8;
 const DEFAULT_MAX_MATCH_KM = 5;
 
 // Must track rideDriverOps.js's DRIVER_ACTIVE_RIDE_STATUSES — kept as a
@@ -123,21 +125,55 @@ async function findNearestDriver(ride) {
       LIMIT 100`
   );
 
-  let best = null;
-  let bestDistance = Infinity;
+  // Vehicle class: the requested class first; otherwise an upgrade (a
+  // pricier class with at least as many seats), never a downgrade. A driver
+  // with no registered vehicle counts as the cheapest class.
+  const { rows: classes } = await getPool().query('SELECT id, base_fare, capacity FROM vehicles');
+  const byId = new Map(classes.map((c) => [c.id, c]));
+  const cheapest = classes.reduce((a, c) => (!a || c.base_fare < a.base_fare ? c : a), null);
+  const wanted = byId.get(ride.vehicle_id) || cheapest;
+  const tierOf = (driver) => {
+    const cls = byId.get(driver.current_vehicle_id) || cheapest;
+    if (!wanted || !cls) return 0;
+    if (cls.id === wanted.id) return 0;
+    if (cls.base_fare >= wanted.base_fare && cls.capacity >= wanted.capacity) return 1;
+    return null; // would be a downgrade
+  };
+
+  const pickup = { latitude: ride.pickup_latitude, longitude: ride.pickup_longitude };
+  const eligible = [];
   for (const driver of rows) {
-    const dist = haversineKm(
-      ride.pickup_latitude,
-      ride.pickup_longitude,
-      driver.current_latitude,
-      driver.current_longitude
-    );
-    if (dist < bestDistance) {
-      bestDistance = dist;
-      best = driver;
-    }
+    const tier = tierOf(driver);
+    if (tier == null) continue;
+    const dist = haversineKm(pickup.latitude, pickup.longitude, driver.current_latitude, driver.current_longitude);
+    if (dist <= DEFAULT_MAX_MATCH_KM) eligible.push({ driver, tier, dist });
   }
-  if (!best || bestDistance > DEFAULT_MAX_MATCH_KM) return null;
+  if (!eligible.length) return null;
+
+  // Within the best available class, the few nearest cars as the crow flies
+  // are re-ranked by real road travel time (Kigali's hills and one-ways make
+  // straight-line distance a poor proxy); falls back to distance.
+  const bestTier = Math.min(...eligible.map((e) => e.tier));
+  const candidates = eligible
+    .filter((e) => e.tier === bestTier)
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, MATCH_CANDIDATES);
+  const times = await getTravelTimes(
+    candidates.map((c) => ({ latitude: c.driver.current_latitude, longitude: c.driver.current_longitude })),
+    pickup
+  );
+  let bestIdx = 0;
+  if (times) {
+    let bestTime = Infinity;
+    times.forEach((t, i) => {
+      if (t != null && t < bestTime) {
+        bestTime = t;
+        bestIdx = i;
+      }
+    });
+  }
+  const best = candidates[bestIdx].driver;
+  const bestDistance = candidates[bestIdx].dist;
 
   return { driver: best, distanceKm: bestDistance };
 }

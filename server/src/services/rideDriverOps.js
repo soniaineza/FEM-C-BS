@@ -6,6 +6,7 @@ const { transitionRide } = require('./rideStateMachine');
 const { generateRidePin, changeDestination, matchAndAssign } = require('./rideService');
 const { pushNotification } = require('./notify');
 const { createPaymentForRide, chargePayment } = require('./payments');
+const { recordSample } = require('./driverTrails');
 const { releaseDriver } = require('./driverMatcher');
 
 const DRIVER_ACTIVE_RIDE_STATUSES = [
@@ -82,9 +83,12 @@ async function updateDriverLocation(driverId, { latitude, longitude, heading }) 
     [driverId, latitude, longitude, heading ?? null]
   );
   await getPool().query(
-    'UPDATE drivers SET current_latitude = $2, current_longitude = $3, last_online_at = now() WHERE id = $1',
-    [driverId, latitude, longitude]
+    `UPDATE drivers SET current_latitude = $2, current_longitude = $3,
+       current_heading = COALESCE($4, current_heading), last_online_at = now()
+     WHERE id = $1`,
+    [driverId, latitude, longitude, heading ?? null]
   );
+  recordSample(driverId, { latitude, longitude, heading });
 
   // Lay down a breadcrumb for every ride this driver is currently on (a
   // pooled trip can be more than one), so each passenger can be shown the

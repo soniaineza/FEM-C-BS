@@ -53,28 +53,32 @@ async function transitionRide(
   toStatus,
   { changedBy = 'system', reason = null, db = getPool(), publish = true } = {}
 ) {
-  const { rows: current } = await db.query('SELECT * FROM rides WHERE id = $1', [rideId]);
-  const ride = current[0] || null;
-  if (!ride) throw new ApiError(404, 'Ride not found.');
-  if (ride.status === toStatus) return ride;
+  // Optimistic concurrency: the status is re-read and re-validated if a
+  // concurrent change (e.g. matching vs a rider's cancel) wins the guarded
+  // UPDATE, so a still-legal transition applies instead of failing.
+  let ride = null;
+  let updated = null;
+  for (let attempt = 0; attempt < 3 && !updated; attempt++) {
+    const { rows: current } = await db.query('SELECT * FROM rides WHERE id = $1', [rideId]);
+    ride = current[0] || null;
+    if (!ride) throw new ApiError(404, 'Ride not found.');
+    if (ride.status === toStatus) return ride;
 
-  const allowed = TRANSITIONS[ride.status] || [];
-  if (!allowed.includes(toStatus)) {
-    throw new ApiError(400, `Ride cannot move from '${ride.status}' to '${toStatus}'.`);
+    const allowed = TRANSITIONS[ride.status] || [];
+    if (!allowed.includes(toStatus)) {
+      throw new ApiError(400, `Ride cannot move from '${ride.status}' to '${toStatus}'.`);
+    }
+
+    const stampColumn = TIMESTAMP_COLUMNS[toStatus];
+    const stamp = stampColumn ? `, ${stampColumn} = now()` : '';
+    const { rows } = await db.query(
+      `UPDATE rides SET status = $1${stamp} WHERE id = $2 AND status = $3 RETURNING *`,
+      [toStatus, rideId, ride.status]
+    );
+    updated = rows[0] || null;
   }
-
-  const stampColumn = TIMESTAMP_COLUMNS[toStatus];
-  const stamp = stampColumn ? `, ${stampColumn} = now()` : '';
-
-  const { rows } = await db.query(
-    `UPDATE rides SET status = $1${stamp} WHERE id = $2 AND status = $3 RETURNING *`,
-    [toStatus, rideId, ride.status]
-  );
-  const updated = rows[0];
   if (!updated) {
-    // The ride changed status between our read and this guarded update (e.g.
-    // a passenger cancel racing a re-match). Don't record a transition that
-    // never happened.
+    // Still losing after retries: don't record a transition that never happened.
     throw new ApiError(409, 'The ride was updated at the same time. Please try again.');
   }
 
