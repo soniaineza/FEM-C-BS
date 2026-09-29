@@ -361,6 +361,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
   const lastUserGestureAt = useRef(0);
   const routeAnim = useRef<{ key: string; startedAt: number } | null>(null);
   const lastFollowAt = useRef(0);
+  const lastZoomToken = useRef(0);
   const callbacks = useRef({ onReady, onError, onPress, onCenterChanged, onUserGesture });
   callbacks.current = { onReady, onError, onPress, onCenterChanged, onUserGesture };
   sceneRef.current = scene;
@@ -522,6 +523,18 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     syncMarkers(s.markers ?? []);
     syncRoutes(s.routes ?? []);
     map.getCanvas().style.cursor = s.reportCenter ? 'grab' : '';
+
+    // +/− buttons: zoom around the current centre, and count it as a user
+    // gesture so follow/fit modes don't immediately pull the camera back.
+    const zc = s.zoomCommand;
+    if (zc && zc.token !== lastZoomToken.current) {
+      lastZoomToken.current = zc.token;
+      if (!first) {
+        lastUserGestureAt.current = Date.now();
+        const target = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), map.getZoom() + zc.delta));
+        map.easeTo({ zoom: target, duration: 250 });
+      }
+    }
 
     const cam = s.camera;
     const key = JSON.stringify([cam.mode, cam.token ?? 0, cam.center?.latitude, cam.center?.longitude, cam.zoom, cam.pitch]);

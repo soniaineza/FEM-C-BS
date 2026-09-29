@@ -693,5 +693,7 @@
   "demoPaymentsNote": "Mode démo : les paiements sont simulés et réglés instantanément, aucun argent réel n'est débité.",
   "walletBalanceShort": "Solde {amount}",
   "rideOptions": "Afficher les options de trajet",
-  "showMap": "Afficher plus de carte"
+  "showMap": "Afficher plus de carte",
+  "zoomIn": "Zoom avant",
+  "zoomOut": "Zoom arrière"
 }

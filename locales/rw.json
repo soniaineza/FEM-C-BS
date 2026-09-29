@@ -693,5 +693,7 @@
   "demoPaymentsNote": "Uburyo bw'igerageza: ubwishyu ni ubw'igerageza kandi burangira ako kanya, nta mafaranga nyayo akoreshwa.",
   "walletBalanceShort": "Asigaye {amount}",
   "rideOptions": "Erekana amahitamo y'urugendo",
-  "showMap": "Erekana ikarita nini"
+  "showMap": "Erekana ikarita nini",
+  "zoomIn": "Egereza",
+  "zoomOut": "Hindukiza"
 }

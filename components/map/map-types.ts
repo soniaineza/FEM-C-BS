@@ -84,6 +84,8 @@ export interface MapScene {
   interactive?: boolean;
   /** Render at most this devicePixelRatio (battery/perf on low-end phones). */
   maxPixelRatio?: number;
+  /** Zoom by `delta` levels; a new `token` triggers it (the +/− map buttons). */
+  zoomCommand?: { delta: number; token: number };
 }
 
 export const KIGALI_CENTER: LngLat = { latitude: -1.9441, longitude: 30.0619 };

@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -105,6 +105,7 @@ export function MapSheet({
   useEffect(() => {
     if (!canCollapse && progress.value !== 1) {
       progress.value = withSpring(1, SPRING);
+      settle(true);
       setCollapsed(false);
     }
   }, [canCollapse, progress]);
@@ -117,6 +118,13 @@ export function MapSheet({
     // A timing curve, not a spring: a spring kept wobbling by sub-pixel
     // amounts for seconds, so the sheet (and its buttons) never held still.
     enter.value = withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) });
+    // Fail-safe: Android can pause Reanimated's frame loop (app paused by a
+    // system dialog) and leave the animation stuck mid-way — translucent and
+    // offset. Setting the value directly cancels it and lands the final state.
+    const done = setTimeout(() => {
+      enter.value = 0;
+    }, 700);
+    return () => clearTimeout(done);
   }, [enter]);
   const enterStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: enter.value * 120 }],
@@ -125,8 +133,24 @@ export function MapSheet({
 
   const buzz = () => Haptics.selectionAsync().catch(() => {});
 
+  // Same fail-safe for snaps: land the target even if the spring was paused.
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settle = useCallback(
+    (expanded: boolean) => {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+      settleTimer.current = setTimeout(() => {
+        progress.value = expanded ? 1 : 0;
+      }, 900);
+    },
+    [progress]
+  );
+  useEffect(() => () => {
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+  }, []);
+
   function snap(expanded: boolean) {
     progress.value = withSpring(expanded ? 1 : 0, SPRING);
+    settle(expanded);
     buzz();
     report(expanded);
   }
@@ -151,6 +175,7 @@ export function MapSheet({
       progress.value = withSpring(expand ? 1 : 0, { ...SPRING, velocity: -e.velocityY / Math.max(1, open.value) });
       if (changed) scheduleOnRN(buzz);
       scheduleOnRN(report, expand);
+      scheduleOnRN(settle, expand);
     });
 
   const bodyStyle = useAnimatedStyle(() => {

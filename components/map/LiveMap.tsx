@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { Pressable } from '../ui/Pressable';
 import { Ionicons } from '@expo/vector-icons';
 
 import MapEngine from './MapEngine';
 import type { MapScene } from './map-types';
-import { Colors, FemColors } from '../../constants/theme';
+import { Colors, Elevation, FemColors } from '../../constants/theme';
+import { useTranslation } from '../../hooks/useTranslation';
 
 export interface LiveMapProps {
   scene: MapScene;
@@ -16,6 +18,8 @@ export interface LiveMapProps {
   retryLabel?: string;
   /** Rounded card corners when the map is embedded rather than full-screen. */
   rounded?: boolean;
+  /** Show the +/− zoom buttons (default true; hidden on non-interactive maps). */
+  zoomControls?: boolean;
 }
 
 /**
@@ -32,7 +36,13 @@ export function LiveMap({
   errorLabel = 'The map could not be loaded. Check your connection.',
   retryLabel = 'Retry',
   rounded = false,
+  zoomControls = true,
 }: LiveMapProps) {
+  const { t } = useTranslation();
+  const [zoomCommand, setZoomCommand] = useState<{ delta: number; token: number } | undefined>();
+  const zoom = (delta: number) => setZoomCommand((z) => ({ delta, token: (z?.token ?? 0) + 1 }));
+  const sceneWithZoom = useMemo(() => (zoomCommand ? { ...scene, zoomCommand } : scene), [scene, zoomCommand]);
+  const showZoom = zoomControls && scene.interactive !== false;
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -76,7 +86,7 @@ export function LiveMap({
     <View style={[styles.fill, rounded && styles.rounded]}>
       <MapEngine
         key={nonce}
-        scene={scene}
+        scene={sceneWithZoom}
         onReady={handleReady}
         onError={handleError}
         onPress={handlePress}
@@ -96,6 +106,31 @@ export function LiveMap({
           onContentProcessDidTerminate: () => retry(),
         }}
       />
+      {showZoom && ready && !error ? (
+        <View style={styles.zoom} pointerEvents="box-none">
+          <View style={[styles.zoomPill, Elevation[2]]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('zoomIn')}
+              onPress={() => zoom(1)}
+              hitSlop={4}
+              style={({ pressed }) => [styles.zoomButton, pressed && styles.zoomPressed]}
+            >
+              <Ionicons name="add" size={22} color={Colors.fg} />
+            </Pressable>
+            <View style={styles.zoomDivider} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('zoomOut')}
+              onPress={() => zoom(-1)}
+              hitSlop={4}
+              style={({ pressed }) => [styles.zoomButton, pressed && styles.zoomPressed]}
+            >
+              <Ionicons name="remove" size={22} color={Colors.fg} />
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
       {!ready && !error ? (
         <View style={[styles.overlay, styles.center]} pointerEvents="none">
           <ActivityIndicator color={FemColors.primary} />
@@ -134,5 +169,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
+  // Right edge, a third of the way down: clear of the top header controls and
+  // of the bottom sheets every map screen uses.
+  zoom: { position: 'absolute', right: 16, top: '30%' },
+  zoomPill: { backgroundColor: Colors.surface, borderRadius: 14, overflow: 'hidden' },
+  zoomButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  zoomPressed: { backgroundColor: Colors['surface-muted'] },
+  zoomDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 8, backgroundColor: Colors.border },
   retryText: { marginLeft: 6, fontSize: 14, fontWeight: '600', color: FemColors.primary },
 });

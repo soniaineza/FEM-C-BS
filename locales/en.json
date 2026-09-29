@@ -690,5 +690,7 @@
   "demoPaymentsNote": "Demo mode: payments are simulated and settle instantly — no real money moves.",
   "walletBalanceShort": "Balance {amount}",
   "rideOptions": "Show ride options",
-  "showMap": "Show more map"
+  "showMap": "Show more map",
+  "zoomIn": "Zoom in",
+  "zoomOut": "Zoom out"
 }
