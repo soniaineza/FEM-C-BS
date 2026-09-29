@@ -368,6 +368,16 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
   // ---------- one-time map setup ----------
   useEffect(() => {
     if (!container.current) return;
+    // Until the map has loaded, surface script failures (e.g. a worker that
+    // can't start inside the WebView) instead of spinning silently.
+    const reportEarly = (message: string) => {
+      if (!loadedRef.current) callbacks.current.onError?.(message);
+    };
+    const onWindowError = (e: ErrorEvent) => reportEarly(`script: ${e.message}`);
+    const onRejection = (e: PromiseRejectionEvent) =>
+      reportEarly(`promise: ${e.reason instanceof Error ? e.reason.message : String(e.reason)}`);
+    window.addEventListener('error', onWindowError);
+    window.addEventListener('unhandledrejection', onRejection);
     let map: maplibregl.Map;
     try {
       const cam = scene.camera;
@@ -391,6 +401,8 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
       });
     } catch (err) {
       callbacks.current.onError?.(err instanceof Error ? err.message : 'WebGL is not available');
+      window.removeEventListener('error', onWindowError);
+      window.removeEventListener('unhandledrejection', onRejection);
       return;
     }
     map.touchZoomRotate.disableRotation();
@@ -483,6 +495,8 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     }, 250);
 
     return () => {
+      window.removeEventListener('error', onWindowError);
+      window.removeEventListener('unhandledrejection', onRejection);
       clearInterval(tick);
       ro.disconnect();
       map.remove();

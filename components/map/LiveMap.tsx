@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -45,13 +45,26 @@ export function LiveMap({
     setReady(true);
     setError(null);
   }, []);
-  const handleError = useCallback(async (message: string) => setError(message), []);
+  const handleError = useCallback(async (message: string) => {
+    console.warn('[map] failed to load:', message);
+    setError(message);
+  }, []);
   const handlePress = useCallback(async (lat: number, lng: number) => handlers.current.onPress?.(lat, lng), []);
   const handleCenter = useCallback(
     async (lat: number, lng: number) => handlers.current.onCenterChanged?.(lat, lng),
     []
   );
   const handleGesture = useCallback(async () => handlers.current.onUserGesture?.(), []);
+
+  // Never spin forever: if the map hasn't reported ready, offer a retry.
+  useEffect(() => {
+    if (ready || error) return;
+    const timer = setTimeout(() => {
+      console.warn('[map] failed to load: timed out waiting for the map');
+      setError('timeout');
+    }, 25_000);
+    return () => clearTimeout(timer);
+  }, [ready, error, nonce]);
 
   function retry() {
     setError(null);
@@ -75,6 +88,8 @@ export function LiveMap({
           scrollEnabled: false,
           bounces: false,
           overScrollMode: 'never',
+          // Opt-in (EXPO_PUBLIC_WEBVIEW_DEBUG=1) remote inspection of the map WebView.
+          webviewDebuggingEnabled: __DEV__ || process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === '1',
           // Android can kill a backgrounded WebView renderer; remount instead
           // of leaving a frozen grey rectangle.
           onRenderProcessGone: () => retry(),

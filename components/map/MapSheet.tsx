@@ -2,9 +2,10 @@ import { ReactNode, useCallback, useEffect, useState } from 'react';
 import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   Extrapolation,
-  SlideInDown,
   interpolate,
+  withTiming,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -41,7 +42,8 @@ interface MapSheetProps {
 // Space kept clear above the sheet, under the status bar, for floating
 // controls such as the back button.
 const TOP_CLEARANCE = 72;
-const SPRING = { damping: 26, stiffness: 260, mass: 0.8 };
+// Clamped: settles exactly at the snap point instead of wobbling sub-pixel.
+const SPRING = { damping: 26, stiffness: 260, mass: 0.8, overshootClamping: true };
 const RUBBER = 0.18; // resistance past the ends
 
 /**
@@ -106,6 +108,20 @@ export function MapSheet({
       setCollapsed(false);
     }
   }, [canCollapse, progress]);
+
+  // Entrance: our own spring to translateY 0. Reanimated's SlideInDown
+  // layout animation could leave a residual offset on Android release
+  // builds, pushing the footer button under the tab bar.
+  const enter = useSharedValue(1);
+  useEffect(() => {
+    // A timing curve, not a spring: a spring kept wobbling by sub-pixel
+    // amounts for seconds, so the sheet (and its buttons) never held still.
+    enter.value = withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) });
+  }, [enter]);
+  const enterStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: enter.value * 120 }],
+    opacity: 1 - enter.value * 0.6,
+  }));
 
   const buzz = () => Haptics.selectionAsync().catch(() => {});
 
@@ -201,9 +217,8 @@ export function MapSheet({
   );
 
   return (
-    // Entrance animation and drag live on separate views: a layout animation
-    // would otherwise overwrite the drag.
-    <Animated.View entering={SlideInDown.springify().damping(22)} style={styles.anchor} pointerEvents="box-none">
+    // Entrance (anchor) and drag (sheet internals) live on separate views.
+    <Animated.View style={[styles.anchor, enterStyle]} pointerEvents="box-none">
       {floating ? (
         <View style={styles.floating} pointerEvents="box-none">
           {floating}
