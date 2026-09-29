@@ -11,6 +11,7 @@ import { updateDriverVehicle } from '../services/driver-profile-service';
 import { useTranslation } from '../hooks/useTranslation';
 import { ApiError } from '../services/driver-api-client';
 import { Colors } from '../constants/theme';
+import { CAR_COLOR_NAMES } from '../components/map/map-types';
 import { Avatar, ScreenHeader, Text } from '../components/ui';
 
 // Driver-side counterpart to app/profile-setup.tsx — gates entry into
@@ -21,16 +22,10 @@ import { Avatar, ScreenHeader, Text } from '../components/ui';
 // is useless to the matcher (driverMatcher.js denormalises vehicle_model/
 // vehicle_color/vehicle_plate straight from the drivers row onto the ride).
 // Colour names the map's 3D cars know how to paint (carModel.ts).
-const VEHICLE_COLORS: { name: string; hex: string }[] = [
-  { name: 'White', hex: '#f8fafc' },
-  { name: 'Silver', hex: '#c0c4ca' },
-  { name: 'Grey', hex: '#8b9098' },
-  { name: 'Black', hex: '#1f2937' },
-  { name: 'Red', hex: '#c8102e' },
-  { name: 'Blue', hex: '#1d4ed8' },
-  { name: 'Green', hex: '#15803d' },
-  { name: 'Yellow', hex: '#eab308' },
-];
+const VEHICLE_COLORS = ['White', 'Silver', 'Grey', 'Black', 'Red', 'Blue', 'Green', 'Yellow'].map((name) => ({
+  name,
+  hex: CAR_COLOR_NAMES[name.toLowerCase()],
+}));
 
 export default function DriverProfileSetupScreen() {
   const { t } = useTranslation();

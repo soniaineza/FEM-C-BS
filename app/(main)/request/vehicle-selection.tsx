@@ -224,14 +224,12 @@ function VehicleRow({
       onPress={onPress}
       className="mb-2.5 rounded-card bg-surface px-4 py-3.5"
       style={{
-        borderWidth: selected ? 2 : 1,
-        borderColor: selected ? Colors.primary : 'rgba(15,23,42,0.08)',
+        // Constant border width: a thicker selected border shifted the content.
+        ...(selected ? Elevation[2] : Elevation[1]),
+        borderWidth: 1.5,
+        borderColor: selected ? Colors.primary : Colors.border,
+        backgroundColor: selected ? Colors['primary-soft'] : Colors.surface,
         opacity: eta == null ? 0.55 : 1,
-        shadowColor: '#0F172A',
-        shadowOpacity: selected ? 0.1 : 0.04,
-        shadowRadius: selected ? 14 : 8,
-        shadowOffset: { width: 0, height: selected ? 6 : 3 },
-        elevation: selected ? 3 : 1,
       }}
     >
       <View className="flex-row items-center">

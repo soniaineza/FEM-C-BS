@@ -46,7 +46,7 @@ declare const tokens: {
     'large-title' | 'title-1' | 'title-2' | 'title-3' | 'headline' | 'body' | 'callout' | 'subhead' | 'footnote' | 'caption' | 'micro',
     [number, number]
   >;
-  fonts: Record<'regular' | 'medium' | 'semibold' | 'bold' | 'display' | 'displaySemibold', string>;
+  fonts: Record<'regular' | 'medium' | 'semibold' | 'bold' | 'display', string>;
   radius: Record<'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'pill', number>;
   elevation: Record<0 | 1 | 2 | 3 | 4, Shadow>;
   motion: Record<'pressScale' | 'pressOpacity' | 'fast' | 'base' | 'slow', number>;

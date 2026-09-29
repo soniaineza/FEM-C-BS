@@ -103,7 +103,6 @@ const fonts = {
   semibold: 'Inter_600SemiBold',
   bold: 'Inter_700Bold',
   display: 'Poppins_700Bold',
-  displaySemibold: 'Poppins_600SemiBold',
 };
 
 const radius = {

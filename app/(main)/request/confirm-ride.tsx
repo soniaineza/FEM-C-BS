@@ -102,7 +102,7 @@ export default function ConfirmRideScreen() {
           walletBalance == null ? (
             <Text className="mt-4 text-caption text-fg-muted">{t('checkingWalletBalance')}</Text>
           ) : walletShort ? (
-            <View className="mt-4 rounded-xl border px-3.5 py-3" style={{ backgroundColor: Colors['danger-soft'], borderColor: 'rgba(220,38,38,0.3)' }}>
+            <View className="mt-4 rounded-xl border px-3.5 py-3" style={{ backgroundColor: Colors['danger-soft'], borderColor: Colors['danger-border'] }}>
               <Text className="font-semibold text-danger">{t('insufficientWalletBalance')}</Text>
               <Text className="mt-1 text-caption text-fg-muted">
                 {t('walletBalanceLabel')}: {formatFare(walletBalance)} · {t('fare')}: {formatFare(fare)}

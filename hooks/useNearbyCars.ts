@@ -24,18 +24,28 @@ export function useNearbyCars(center: { latitude: number; longitude: number } | 
     if (!enabled || lat == null || lng == null) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastServerTime: number | undefined;
 
     async function poll() {
       const sentAt = Date.now();
       try {
-        const { drivers, serverTime } = await getNearbyDrivers({ latitude: lat!, longitude: lng! });
+        // Ask only for trail samples newer than the last poll (with 1.5 s of
+        // overlap for jitter): about a third of the payload of a full trail.
+        const { drivers, serverTime } = await getNearbyDrivers({
+          latitude: lat!,
+          longitude: lng!,
+          since: lastServerTime != null ? lastServerTime - 1500 : undefined,
+        });
+        lastServerTime = serverTime;
         if (cancelled) return;
         // serverTime was taken mid-flight; smooth it so one slow response
         // doesn't make every car jump.
         const receivedAt = Date.now();
         const sample = serverTime - (sentAt + receivedAt) / 2;
         offsetRef.current = offsetRef.current == null ? sample : offsetRef.current * 0.8 + sample * 0.2;
-        setOffset(Math.round(offsetRef.current));
+        // Only re-render for a meaningful clock change (not every poll's jitter).
+        const next = Math.round(offsetRef.current);
+        setOffset((prev) => (Math.abs(prev - next) > 40 ? next : prev));
         setCars(
           drivers.map((d) => ({
             id: d.id,

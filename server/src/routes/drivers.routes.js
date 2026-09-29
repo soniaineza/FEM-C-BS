@@ -116,6 +116,8 @@ passengerFacing.get(
         LIMIT 300`
     );
     const now = nowMs();
+    const since = Number(req.query.since);
+    const trailAgeMs = Number.isFinite(since) ? Math.min(8000, Math.max(1000, now - since)) : 8000;
     const nearby = rows
       .map((r) => ({ ...r, distanceKm: haversineKm(lat, lng, r.latitude, r.longitude) }))
       .filter((r) => r.distanceKm <= 5)
@@ -131,8 +133,9 @@ passengerFacing.get(
         heading: r.heading ?? null,
         vehicleId: r.vehicle_id,
         color: r.color ?? null,
-        // ~8 s covers the client's render delay plus a poll interval.
-        trail: recentTrail(r.id, now, 8000),
+        // ~8 s covers the client's render delay plus a poll interval; a
+        // client that sends ?since= (its last serverTime) only gets newer samples.
+        trail: recentTrail(r.id, now, trailAgeMs),
       })),
     });
   })

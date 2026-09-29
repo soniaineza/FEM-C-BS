@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
@@ -97,6 +97,15 @@ export default function HomeScreen() {
     router.push('/(main)/request/vehicle-selection');
   }
 
+  // Stable reference: a new array each render re-sent the whole map scene.
+  const pickupMarkers = useMemo(
+    () =>
+      pickup?.latitude != null && pickup?.longitude != null
+        ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
+        : [],
+    [pickup?.latitude, pickup?.longitude]
+  );
+
   async function recenterMap() {
     setMapLocating(true);
     try {
@@ -118,9 +127,7 @@ export default function HomeScreen() {
           center={mapCenter}
           zoom={mapCenter.zoom ?? 15}
           recenterToken={recenterToken}
-          markers={pickup?.latitude != null && pickup?.longitude != null
-            ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
-            : []}
+          markers={pickupMarkers}
           cars={nearbyCars}
           serverTimeOffsetMs={serverTimeOffsetMs}
           retryLabel={t('tryAgain')}

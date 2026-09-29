@@ -37,6 +37,13 @@ const SUSPENSION_C = 10;
 const tmpRot = new THREE.Matrix4();
 const tmpScale = new THREE.Matrix4();
 const tmpMove = new THREE.Matrix4();
+const tmpQuat = new THREE.Quaternion();
+const tmpProj = new THREE.Matrix4();
+const tmpOrigin = new THREE.Matrix4();
+const FLIP_Y = new THREE.Matrix4().makeScale(1, -1, 1);
+// Cars this far outside the visible map (in degrees) still animate their
+// state but aren't drawn; most of the ~40 nearby cars are usually off screen.
+const CULL_PAD_DEG = 0.004;
 
 interface Props {
   scene: MapScene;
@@ -78,6 +85,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
   renderingMode = '3d' as const;
   cars = new Map<string, CarEntry>();
   serverOffsetMs = 0;
+  assignedCount = 0;
   private map!: maplibregl.Map;
   private renderer!: THREE.WebGLRenderer;
   private camera = new THREE.Camera();
@@ -168,6 +176,8 @@ class CarLayer implements maplibregl.CustomLayerInterface {
         this.cars.delete(id);
       }
     }
+    this.assignedCount = 0;
+    for (const entry of this.cars.values()) if (entry.assigned) this.assignedCount++;
     this.map?.triggerRepaint();
   }
 
@@ -189,6 +199,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
     const origin = maplibregl.MercatorCoordinate.fromLngLat(this.map.getCenter(), 0);
 
     // Frame time for time-based smoothing (the loop runs at 4–30 fps).
+    const bounds = this.map.getBounds();
     const dt = Math.min(0.25, Math.max(0.001, (now - (this.lastRenderAt || now - 33)) / 1000));
     this.lastRenderAt = now;
 
@@ -196,13 +207,26 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       const st = entry.track.sample(t);
       if (!st) continue;
       moving = moving || st.moving;
+      if (
+        !entry.assigned &&
+        (st.lat < bounds.getSouth() - CULL_PAD_DEG || st.lat > bounds.getNorth() + CULL_PAD_DEG ||
+          st.lng < bounds.getWest() - CULL_PAD_DEG || st.lng > bounds.getEast() + CULL_PAD_DEG)
+      ) {
+        // Off screen: keep its state current, skip the drawing work.
+        entry.group.visible = false;
+        entry.lat = st.lat;
+        entry.lng = st.lng;
+        entry.heading = st.heading;
+        continue;
+      }
+      entry.group.visible = true;
       const movedM = st.lat !== entry.lat || st.lng !== entry.lng ? distanceM(entry.lat, entry.lng, st.lat, st.lng) : 0;
       // Turn the wheels by the distance covered (scaled with the drawn size).
       const wheels = entry.group.userData.wheels as THREE.Object3D[] | undefined;
       if (wheels?.length && movedM > 0 && movedM < 30) {
         entry.wheelAngle = (entry.wheelAngle + movedM / (entry.group.userData.wheelRadiusM * entry.scale)) % (Math.PI * 2);
-        const roll = new THREE.Quaternion().setFromAxisAngle(X_AXIS, entry.wheelAngle);
-        for (const w of wheels) w.quaternion.copy(roll).multiply(w.userData.baseQuaternion);
+        tmpQuat.setFromAxisAngle(X_AXIS, entry.wheelAngle);
+        for (const w of wheels) w.quaternion.copy(tmpQuat).multiply(w.userData.baseQuaternion);
       }
       entry.lat = st.lat;
       entry.lng = st.lng;
@@ -272,20 +296,22 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       }
     }
 
-    this.camera.projectionMatrix = new THREE.Matrix4()
+    this.camera.projectionMatrix = tmpProj
       .fromArray(args.defaultProjectionData.mainMatrix as unknown as number[])
-      .multiply(new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z))
-      .multiply(new THREE.Matrix4().makeScale(1, -1, 1));
+      .multiply(tmpOrigin.makeTranslation(origin.x, origin.y, origin.z))
+      .multiply(FLIP_Y);
     this.renderer.resetState();
     this.renderer.render(this.scene, this.camera);
 
-    // ~30 fps while anything moves or pulses; idle maps cost nothing.
+    // ~30 fps while anything moves or pulses at street zooms; ~15 fps
+    // zoomed out (car motion is sub-pixel there); idle maps cost nothing.
     if (this.cars.size && !this.nextFrame) {
-      const hasAssigned = [...this.cars.values()].some((c) => c.assigned);
+      const active = moving || this.assignedCount > 0;
+      const interval = !active ? 250 : zoom >= 14.5 || this.assignedCount > 0 ? 33 : 66;
       this.nextFrame = setTimeout(() => {
         this.nextFrame = null;
         this.map.triggerRepaint();
-      }, moving || hasAssigned ? 33 : 250);
+      }, interval);
     }
   }
 }

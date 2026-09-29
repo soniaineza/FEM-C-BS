@@ -223,9 +223,12 @@ export interface NearbyDriver {
 export async function getNearbyDrivers(params: {
   latitude: number;
   longitude: number;
+  /** Server time of the previous poll: only trail samples after it are sent. */
+  since?: number;
 }): Promise<{ drivers: NearbyDriver[]; serverTime: number }> {
+  const since = params.since != null ? `&since=${Math.round(params.since)}` : '';
   const json = await apiClient.get<{ drivers: NearbyDriver[]; serverTime?: number }>(
-    `/drivers/nearby?lat=${params.latitude}&lng=${params.longitude}`
+    `/drivers/nearby?lat=${params.latitude}&lng=${params.longitude}${since}`
   );
   return { drivers: json.drivers ?? [], serverTime: json.serverTime ?? Date.now() };
 }

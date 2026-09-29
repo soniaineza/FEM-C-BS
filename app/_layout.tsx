@@ -8,13 +8,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { DialogHost } from '../components/DialogHost';
 import * as SplashScreen from 'expo-splash-screen';
 import { Platform, BackHandler } from 'react-native';
-import {
-  useFonts,
-  Poppins_400Regular,
-  Poppins_500Medium,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
+import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -49,9 +43,7 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    Poppins_400Regular,
-    Poppins_500Medium,
-    Poppins_600SemiBold,
+    // Only the display weight is used (titles); every other weight is Inter.
     Poppins_700Bold,
   });
 

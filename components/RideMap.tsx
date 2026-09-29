@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { LiveMap } from './map/LiveMap';
 import type { MapCar, MapMarker, MapScene } from './map/map-types';
@@ -38,7 +38,7 @@ interface RideMapProps {
  * Leaflet raster tiles from tile.openstreetmap.org, whose usage policy
  * doesn't allow heavy use by apps. A 'driver' marker becomes a 3D car.
  */
-export function RideMap({
+export const RideMap = memo(function RideMap({
   center,
   zoom = 15,
   markers = [],
@@ -84,4 +84,4 @@ export function RideMap({
       errorLabel={errorLabel}
     />
   );
-}
+});

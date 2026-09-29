@@ -169,7 +169,7 @@ export default function DriverJourneyScreen() {
     return (
       <SafeAreaViewPlaceholder className="flex-1 bg-surface">
         <View className="flex-1 items-center justify-center px-8">
-          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(220,38,38,0.1)' }}>
+          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: Colors['danger-soft'] }}>
             <Ionicons name="close" size={32} color={Colors.danger} />
           </View>
           <Text className="mt-4 text-title-2 text-fg font-display">{t('driverRideCancelledTitle')}</Text>
