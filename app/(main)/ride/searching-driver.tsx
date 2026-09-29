@@ -98,7 +98,7 @@ export default function SearchingDriverScreen() {
         >
           <Ionicons name="car-outline" size={36} color="#16A34A" />
         </View>
-        <Text className="mt-5 text-xl font-bold text-ink">{t('searchTimedOutTitle')}</Text>
+        <Text className="mt-5 text-xl text-ink font-display">{t('searchTimedOutTitle')}</Text>
         <Text className="mt-2 text-center leading-relaxed text-text-secondary">{t('searchTimedOutBody')}</Text>
         <View className="mt-8 w-full">
           <Button title={t('backHome')} onPress={() => router.replace('/(main)/(tabs)')} />

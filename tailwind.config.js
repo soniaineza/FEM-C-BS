@@ -36,10 +36,11 @@ module.exports = {
         DEFAULT: '12px',
       },
       fontFamily: {
-        sans: ['Poppins_400Regular'],
-        medium: ['Poppins_500Medium'],
-        semibold: ['Poppins_600SemiBold'],
-        bold: ['Poppins_700Bold'],
+        sans: ['Inter_400Regular'],
+        medium: ['Inter_500Medium'],
+        semibold: ['Inter_600SemiBold'],
+        bold: ['Inter_700Bold'],
+        display: ['Poppins_700Bold'],
       },
       spacing: {
         button: '52px',

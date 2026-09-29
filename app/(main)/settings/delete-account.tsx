@@ -36,7 +36,7 @@ export default function DeleteAccountScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
-        <Text className="mt-6 text-xl font-bold text-error">{t('deleteYourAccount')}</Text>
+        <Text className="mt-6 text-xl text-error font-display">{t('deleteYourAccount')}</Text>
         <Text className="mt-3 text-text-secondary">{t('deleteAccountBody')}</Text>
 
         <Pressable className="mt-6 flex-row items-start" onPress={() => setConfirmed((v) => !v)}>

@@ -58,7 +58,7 @@ export default function DriverWelcomeScreen() {
       </View>
 
       <View className="justify-center px-6" style={{ flex: 5 }}>
-        <Text className="text-center text-2xl font-bold leading-tight text-ink">{t('driverTagline')}</Text>
+        <Text className="text-center text-2xl leading-tight text-ink font-display">{t('driverTagline')}</Text>
         <Text className="mt-2.5 text-center leading-relaxed text-text-secondary">{t('driverTaglineSub')}</Text>
 
         <View className="mt-7">

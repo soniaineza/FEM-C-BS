@@ -55,7 +55,7 @@ export default function EditProfileScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('editProfile')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('editProfile')}</Text>
 
         <View className="mt-6 gap-4">
           <Input label={t('fullName')} value={fullName} onChangeText={setFullName} autoCapitalize="words" />

@@ -1,6 +1,13 @@
 # FEM C@BS functionality completion plan
 
-Updated: 2026-09-28. This is a work plan and acceptance checklist, not a claim that every screen has passed on a physical phone. Check a box only after the named behavior has been observed and its evidence recorded in a PR or release note.
+Updated: 2026-09-29. This is a work plan and acceptance checklist, not a claim that every screen has passed on a physical phone. Check a box only after the named behavior has been observed and its evidence recorded in a PR or release note.
+
+## Latest local evidence
+
+- The isolated local API and PostgreSQL test stack passed all 10 existing Playwright tests. After the screen changes, the focused driver account, map-focused Home, and geocoded saved-place tests passed (3/3). These are browser checks, not Android or provider checks.
+- TypeScript and translation checks passed. A rendered web heading resolved to `Poppins_700Bold`; Inter remains the body and control font.
+- Jev selected the compact persistent map booking panel, inline errors with retry, geocoded saved places, and Inter body text with Poppins major headings. The review questions and redacted product state are in `tests/jev/screen-design-decisions.mjs`; the API key stays outside the repository.
+- Expo's universal Tailwind guidance supports NativeWind for Android and web. The app already uses NativeWind, so the current visual work extends its shared type tokens instead of adding a second UI system. Reassess components only after testing actual short-phone screens.
 
 ## Product target
 

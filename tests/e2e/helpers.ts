@@ -108,6 +108,17 @@ export async function signInPassenger(page: Page, p: Passenger) {
   }, [p.token, p.id]);
 }
 
+/** Signs the browser into the driver experience with an existing fixture. */
+export async function signInDriver(page: Page, driver: Driver) {
+  await page.addInitScript(([token, id]) => {
+    localStorage.setItem('driver_auth_token', token);
+    localStorage.setItem('driver_auth_driver_id', id);
+    localStorage.setItem('fem_locale', 'en');
+    localStorage.setItem('fem_locale_chosen', '1');
+    localStorage.setItem('app_mode', 'driver');
+  }, [driver.token, driver.id]);
+}
+
 /** Fresh visitor in English: no session, language already chosen or not. */
 export async function freshVisitor(page: Page, { languageChosen = true, mode = 'passenger' } = {}) {
   await page.addInitScript(([chosen, m]) => {

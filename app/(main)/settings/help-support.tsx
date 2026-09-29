@@ -34,7 +34,7 @@ export default function HelpSupportScreen() {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
 
   useEffect(() => {
-    getTickets().then(setTickets);
+    getTickets().then(setTickets).catch(() => setError(t('requestFailed')));
   }, []);
 
   async function handleSend() {
@@ -57,7 +57,7 @@ export default function HelpSupportScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('helpSupportTitle')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('helpSupportTitle')}</Text>
         <Text className="mt-1 text-text-secondary">{t('helpIntro')}</Text>
 
         <View className="mt-4">
@@ -101,6 +101,7 @@ export default function HelpSupportScreen() {
             </View>
           </View>
         )}
+
 
         {tickets.length > 0 ? (
           <>

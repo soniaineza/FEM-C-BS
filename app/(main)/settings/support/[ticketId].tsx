@@ -29,14 +29,18 @@ export default function TicketThreadScreen() {
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
 
   function load() {
-    if (!ticketId) return;
+    if (!ticketId) { setLoading(false); setError(t('requestFailed')); return; }
+    setLoading(true);
+    setError(undefined);
     getTicketWithMessages(ticketId)
       .then(({ ticket, messages }) => {
         setTicket(ticket);
         setMessages(messages);
       })
+      .catch(() => setError(t('requestFailed')))
       .finally(() => setLoading(false));
   }
 
@@ -49,6 +53,8 @@ export default function TicketThreadScreen() {
       await replyToTicket(ticketId, reply.trim());
       setReply('');
       load();
+    } catch {
+      setError(t('messageSendFailed'));
     } finally {
       setSending(false);
     }
@@ -56,8 +62,16 @@ export default function TicketThreadScreen() {
 
   if (loading || !ticket) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator color="#16A34A" />
+      <SafeAreaViewPlaceholder className="flex-1 bg-white">
+        <View className="flex-1 px-6 pt-2">
+          <BackHeader />
+          {loading ? <ActivityIndicator className="mt-10" color="#16A34A" /> : (
+            <View className="mt-10 gap-4">
+              <Text className="text-center text-error">{error ?? t('requestFailed')}</Text>
+              <Button title={t('tryAgain')} variant="outline" onPress={load} />
+            </View>
+          )}
+        </View>
       </SafeAreaViewPlaceholder>
     );
   }
@@ -69,6 +83,7 @@ export default function TicketThreadScreen() {
         <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{ticket.subject}</Text>
         <Text className="mt-1 text-sm text-text-secondary">{t((STATUS_KEYS[ticket.status] ?? ticket.status) as any)}</Text>
+        {error ? <Text className="mt-2 text-sm text-error">{error}</Text> : null}
 
         <FlatList
           className="mt-4"

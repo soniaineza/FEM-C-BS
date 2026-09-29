@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useTranslation } from '../../../hooks/useTranslation';
+import { Button } from '../../../components/Button';
 import { getDriverEarningsSummary, getDriverEarningsHistory } from '../../../services/driver-profile-service';
 import { DriverEarningEntry, DriverEarningsSummary } from '../../../types/driver';
 import { formatFare } from '../../../types/ride';
@@ -30,24 +31,35 @@ export default function DriverWalletScreen() {
   const [summary, setSummary] = useState<DriverEarningsSummary | null>(null);
   const [history, setHistory] = useState<DriverEarningEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
+    setError(undefined);
     Promise.all([getDriverEarningsSummary(), getDriverEarningsHistory()])
       .then(([s, h]) => {
         setSummary(s);
         setHistory(h);
       })
+      .catch(() => setError(t('requestFailed')))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { load(); }, []);
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
       <View className="px-5 pb-3 pt-4">
-        <Text className="text-xl font-bold text-ink">{t('wallet')}</Text>
+        <Text className="text-xl text-ink font-display">{t('wallet')}</Text>
       </View>
 
       {loading ? (
         <ActivityIndicator className="mt-8" color="#16A34A" />
+      ) : error ? (
+        <View className="mt-8 gap-4 px-5">
+          <Text className="text-center text-error">{error}</Text>
+          <Button title={t('tryAgain')} variant="outline" onPress={load} />
+        </View>
       ) : (
         <ScrollView contentContainerClassName="px-5 pb-8">
           <View

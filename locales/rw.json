@@ -675,5 +675,6 @@
   "payCashInstead": "Ishyura amafaranga mu ntoki",
   "driverPaymentPending": "Hategerejwe kwemeza ubwishyu bw'umugenzi.",
   "driverLocationUnavailable": "Aho umushoferi ari ntihaboneka ubu. Muhamagare umubaze amakuru.",
-  "cashFallbackUnavailable": "Kwishyura amafaranga mu ntoki bishoboka nyuma yo kwemeza ko ubwishyu bwa mbere bwanze. Vugisha ubufasha niba bikenewe."
+  "cashFallbackUnavailable": "Kwishyura amafaranga mu ntoki bishoboka nyuma yo kwemeza ko ubwishyu bwa mbere bwanze. Vugisha ubufasha niba bikenewe.",
+  "savedPlaceSelectResult": "Andika izina maze uhitemo aderesi mu bisubizo by'ishakisha."
 }

@@ -51,8 +51,10 @@ export default function DriverDocumentsScreen() {
 
   function load() {
     setLoading(true);
+    setError(undefined);
     getDriverDocuments()
       .then(setDocuments)
+      .catch(() => setError(t('requestFailed')))
       .finally(() => setLoading(false));
   }
 
@@ -79,11 +81,16 @@ export default function DriverDocumentsScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('documents')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('documents')}</Text>
         <Text className="mt-1 text-sm text-text-secondary">{t('driverDocumentsIntro')}</Text>
 
         {loading ? (
           <ActivityIndicator className="mt-6" color="#16A34A" />
+        ) : error ? (
+          <View className="mt-6 gap-3">
+            <ErrorMessage message={error} />
+            <Button title={t('tryAgain')} variant="outline" onPress={load} />
+          </View>
         ) : documents.length === 0 ? (
           <Text className="mt-6 text-sm text-text-secondary">{t('driverNoDocumentsYet')}</Text>
         ) : (

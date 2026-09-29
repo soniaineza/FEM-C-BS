@@ -12,7 +12,7 @@ export default function PrivacyScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('privacyPolicyTitle')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('privacyPolicyTitle')}</Text>
         {SECTIONS.map((n) => (
           <View key={n} className="mt-5">
             <Text className="text-base font-semibold text-ink">{t(`privacySection${n}Title` as any)}</Text>

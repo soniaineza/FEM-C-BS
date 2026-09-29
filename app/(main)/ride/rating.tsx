@@ -40,7 +40,7 @@ export default function RatingScreen() {
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
-        <Text className="mt-4 text-2xl font-bold text-ink">{t('howWasRide')}</Text>
+        <Text className="mt-4 text-2xl text-ink font-display">{t('howWasRide')}</Text>
 
         <View className="mt-6 flex-row justify-center gap-2">
           {[1, 2, 3, 4, 5].map((n) => (

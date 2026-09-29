@@ -12,7 +12,7 @@ export default function TermsScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('termsOfServiceTitle')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('termsOfServiceTitle')}</Text>
         {SECTIONS.map((n) => (
           <View key={n} className="mt-5">
             <Text className="text-base font-semibold text-ink">{t(`termsSection${n}Title` as any)}</Text>

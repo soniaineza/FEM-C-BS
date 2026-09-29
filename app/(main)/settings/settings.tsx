@@ -26,7 +26,7 @@ export default function SettingsScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
       <ScrollView contentContainerClassName="px-5 pb-6 pt-2">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('settings')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('settings')}</Text>
 
         <View className="mt-4">
           <MenuTile icon="notifications-outline" label={t('notifications')} onPress={() => router.push('/(main)/settings/notifications')} />

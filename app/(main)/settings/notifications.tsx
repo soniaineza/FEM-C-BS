@@ -3,6 +3,7 @@ import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
 import { BackHeader } from '../../../components/BackHeader';
+import { Button } from '../../../components/Button';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getNotifications, markAsRead, markAllRead } from '../../../services/notification-service';
 import { NotificationItem } from '../../../types/notification';
@@ -11,11 +12,14 @@ export default function NotificationsScreen() {
   const { t } = useTranslation();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
 
   function load() {
     setLoading(true);
+    setError(undefined);
     getNotifications()
       .then(setItems)
+      .catch(() => setError(t('requestFailed')))
       .finally(() => setLoading(false));
   }
 
@@ -23,8 +27,10 @@ export default function NotificationsScreen() {
 
   async function handleOpen(item: NotificationItem) {
     if (!item.read) {
-      await markAsRead(item.id);
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, read: true } : i)));
+      try {
+        await markAsRead(item.id);
+        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, read: true } : i)));
+      } catch { setError(t('requestFailed')); }
     }
   }
 
@@ -33,12 +39,14 @@ export default function NotificationsScreen() {
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
         <View className="mt-2 flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-ink">{t('notifications')}</Text>
+          <Text className="text-xl text-ink font-display">{t('notifications')}</Text>
           {items.some((i) => !i.read) ? (
             <Pressable
               onPress={async () => {
-                await markAllRead();
-                setItems((prev) => prev.map((i) => ({ ...i, read: true })));
+                try {
+                  await markAllRead();
+                  setItems((prev) => prev.map((i) => ({ ...i, read: true })));
+                } catch { setError(t('requestFailed')); }
               }}
             >
               <Text className="text-sm text-primary">{t('markAllRead')}</Text>
@@ -46,8 +54,15 @@ export default function NotificationsScreen() {
           ) : null}
         </View>
 
+        {error && items.length > 0 ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
+
         {loading ? (
           <ActivityIndicator className="mt-8" color="#16A34A" />
+        ) : error && items.length === 0 ? (
+          <View className="mt-8 gap-4">
+            <Text className="text-center text-error">{error}</Text>
+            <Button title={t('tryAgain')} variant="outline" onPress={load} />
+          </View>
         ) : items.length === 0 ? (
           <View className="mt-8 items-center">
             <Text className="text-base font-medium text-ink">{t('noNotificationsYet')}</Text>

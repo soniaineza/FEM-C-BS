@@ -3,6 +3,7 @@ import { View, Text, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
 import { BackHeader } from '../../../components/BackHeader';
+import { Button } from '../../../components/Button';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getDriverPayouts } from '../../../services/driver-profile-service';
 import { DriverPayout } from '../../../types/driver';
@@ -28,21 +29,32 @@ export default function DriverPayoutsScreen() {
   const { t } = useTranslation();
   const [payouts, setPayouts] = useState<DriverPayout[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
+    setError(undefined);
     getDriverPayouts()
       .then(setPayouts)
+      .catch(() => setError(t('requestFailed')))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { load(); }, []);
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('driverPayouts')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('driverPayouts')}</Text>
 
         {loading ? (
           <ActivityIndicator className="mt-8" color="#16A34A" />
+        ) : error ? (
+          <View className="mt-8 gap-4">
+            <Text className="text-center text-error">{error}</Text>
+            <Button title={t('tryAgain')} variant="outline" onPress={load} />
+          </View>
         ) : payouts.length === 0 ? (
           <Text className="mt-8 text-text-secondary">{t('driverNoPayoutsYet')}</Text>
         ) : (

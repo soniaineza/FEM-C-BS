@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   },
   digit: {
     fontSize: 22,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'Inter_600SemiBold',
     color: FemColors.ink,
     textAlign: 'center',
     padding: 0,

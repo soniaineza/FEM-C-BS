@@ -78,7 +78,7 @@ export default function VerificationScreen() {
         contentContainerClassName="flex-grow justify-center px-6 pb-10 pt-2"
       >
         <View className="w-full max-w-[440px] self-center">
-          <Text className="text-center text-2xl font-bold text-ink">{t('verifyAccount')}</Text>
+          <Text className="text-center text-2xl text-ink font-display">{t('verifyAccount')}</Text>
           <Text className="mt-2 text-center leading-relaxed text-text-secondary">
             {t('verificationCodeSent')}
           </Text>

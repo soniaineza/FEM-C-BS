@@ -68,7 +68,7 @@ export default function WelcomeScreen() {
       </View>
 
       <View className="justify-center px-6 flex-5">
-        <Text className="text-center text-2xl font-bold leading-tight text-ink">{t('tagline')}</Text>
+        <Text className="text-center text-2xl leading-tight text-ink font-display">{t('tagline')}</Text>
         <Text className="mt-2.5 text-center leading-relaxed text-text-secondary">{t('safeReliableRides')}</Text>
 
         <View className="mt-7">

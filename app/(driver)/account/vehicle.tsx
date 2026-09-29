@@ -25,7 +25,9 @@ export default function DriverVehicleScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
+    setError(undefined);
     getDriverVehicle()
       .then((v) => {
         setVehicle(v);
@@ -36,7 +38,13 @@ export default function DriverVehicleScreen() {
         setPlate(v.plate);
         setLicenseNumber(v.licenseNumber);
       })
+      .catch((err) => setError(err instanceof ApiError ? err.message : t('requestFailed')))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSave() {
@@ -65,8 +73,16 @@ export default function DriverVehicleScreen() {
 
   if (loading || !vehicle) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator color="#16A34A" />
+      <SafeAreaViewPlaceholder className="flex-1 bg-white">
+        <View className="flex-1 px-6 pt-2">
+          <BackHeader />
+          {loading ? <ActivityIndicator className="mt-10" color="#16A34A" /> : (
+            <View className="mt-10 gap-4">
+              <ErrorMessage message={error ?? t('requestFailed')} />
+              <Button title={t('tryAgain')} variant="outline" onPress={load} />
+            </View>
+          )}
+        </View>
       </SafeAreaViewPlaceholder>
     );
   }
@@ -75,7 +91,7 @@ export default function DriverVehicleScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('driverYourVehicle')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('driverYourVehicle')}</Text>
 
         <View className="mt-6 gap-4">
           <Input label={t('driverMake')} value={make} onChangeText={setMake} prefixIcon="car-outline" />

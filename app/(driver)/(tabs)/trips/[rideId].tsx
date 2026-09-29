@@ -49,7 +49,7 @@ export default function DriverTripDetailScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('rideDetails')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('rideDetails')}</Text>
 
         <View className="mt-4 gap-2 rounded-2xl border border-border p-4">
           <Text className="text-ink">{ride.pickup.address}</Text>

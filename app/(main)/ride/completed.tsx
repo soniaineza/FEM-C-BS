@@ -12,15 +12,29 @@ export default function CompletedScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const [ride, setRide] = useState<Ride | null>(null);
+  const [error, setError] = useState<string | undefined>();
+
+  function load() {
+    if (!rideId) { setError(t('requestFailed')); return; }
+    setError(undefined);
+    getRideDetails(rideId).then(setRide).catch(() => setError(t('requestFailed')));
+  }
 
   useEffect(() => {
-    if (rideId) getRideDetails(rideId).then(setRide);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rideId]);
 
   if (!ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator color="#16A34A" />
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white px-6">
+        {error ? (
+          <View className="w-full gap-4">
+            <Text className="text-center text-error">{error}</Text>
+            <Button title={t('tryAgain')} variant="outline" onPress={load} />
+            <Button title={t('backHome')} variant="text" onPress={() => router.replace('/(main)/(tabs)')} />
+          </View>
+        ) : <ActivityIndicator color="#16A34A" />}
       </SafeAreaViewPlaceholder>
     );
   }
@@ -28,7 +42,7 @@ export default function CompletedScreen() {
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-10">
-        <Text className="text-2xl font-bold text-primary">{t('tripCompleted')}</Text>
+        <Text className="text-2xl text-primary font-display">{t('tripCompleted')}</Text>
 
         <View className="mt-6 rounded border border-border p-4">
           <Text className="text-ink">{ride.pickup.address}</Text>

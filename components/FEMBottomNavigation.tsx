@@ -134,9 +134,9 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 10.5,
     marginTop: 2,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Inter_400Regular',
   },
   labelActive: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'Inter_600SemiBold',
   },
 });

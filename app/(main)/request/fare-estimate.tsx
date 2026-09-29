@@ -96,7 +96,7 @@ export default function FareEstimateScreen() {
       </SafeAreaView>
 
       <MapSheet
-        header={<Text className="mb-3 text-xl font-bold text-ink">{t('rideSummary')}</Text>}
+        header={<Text className="mb-3 text-xl text-ink font-display">{t('rideSummary')}</Text>}
         footer={
           <Button
             title={estimate ? `${t('continueLabel')} · ${formatFare(estimate.estimatedFare)}` : t('continueLabel')}

@@ -64,7 +64,7 @@ export default function WalletTopUpScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pb-10">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('topUpTitle')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('topUpTitle')}</Text>
         <Text className="mt-1 text-sm text-text-secondary">{t('topUpSubtitle')}</Text>
 
         {!topup ? (

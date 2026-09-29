@@ -44,7 +44,7 @@ export default function DriverLoginScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
         <BackHeader />
-        <Text className="mt-4 text-2xl font-bold text-ink">{t('driverWelcomeBack')}</Text>
+        <Text className="mt-4 text-2xl text-ink font-display">{t('driverWelcomeBack')}</Text>
         <Text className="mt-1 text-text-secondary">{t('driverLoginSubtitle')}</Text>
 
         <View className="mt-8 gap-4">

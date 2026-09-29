@@ -66,7 +66,7 @@ export default function ForgotPasswordScreen() {
         <BackHeader />
         {stage === 'request' && (
           <>
-            <Text className="text-2xl font-bold text-ink">{t('forgotPassword')}</Text>
+            <Text className="text-2xl text-ink font-display">{t('forgotPassword')}</Text>
             <Text className="mt-1 text-text-secondary">{t('forgotPasswordDescription')}</Text>
             <View className="mt-6 gap-4">
               <Input
@@ -89,7 +89,7 @@ export default function ForgotPasswordScreen() {
             <View className="items-center">
               <Ionicons name="mail-open-outline" size={56} color="#16A34A" />
             </View>
-            <Text className="mt-4 text-2xl font-bold text-ink">{t('codeArrivalHint')}</Text>
+            <Text className="mt-4 text-2xl text-ink font-display">{t('codeArrivalHint')}</Text>
             <Text className="mt-2 leading-relaxed text-text-secondary">{t('checkPhoneOrEmail')}</Text>
             {devCode ? (
               <View className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
@@ -134,7 +134,7 @@ export default function ForgotPasswordScreen() {
             <View className="items-center pt-6">
               <Ionicons name="checkmark-circle-outline" size={64} color="#16A34A" />
             </View>
-            <Text className="mt-5 text-center text-xl font-bold text-ink">{t('passwordResetDone')}</Text>
+            <Text className="mt-5 text-center text-xl text-ink font-display">{t('passwordResetDone')}</Text>
             <View className="mt-7">
               <Button
                 title={t('backToLogin')}

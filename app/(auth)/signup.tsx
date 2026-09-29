@@ -54,7 +54,7 @@ export default function SignupScreen() {
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
         <View className="w-full max-w-[440px] self-center">
         <BackHeader />
-        <Text className="mt-4 text-2xl font-bold text-ink">{t('createAccount')}</Text>
+        <Text className="mt-4 text-2xl text-ink font-display">{t('createAccount')}</Text>
         <Text className="mt-1 text-text-secondary">{t('lessThanMinute')}</Text>
 
         <View className="mt-8 gap-4">

@@ -71,7 +71,7 @@ export default function ConfirmRideScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
         <BackHeader />
-        <Text className="mt-1 text-xl font-bold text-ink">{t('confirmRide')}</Text>
+        <Text className="mt-1 text-xl text-ink font-display">{t('confirmRide')}</Text>
 
         <View className="mt-4 gap-2 rounded border border-border p-4">
           <Text className="text-ink">{pickup.address}</Text>

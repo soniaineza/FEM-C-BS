@@ -63,7 +63,7 @@ export default function DriverProfileSetupScreen() {
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-6 pb-8">
-        <Text className="text-xl font-bold text-ink">{t('driverCompleteProfile')}</Text>
+        <Text className="text-xl text-ink font-display">{t('driverCompleteProfile')}</Text>
 
         <View className="mt-6 items-center">
           <View

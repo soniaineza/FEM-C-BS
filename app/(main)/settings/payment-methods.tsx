@@ -13,7 +13,7 @@ export default function PaymentMethodsScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{t('paymentMethods')}</Text>
+        <Text className="mt-2 text-xl text-ink font-display">{t('paymentMethods')}</Text>
 
         <FlatList
           className="mt-4"

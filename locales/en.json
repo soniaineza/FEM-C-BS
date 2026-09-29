@@ -672,5 +672,6 @@
   "payCashInstead": "Pay cash instead",
   "driverPaymentPending": "Waiting for the rider's payment to be confirmed.",
   "driverLocationUnavailable": "Live driver location is unavailable. Call your driver for an update.",
-  "cashFallbackUnavailable": "Cash is available after the previous charge is confirmed failed. Contact support if needed."
+  "cashFallbackUnavailable": "Cash is available after the previous charge is confirmed failed. Contact support if needed.",
+  "savedPlaceSelectResult": "Enter a name and choose an address from the search results."
 }

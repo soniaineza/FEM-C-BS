@@ -49,7 +49,7 @@ export default function DriverJourneyScreen() {
     if (!ride) return;
     getRoute({ from: ride.pickup, to: ride.destination }).then((route) => {
       setRoutePoints(route?.points ?? []);
-    });
+    }).catch(() => setRoutePoints([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ride?.id]);
 
@@ -138,7 +138,7 @@ export default function DriverJourneyScreen() {
           <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
             <Ionicons name="checkmark" size={32} color="#16A34A" />
           </View>
-          <Text className="mt-4 text-xl font-bold text-ink">{t('driverTripComplete')}</Text>
+          <Text className="mt-4 text-xl text-ink font-display">{t('driverTripComplete')}</Text>
           <Text className="mt-1 text-3xl font-bold text-primary">{formatFare(fare)}</Text>
           <Text className="mt-1 text-sm text-text-secondary">
             {method === 'cash' ? t('driverCollectCash') : t('driverPaymentPending')}
@@ -167,7 +167,7 @@ export default function DriverJourneyScreen() {
           <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(220,38,38,0.1)' }}>
             <Ionicons name="close" size={32} color="#DC2626" />
           </View>
-          <Text className="mt-4 text-xl font-bold text-ink">{t('driverRideCancelledTitle')}</Text>
+          <Text className="mt-4 text-xl text-ink font-display">{t('driverRideCancelledTitle')}</Text>
           <Text className="mt-1 text-center text-sm text-text-secondary">
             {ride.cancelledBy === 'passenger' ? t('driverRiderCancelledBody') : t('driverTripCancelledBody')}
           </Text>

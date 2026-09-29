@@ -59,7 +59,7 @@ export default function RideTypeScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-2">
         <BackHeader />
-        <Text className="mt-1 text-xl font-bold text-ink">{t('chooseRideType')}</Text>
+        <Text className="mt-1 text-xl text-ink font-display">{t('chooseRideType')}</Text>
         <Text className="mt-1 text-sm text-text-secondary">{t('rideTypeHint')}</Text>
 
         <OptionCard

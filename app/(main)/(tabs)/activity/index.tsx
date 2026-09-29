@@ -76,7 +76,7 @@ export default function RideHistoryScreen() {
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
       <View className="flex-1 px-6 pt-4">
-        <Text className="text-2xl font-bold text-ink">{t('myRides')}</Text>
+        <Text className="text-2xl text-ink font-display">{t('myRides')}</Text>
 
         {/* Segmented control: pill background on the active tab, equal flex
             widths so all locales fit without truncation on 320px screens. */}

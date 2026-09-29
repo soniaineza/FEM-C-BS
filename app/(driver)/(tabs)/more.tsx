@@ -26,7 +26,7 @@ export default function DriverMoreScreen() {
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
       <ScrollView contentContainerClassName="px-5 pb-6 pt-6">
-        <Text className="text-xl font-bold text-ink">{t('account')}</Text>
+        <Text className="text-xl text-ink font-display">{t('account')}</Text>
 
         <View className="mt-4 flex-row items-center rounded-2xl border border-border bg-white p-4">
           <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>

@@ -15,6 +15,12 @@ import {
   Poppins_600SemiBold,
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLocaleStore } from '../stores/useLocaleStore';
@@ -24,22 +30,25 @@ import { useLocationPermission } from '../hooks/useLocationPermission';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Disable font scaling globally for consistent UI, and set Poppins as the
-// base family so unstyled body text matches the weighted text (which the
-// Tailwind font-bold/semibold/medium tokens map to the Poppins weight files).
+// Set Inter as the native body family. Large screen titles explicitly use
+// Poppins through the font-display utility; controls and body text use Inter.
 if (Platform.OS !== 'web') {
   const originalText = require('react-native').Text;
   if (originalText) {
     originalText.defaultProps = {
       ...originalText.defaultProps,
       allowFontScaling: false,
-      style: [{ fontFamily: 'Poppins_400Regular' }, ...(originalText.defaultProps?.style ?? [])],
+      style: [{ fontFamily: 'Inter_400Regular' }, ...(originalText.defaultProps?.style ?? [])],
     };
   }
 }
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
     Poppins_400Regular,
     Poppins_500Medium,
     Poppins_600SemiBold,

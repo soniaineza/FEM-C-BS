@@ -16,6 +16,7 @@ import { useNearbyCars } from '../../../hooks/useNearbyCars';
 import { getCurrentPlace, MapDefaults } from '../../../services/location-service';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
+import { placeHasCoordinates } from '../../../types/place';
 
 function greetingKey(): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
   const hour = new Date().getHours();
@@ -178,7 +179,7 @@ export default function HomeScreen() {
 
         <View className="flex-row items-center">
           <Ionicons name="location-outline" size={20} color="#111111" />
-          <Text className="ml-2 text-[17px] font-bold text-ink">{t('whereGoing')}</Text>
+          <Text className="ml-2 text-[17px] text-ink font-display">{t('whereGoing')}</Text>
         </View>
 
         <View className="mt-3.5 rounded-2xl border border-border bg-white">
@@ -193,7 +194,12 @@ export default function HomeScreen() {
               <Pressable
                 key={place.id}
                 className="flex-row items-center rounded-xl border border-border bg-white px-3.5 py-2.5"
-                onPress={() => setPickup(place.place)}
+                onPress={() => {
+                  setPickup(place.place);
+                  // Older saved places may have an address but no map point.
+                  // Let the rider pin the exact pickup before booking.
+                  if (!placeHasCoordinates(place.place)) router.push('/(main)/request/pickup');
+                }}
               >
                 <Ionicons
                   name={place.type === 'home' ? 'home-outline' : place.type === 'work' ? 'business-outline' : 'star-outline'}
