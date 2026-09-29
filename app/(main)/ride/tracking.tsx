@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../../components/Button';
+import { Card } from '../../../components/Card';
 import { MapSheet } from '../../../components/map/MapSheet';
 import { clockIn } from '../../../components/FareBreakdownView';
 import { useTranslation } from '../../../hooks/useTranslation';
@@ -12,6 +15,7 @@ import { useTripMap } from '../../../hooks/useTripMap';
 import { getPaymentForRide, initiatePayment, refreshPaymentStatus } from '../../../services/payment-service';
 import { PaymentRecord, isPaymentSettled } from '../../../types/payment';
 import { formatFare } from '../../../types/ride';
+import { Colors, Elevation } from '../../../constants/theme';
 
 const PADDING = { top: 90, bottom: 300, left: 50, right: 50 };
 
@@ -69,7 +73,7 @@ export default function TrackingScreen() {
   if (!ride) {
     return (
       <MapSheet collapsible={false}>
-        <ActivityIndicator className="my-6" color="#16A34A" />
+        <ActivityIndicator className="my-6" color={Colors.primary} />
       </MapSheet>
     );
   }
@@ -78,45 +82,58 @@ export default function TrackingScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Same contract as driver-accepted: back goes home, the trip keeps
+          running and stays resumable from Activity > Active. */}
+      <SafeAreaView edges={['top']} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('back')}
+          onPress={() => router.replace('/(main)/(tabs)')}
+          className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-surface"
+          style={Elevation[3]}
+        >
+          <Ionicons name="arrow-back" size={22} color={Colors.fg} />
+        </Pressable>
+      </SafeAreaView>
       <MapSheet
         header={
           <View className="mb-3">
-            <Text className="text-xl font-bold text-ink">
+            <Text className="text-title-2 font-bold text-fg">
               {awaitingPayment ? t('preparePayment') : etaMinutes != null ? t('tripEndsAt', { time: clockIn(etaMinutes) }) : t('tripInProgress')}
             </Text>
-            <Text className="mt-0.5 text-[13px] text-text-secondary" numberOfLines={1}>
+            <Text className="mt-0.5 text-footnote text-fg-muted" numberOfLines={1}>
               {awaitingPayment ? formatFare(ride.finalFare ?? ride.estimatedFare) : `${t('onTheWayToDestination')} · ${ride.destination.address}`}
             </Text>
           </View>
         }
         footer={<Button title={t('safety')} variant="outline" icon="shield-checkmark-outline" onPress={() => router.push({ pathname: '/(main)/ride/safety', params: { rideId: ride.id } })} />}
       >
-        {!driverLocation && !awaitingPayment ? <Text className="mb-3 text-sm text-error">{t('driverLocationUnavailable')}</Text> : null}
+        {!driverLocation && !awaitingPayment ? <Text className="mb-3 text-subhead text-danger">{t('driverLocationUnavailable')}</Text> : null}
         {ride.driver ? (
-          <View className="flex-row items-center rounded-2xl border border-border p-3">
+          <Card padded={false} className="flex-row items-center p-3">
             <View className="flex-1">
-              <Text className="text-[15px] font-bold text-ink">{ride.driver.name}</Text>
-              <Text className="text-[13px] text-text-secondary">{ride.driver.vehicleColor} {ride.driver.vehicleModel}</Text>
+              <Text className="text-callout font-bold text-fg">{ride.driver.name}</Text>
+              <Text className="text-footnote text-fg-muted">{ride.driver.vehicleColor} {ride.driver.vehicleModel}</Text>
             </View>
             <View className="rounded-lg border-2 border-ink px-2 py-0.5">
-              <Text className="text-xs font-bold tracking-wider text-ink">{ride.driver.licensePlate}</Text>
+              <Text className="text-caption font-bold tracking-wider text-fg">{ride.driver.licensePlate}</Text>
             </View>
-          </View>
+          </Card>
         ) : null}
 
         {awaitingPayment ? (
-          <View className="mt-3 rounded-2xl border border-border p-4">
-            <Text className="text-base font-semibold text-ink">{t('preparePayment')}</Text>
+          <Card className="mt-3">
+            <Text className="text-body font-semibold text-fg">{t('preparePayment')}</Text>
             {payment ? (
               isPaymentSettled(payment.status) ? (
-                <Text className="mt-2 text-primary">{t('depositReceived')}</Text>
+                <Text className="mt-2 text-primary-text">{t('depositReceived')}</Text>
               ) : payment.method === 'cash' ? (
                 <View className="mt-3">
-                  <Text className="text-sm text-text-secondary">{t('cashAwaitingDriver')}</Text>
+                  <Text className="text-subhead text-fg-muted">{t('cashAwaitingDriver')}</Text>
                 </View>
               ) : (
                 <View className="mt-3">
-                  <Text className="text-sm text-text-secondary">{t('paymentPendingNotice')}</Text>
+                  <Text className="text-subhead text-fg-muted">{t('paymentPendingNotice')}</Text>
                   {payment.status === 'failed' ? (
                     <View className="mt-3"><Button title={t('payCashInstead')} onPress={handleCashFallback} loading={payLoading} /></View>
                   ) : null}
@@ -126,10 +143,10 @@ export default function TrackingScreen() {
                 </View>
               )
             ) : (
-              <ActivityIndicator className="mt-3" color="#16A34A" />
+              <ActivityIndicator className="mt-3" color={Colors.primary} />
             )}
-            {paymentError ? <Text className="mt-2 text-error">{paymentError}</Text> : null}
-          </View>
+            {paymentError ? <Text className="mt-2 text-danger">{paymentError}</Text> : null}
+          </Card>
         ) : null}
       </MapSheet>
     </View>

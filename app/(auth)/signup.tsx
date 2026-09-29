@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,11 +8,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { BackHeader } from '../../components/BackHeader';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { validators } from '../../utils/validators';
 import { ApiError } from '../../services/api-client';
+import { Colors } from '../../constants/theme';
 
 export default function SignupScreen() {
   const { t } = useTranslation();
@@ -50,12 +51,10 @@ export default function SignupScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
-        <View className="w-full max-w-[440px] self-center">
-        <BackHeader />
-        <Text className="mt-4 text-2xl text-ink font-display">{t('createAccount')}</Text>
-        <Text className="mt-1 text-text-secondary">{t('lessThanMinute')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView>
+        <ScreenHeader back title={t('createAccount')} />
+        <Text className="mt-1 text-fg-muted">{t('lessThanMinute')}</Text>
 
         <View className="mt-8 gap-4">
           <Input
@@ -94,15 +93,15 @@ export default function SignupScreen() {
             secureTextEntry
             prefixIcon="lock-closed-outline"
           />
-          <Text className="text-xs text-text-secondary">{t('passwordHint')}</Text>
+          <Text className="text-caption text-fg-muted">{t('passwordHint')}</Text>
 
           <Pressable className="flex-row items-start" onPress={() => setAcceptedTerms((v) => !v)}>
             <Ionicons
               name={acceptedTerms ? 'checkbox' : 'checkbox-outline'}
               size={22}
-              color={acceptedTerms ? '#16A34A' : '#6B7280'}
+              color={acceptedTerms ? Colors.primary : Colors['fg-muted']}
             />
-            <Text className="ml-2.5 flex-1 text-sm leading-5 text-ink">{t('agreeTerms')}</Text>
+            <Text className="ml-2.5 flex-1 text-subhead leading-5 text-fg">{t('agreeTerms')}</Text>
           </Pressable>
 
           {error ? <ErrorMessage message={error} /> : null}
@@ -113,13 +112,12 @@ export default function SignupScreen() {
         </View>
 
         <View className="mt-6 flex-row justify-center">
-          <Text className="text-text-secondary">{t('existingAccount')}</Text>
+          <Text className="text-fg-muted">{t('existingAccount')}</Text>
           <Pressable onPress={() => router.push('/(auth)/login')}>
-            <Text className="font-semibold text-primary">{t('login')}</Text>
+            <Text className="font-semibold text-primary-text">{t('login')}</Text>
           </Pressable>
         </View>
-        </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

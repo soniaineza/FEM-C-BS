@@ -1,9 +1,14 @@
 /** @type {import('tailwindcss').Config} */
+const { green, neutral, palette, typeScale, fonts, radius } = require('./constants/tokens');
+
+const fontSize = Object.fromEntries(
+  Object.entries(typeScale).map(([name, [size, lineHeight]]) => [name, [`${size}px`, { lineHeight: `${lineHeight}px` }]])
+);
+
 module.exports = {
   content: ['./app/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
-  // The app is light-only by design (matches the original Flutter app —
-  // no dark theme was ever built). Left at NativeWind's default
+  // The app is light-only by design. Left at NativeWind's default
   // `darkMode: 'media'`, some dependency in the tree (React Navigation's
   // theme provider, wired in automatically by expo-router's Stack/Tabs)
   // calls Appearance.setColorScheme() during init, which react-native-css-
@@ -11,39 +16,40 @@ module.exports = {
   // "Cannot manually set color scheme, as dark mode is type 'media'" and
   // aborts rendering entirely (this crashed the whole app on real devices).
   // 'class' mode allows manual scheme calls to pass through harmlessly;
-  // since nothing here ever toggles a 'dark' class, the app stays light-only
-  // regardless.
+  // since nothing here ever toggles a 'dark' class, the app stays light-only.
   darkMode: 'class',
   theme: {
     extend: {
-      // Brand tokens ported 1:1 from the Flutter app's AppColors/AppTheme
-      // (lib/core/constants/app_colors.dart, lib/core/theme/app_theme.dart)
-      // so the RN screens match the app's existing visual identity.
+      // All values come from constants/tokens.js — see docs/DESIGN_SYSTEM.md.
       colors: {
-        primary: '#16A34A',
-        'primary-dark': '#15803D',
-        'primary-gradient-end': '#0F7A38',
-        ink: '#111111',
-        'bg-light': '#F7F7F7',
-        'gray-light': '#F5F5F5',
-        border: '#E5E7EB',
-        'text-secondary': '#6B7280',
-        error: '#DC2626',
-        success: '#16A34A',
-        warning: '#D97706',
+        ...palette,
+        green,
+        neutral,
+        // Legacy aliases kept so older class names resolve to the new palette.
+        ink: palette.fg,
+        'text-secondary': palette['fg-muted'],
+        'bg-light': palette.canvas,
+        'gray-light': palette['surface-muted'],
+        'primary-dark': palette['primary-hover'],
+        'primary-gradient-end': green[800],
+        error: palette.danger,
       },
+      fontSize,
       borderRadius: {
-        DEFAULT: '12px',
+        DEFAULT: `${radius.md}px`,
+        card: `${radius.xl}px`,
+        sheet: `${radius['3xl']}px`,
       },
       fontFamily: {
-        sans: ['Inter_400Regular'],
-        medium: ['Inter_500Medium'],
-        semibold: ['Inter_600SemiBold'],
-        bold: ['Inter_700Bold'],
-        display: ['Poppins_700Bold'],
+        sans: [fonts.regular],
+        medium: [fonts.medium],
+        semibold: [fonts.semibold],
+        bold: [fonts.bold],
+        display: [fonts.display],
       },
       spacing: {
         button: '52px',
+        gutter: '20px',
       },
     },
   },

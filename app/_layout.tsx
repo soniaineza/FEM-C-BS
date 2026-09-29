@@ -37,7 +37,7 @@ if (Platform.OS !== 'web') {
   if (originalText) {
     originalText.defaultProps = {
       ...originalText.defaultProps,
-      allowFontScaling: false,
+      allowFontScaling: true,
       style: [{ fontFamily: 'Inter_400Regular' }, ...(originalText.defaultProps?.style ?? [])],
     };
   }

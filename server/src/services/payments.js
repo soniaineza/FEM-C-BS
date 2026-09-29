@@ -9,6 +9,16 @@ const { pushNotification } = require('./notify');
 const paypack = require('./paypackClient');
 
 const PROVIDER_METHODS = new Set(['mtn_momo', 'airtel_money']);
+// Card has no processor yet: bookable only in demo mode, where it settles
+// like the other gateway methods.
+const CARD_METHOD = 'card';
+
+/** Payment method ids a ride can be booked with in this environment. */
+function bookablePaymentMethods() {
+  const methods = ['cash', 'wallet', ...PROVIDER_METHODS];
+  if (config.demoPayments) methods.push(CARD_METHOD);
+  return methods;
+}
 
 async function createPaymentForRide(ride) {
   const amount = ride.final_fare != null ? ride.final_fare : ride.estimated_fare;
@@ -91,16 +101,25 @@ async function chargePayment(payment, ride) {
     return payment;
   }
 
-  if (PROVIDER_METHODS.has(payment.method)) {
+  if (payment.method === CARD_METHOD && !config.demoPayments) {
+    await getPool().query(
+      `UPDATE payments SET state='pending', updated_at=now(),
+         metadata='{"reason":"provider_not_configured"}'::jsonb WHERE id = $1`,
+      [payment.id]
+    );
+    return payment;
+  }
+
+  if (PROVIDER_METHODS.has(payment.method) || payment.method === CARD_METHOD) {
     if (config.demoPayments) {
       // Demo mode (DEMO_PAYMENTS=1): fake acceptance — mark the charge
       // settled immediately instead of calling Paypack, so the whole ride +
       // wallet-earnings flow is testable without mobile-money credentials.
       // The payment row is still recorded with a provider label for realism.
       await getPool().query(
-        `UPDATE payments SET provider='paypack', state='processing', updated_at=now(),
+        `UPDATE payments SET provider=$2, state='processing', updated_at=now(),
            metadata='{"reason":"demo_acceptance"}'::jsonb WHERE id = $1`,
-        [payment.id]
+        [payment.id, payment.method === CARD_METHOD ? 'card' : 'paypack']
       );
       await settleSucceededPayment(payment, ride, { method: payment.method, demo: true });
       const { rows: settled } = await getPool().query(
@@ -313,4 +332,5 @@ module.exports = {
   confirmCashPayment,
   settleSucceededPayment,
   getPaymentForRide,
+  bookablePaymentMethods,
 };

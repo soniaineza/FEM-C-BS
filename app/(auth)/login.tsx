@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 import { goBack } from '../../utils/navigation';
@@ -68,25 +68,23 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
       <View style={{ flex: 1 }}>
         {/* Back affordance pinned above the centered content; the keyboard-aware scroll view keeps
             everything reachable when the keyboard is up or on short screens. */}
         <View className="px-5 pt-1">
           <BackHeader onBack={back} />
         </View>
-        <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled"
-          contentContainerClassName="flex-grow justify-center px-6 pb-10 pt-2"
-        >
+        <KeyboardFormScrollView centered bottomPadding={40}>
           <View className="w-full max-w-[420px] self-center">
             <View className="items-center">
               <BrandMark fontSize={26} />
             </View>
 
-            <Text className="mt-10 text-center text-[26px] font-bold leading-tight text-ink">
+            <Text className="mt-10 text-center text-title-1 text-fg font-display">
               {step === 'identifier' ? t('welcomeTo') : t('welcomeBack')}
             </Text>
-            <Text className="mt-2 text-center text-[15px] leading-relaxed text-text-secondary">
+            <Text className="mt-2 text-center text-callout leading-relaxed text-fg-muted">
               {step === 'identifier' ? t('loginTagline') : t('loginPasswordHint', { identifier: identifier.trim() })}
             </Text>
 
@@ -134,7 +132,7 @@ export default function LoginScreen() {
 
               {step === 'password' ? (
                 <Pressable onPress={() => router.push('/(auth)/forgot-password')} hitSlop={8} className="mt-3 self-end">
-                  <Text className="text-sm font-medium text-primary">{t('forgotPassword')}</Text>
+                  <Text className="text-subhead font-medium text-primary-text">{t('forgotPassword')}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -149,13 +147,13 @@ export default function LoginScreen() {
             </View>
 
             <View className="mt-7 flex-row justify-center">
-              <Text className="text-text-secondary">{t('noAccount')}</Text>
+              <Text className="text-fg-muted">{t('noAccount')}</Text>
               <Pressable onPress={() => router.push('/(auth)/signup')} hitSlop={8}>
-                <Text className="font-semibold text-primary">{t('signUp')}</Text>
+                <Text className="font-semibold text-primary-text">{t('signUp')}</Text>
               </Pressable>
             </View>
           </View>
-        </KeyboardAwareScrollView>
+        </KeyboardFormScrollView>
       </View>
     </SafeAreaViewPlaceholder>
   );

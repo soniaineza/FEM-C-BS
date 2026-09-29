@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { goBack } from '../../../utils/navigation';
 
@@ -8,9 +8,12 @@ import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
 import { ErrorMessage } from '../../../components/ErrorMessage';
 import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getDriverVehicle, updateDriverVehicle, DriverVehicleInfo } from '../../../services/driver-profile-service';
 import { ApiError } from '../../../services/driver-api-client';
+import { Colors } from '../../../constants/theme';
+import { LoadingState } from '../../../components/ui';
 
 export default function DriverVehicleScreen() {
   const { t } = useTranslation();
@@ -73,10 +76,10 @@ export default function DriverVehicleScreen() {
 
   if (loading || !vehicle) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 bg-white">
-        <View className="flex-1 px-6 pt-2">
+      <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+        <View className="flex-1 px-5 pt-2">
           <BackHeader />
-          {loading ? <ActivityIndicator className="mt-10" color="#16A34A" /> : (
+          {loading ? <LoadingState /> : (
             <View className="mt-10 gap-4">
               <ErrorMessage message={error ?? t('requestFailed')} />
               <Button title={t('tryAgain')} variant="outline" onPress={load} />
@@ -88,10 +91,9 @@ export default function DriverVehicleScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('driverYourVehicle')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView bottomPadding={40}>
+        <ScreenHeader back title={t('driverYourVehicle')} />
 
         <View className="mt-6 gap-4">
           <Input label={t('driverMake')} value={make} onChangeText={setMake} prefixIcon="car-outline" />
@@ -106,7 +108,7 @@ export default function DriverVehicleScreen() {
         <View className="mt-7">
           <Button title={t('save')} onPress={handleSave} loading={saving} />
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

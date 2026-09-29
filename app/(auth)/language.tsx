@@ -8,6 +8,7 @@ import { Button } from '../../components/Button';
 import { BrandMark } from '../../components/BrandMark';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Locale } from '../../locales';
+import { Colors } from '../../constants/theme';
 
 // First-launch language chooser. Shown before the welcome/login screens via a
 // redirect in (auth)/index.tsx while useLocaleStore.hasChosenLanguage is false.
@@ -32,18 +33,18 @@ export default function LanguageScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
       <ScrollView
-        contentContainerClassName="flex-grow justify-center px-6 py-8"
+        contentContainerClassName="flex-grow justify-center px-5 py-8"
         keyboardShouldPersistTaps="handled"
       >
         <View className="max-w-[480px] w-full self-center">
           <BrandMark fontSize={26} />
 
-          <Text className="mt-8 text-center text-2xl text-ink font-display">
+          <Text className="mt-8 text-center text-title-1 text-fg font-display">
             {t('chooseYourLanguage')}
           </Text>
-          <Text className="mt-2 text-center text-text-secondary">{t('chooseLanguageHint')}</Text>
+          <Text className="mt-2 text-center text-fg-muted">{t('chooseLanguageHint')}</Text>
 
           <View className="mt-8 gap-3">
             {OPTIONS.map(({ locale: l, flag }) => {
@@ -57,19 +58,19 @@ export default function LanguageScreen() {
                   onPress={() => setSelected(l)}
                   className="flex-row items-center rounded-2xl px-4 py-4"
                   style={{
-                    borderWidth: active ? 2 : 1,
-                    borderColor: active ? '#16A34A' : '#E5E7EB',
-                    backgroundColor: active ? 'rgba(22,163,74,0.06)' : '#fff',
+                    borderWidth: 1.5,
+                    borderColor: active ? Colors.primary : Colors.border,
+                    backgroundColor: active ? Colors['primary-soft'] : Colors.surface,
                   }}
                 >
                   <Text style={{ fontSize: 26 }}>{flag}</Text>
-                  <Text className="ml-3.5 flex-1 text-base font-semibold text-ink">
+                  <Text className="ml-3.5 flex-1 text-body font-semibold text-fg">
                     {languageNames[l]}
                   </Text>
                   <Ionicons
                     name={active ? 'checkmark-circle' : 'ellipse-outline'}
                     size={24}
-                    color={active ? '#16A34A' : '#C7CCD1'}
+                    color={active ? Colors.primary : Colors['border-strong']}
                   />
                 </Pressable>
               );

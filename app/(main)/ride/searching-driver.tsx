@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../../components/Button';
+import { Card } from '../../../components/Card';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
-import { cancelRide } from '../../../services/ride-service';
+import { cancelRide, fetchVehicles } from '../../../services/ride-service';
 import { MapSheet } from '../../../components/map/MapSheet';
 import { useMapScene } from '../../../hooks/useMapScene';
 import { useNearbyCars } from '../../../hooks/useNearbyCars';
+import { distanceM } from '../../../components/map/trackInterpolation';
 import type { MapScene } from '../../../components/map/map-types';
+import { Colors, Elevation } from '../../../constants/theme';
 
 // The backend auto-cancels rides stuck in searchingDriver after
 // RIDE_SEARCH_TIMEOUT_SECONDS (default 5 min, see server/src/services/
@@ -36,7 +40,14 @@ export default function SearchingDriverScreen() {
     ? { latitude: ride.pickup.latitude, longitude: ride.pickup.longitude }
     : null;
   const { cars, serverTimeOffsetMs } = useNearbyCars(pickupPoint);
-  const scene = useMemo<MapScene | null>(
+  // Vehicle catalogue for naming the nearby cars below (id -> display
+  // name). Best-effort: without it each row still shows its distance.
+  const [vehicleNames, setVehicleNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    fetchVehicles()
+      .then((list) => setVehicleNames(new Map(list.map((v) => [v.id, v.name]))))
+      .catch(() => {});
+  }, []);  const scene = useMemo<MapScene | null>(
     () =>
       pickupPoint
         ? {
@@ -91,15 +102,15 @@ export default function SearchingDriverScreen() {
 
   if (timedOut) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white px-6">
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-surface px-5">
         <View
           className="h-20 w-20 items-center justify-center rounded-full"
-          style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}
+          style={{ backgroundColor: Colors['primary-tint'] }}
         >
-          <Ionicons name="car-outline" size={36} color="#16A34A" />
+          <Ionicons name="car-outline" size={36} color={Colors.primary} />
         </View>
-        <Text className="mt-5 text-xl text-ink font-display">{t('searchTimedOutTitle')}</Text>
-        <Text className="mt-2 text-center leading-relaxed text-text-secondary">{t('searchTimedOutBody')}</Text>
+        <Text className="mt-5 text-title-2 text-fg font-display">{t('searchTimedOutTitle')}</Text>
+        <Text className="mt-2 text-center leading-relaxed text-fg-muted">{t('searchTimedOutBody')}</Text>
         <View className="mt-8 w-full">
           <Button title={t('backHome')} onPress={() => router.replace('/(main)/(tabs)')} />
         </View>
@@ -114,25 +125,62 @@ export default function SearchingDriverScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Back bails out of the search: the ride is cancelled first so no
+          driver is dispatched to a passenger who already left. */}
+      <SafeAreaView edges={['top']} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('back')}
+          onPress={handleCancel}
+          className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-surface"
+          style={Elevation[3]}
+        >
+          <Ionicons name="arrow-back" size={22} color={Colors.fg} />
+        </Pressable>
+      </SafeAreaView>
       <MapSheet
         collapsible={false}
         header={
           <View className="mb-1 flex-row items-center">
-            <ActivityIndicator color="#16A34A" />
-            <Text className="ml-3 text-lg font-bold text-ink">{t('findingDriver')}</Text>
+            <ActivityIndicator color={Colors.primary} />
+            <Text className="ml-3 text-title-3 font-bold text-fg">{t('findingDriver')}</Text>
           </View>
         }
         footer={<Button title={t('cancelRide')} variant="outline" onPress={handleCancel} loading={cancelling} />}
       >
-        <Text className="leading-relaxed text-text-secondary">{t('matchingDriver')}</Text>
+        <Text className="leading-relaxed text-fg-muted">{t('matchingDriver')}</Text>
         {cars.length ? (
-          <Text className="mt-1 text-xs font-semibold text-primary">
+          <Text className="mt-1 text-caption font-semibold text-primary-text">
             {cars.length === 1 ? t('oneDriverNearby') : t('multipleDriversNearby', { count: cars.length })}
           </Text>
         ) : null}
+        {cars.length && pickupPoint ? (
+          <View className="mt-3">
+            <Text className="text-subhead font-bold text-fg">{t('availableCarsNearby')}</Text>
+            <View className="mt-2 gap-2">
+              {cars.slice(0, 8).map((car) => {
+                const km = distanceM(pickupPoint.latitude, pickupPoint.longitude, car.latitude, car.longitude) / 1000;
+                const label = vehicleNames.get(car.vehicleClass ?? '') ?? car.vehicleClass ?? t('nearbyCar');
+                return (
+                  <Card key={car.id} padded={false} className="flex-row items-center px-3 py-2.5">
+                    <View className="h-9 w-11 items-center justify-center rounded-xl bg-surface-muted">
+                      <Ionicons name="car" size={20} color={Colors.fg} />
+                    </View>
+                    <Text className="ml-3 flex-1 text-subhead font-semibold text-fg" numberOfLines={1}>
+                      {label}
+                    </Text>
+                    <Text className="ml-2 text-caption text-fg-muted">
+                      {t('kmAway', { distance: km.toFixed(1) })}
+                    </Text>
+                  </Card>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
         {searchSlow ? (
-          <View className="mt-3 w-full rounded-xl border border-border bg-bg-light px-4 py-3" accessibilityRole="text">
-            <Text className="text-center text-sm text-text-secondary">
+          <View className="mt-3 w-full rounded-xl border border-border bg-canvas px-4 py-3" accessibilityRole="text">
+            <Text className="text-center text-subhead text-fg-muted">
               {t('searchTimedOutCountdown', { minutes: `${minutes}:${String(seconds).padStart(2, '0')}` })}
             </Text>
           </View>

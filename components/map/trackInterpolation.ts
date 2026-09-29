@@ -12,6 +12,8 @@ export const RENDER_DELAY_MS = 2500;
 const KEEP_MS = 20_000;
 /** When updates stop, hold the last position rather than guess ahead. */
 const MAX_EXTRAPOLATE_MS = 600;
+/** Faster than this between two samples is a relocation, not driving: snap. */
+const TELEPORT_MPS = 45;
 
 export interface TrackPoint {
   t: number;
@@ -76,9 +78,16 @@ export class Track {
   }
 
   private state(a: TrackPoint, b: TrackPoint, f: number, extrapolating = false): TrackState {
+    const movedM = distanceM(a.lat, a.lng, b.lat, b.lng);
+    const spanS = Math.abs(b.t - a.t) / 1000;
+    if (movedM > 25 && spanS > 0 && movedM / spanS > TELEPORT_MPS) {
+      // Never glide a car across blocks: jump at the midpoint in time.
+      const p = f < 0.5 ? a : b;
+      this.lastHeading = p.heading ?? this.lastHeading;
+      return { lat: p.lat, lng: p.lng, heading: this.lastHeading, moving: false };
+    }
     const lat = a.lat + (b.lat - a.lat) * f;
     const lng = a.lng + (b.lng - a.lng) * f;
-    const movedM = distanceM(a.lat, a.lng, b.lat, b.lng);
     const moving = movedM > 0.8 && f > 0 && (f < 1 || extrapolating);
     let heading: number;
     if (movedM > 0.8) {

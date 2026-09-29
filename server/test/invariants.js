@@ -608,7 +608,15 @@ async function main() {
     ADMIN_API_KEY: ADMIN_KEY,
     RATE_LIMIT_MAX: '100000',
     OTP_RESEND_COOLDOWN: '0',
-    ...(process.env.OSRM_URL ? { OSRM_URL: process.env.OSRM_URL } : {}),
+    // Explicit so a developer's server/.env (demo switches on) can't leak in
+    // through dotenv and make production mode refuse to start.
+    DEV_REVEAL_CODES: '0',
+    DEV_AUTO_VERIFY_DRIVERS: '0',
+    DEMO_PAYMENTS: '0',
+    DEMO_FLEET: '0',
+    PHOTON_URL: process.env.PHOTON_URL || 'http://localhost:5998/api',
+    PHOTON_REVERSE_URL: process.env.PHOTON_REVERSE_URL || 'http://localhost:5998/reverse',
+    OSRM_URL: process.env.OSRM_URL || 'http://localhost:5999/route/v1/driving',
   };
   const server = spawn(process.execPath, ['src/index.js'], { cwd: path.join(__dirname, '..'), env });
   let serverLog = '';

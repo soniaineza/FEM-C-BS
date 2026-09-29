@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Linking } from 'react-native';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
-import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { Chip } from '../../../components/ui/Chip';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { submitRequest, getTickets } from '../../../services/support-service';
 import { SUPPORT_CATEGORY_IDS, SupportTicket } from '../../../types/support';
@@ -54,33 +55,26 @@ export default function HelpSupportScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('helpSupportTitle')}</Text>
-        <Text className="mt-1 text-text-secondary">{t('helpIntro')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView bottomPadding={40}>
+        <ScreenHeader back title={t('helpSupportTitle')} />
+        <Text className="mt-1 text-fg-muted">{t('helpIntro')}</Text>
 
         <View className="mt-4">
           <Button title={t('whatsappSupport')} icon="logo-whatsapp" onPress={() => openWhatsAppSupport()} />
         </View>
         <Pressable className="mt-3" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>
-          <Text className="text-primary">{t('contactSupport')}</Text>
+          <Text className="text-primary-text">{t('contactSupport')}</Text>
         </Pressable>
 
         {sent ? (
-          <Text className="mt-6 text-primary">{t('messageSentConfirmation')}</Text>
+          <Text className="mt-6 text-primary-text">{t('messageSentConfirmation')}</Text>
         ) : (
           <View className="mt-6">
-            <Text className="text-sm font-medium text-ink">{t('tellUsWhatHappened')}</Text>
+            <Text className="text-subhead font-medium text-fg">{t('tellUsWhatHappened')}</Text>
             <View className="mt-2 flex-row flex-wrap gap-2">
               {TOPICS.map((key) => (
-                <Pressable
-                  key={key}
-                  className={`rounded-full border px-3 py-1.5 ${topic === key ? 'border-primary bg-primary/10' : 'border-border'}`}
-                  onPress={() => setTopic(key)}
-                >
-                  <Text className={topic === key ? 'text-primary' : 'text-ink'}>{t(key)}</Text>
-                </Pressable>
+                <Chip key={key} label={t(key)} selected={topic === key} onPress={() => setTopic(key)} />
               ))}
             </View>
 
@@ -93,7 +87,7 @@ export default function HelpSupportScreen() {
                 multiline
                 numberOfLines={4}
               />
-              {error ? <Text className="text-sm text-error">{error}</Text> : null}
+              {error ? <Text className="text-subhead text-danger">{error}</Text> : null}
             </View>
 
             <View className="mt-4">
@@ -105,28 +99,28 @@ export default function HelpSupportScreen() {
 
         {tickets.length > 0 ? (
           <>
-            <Text className="mt-8 text-lg font-bold text-ink">{t('supportYourTickets')}</Text>
+            <Text className="mt-8 text-title-3 font-bold text-fg">{t('supportYourTickets')}</Text>
             {tickets.map((ticket) => (
               <Pressable
                 key={ticket.id}
                 className="mt-2 flex-row items-center justify-between border-b border-border py-3"
                 onPress={() => router.push({ pathname: '/(main)/settings/support/[ticketId]', params: { ticketId: ticket.id } })}
               >
-                <Text className="flex-1 text-ink">{ticket.subject}</Text>
-                <Text className="text-xs text-text-secondary">{ticket.status}</Text>
+                <Text className="flex-1 text-fg">{ticket.subject}</Text>
+                <Text className="text-caption text-fg-muted">{ticket.status}</Text>
               </Pressable>
             ))}
           </>
         ) : null}
 
-        <Text className="mt-8 text-lg font-bold text-ink">{t('faqTitle')}</Text>
+        <Text className="mt-8 text-title-3 font-bold text-fg">{t('faqTitle')}</Text>
         {FAQ_KEYS.map(([q, a]) => (
           <View key={q} className="mt-3">
-            <Text className="text-sm font-semibold text-ink">{t(q)}</Text>
-            <Text className="mt-1 text-sm text-text-secondary">{t(a)}</Text>
+            <Text className="text-subhead font-semibold text-fg">{t(q)}</Text>
+            <Text className="mt-1 text-subhead text-fg-muted">{t(a)}</Text>
           </View>
         ))}
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

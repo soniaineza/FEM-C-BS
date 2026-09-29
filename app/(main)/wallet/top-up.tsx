@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { goBack } from '../../../utils/navigation';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
 import { ErrorMessage } from '../../../components/ErrorMessage';
-import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { Chip } from '../../../components/ui/Chip';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { topUpWallet, refreshWalletTopup, WalletTopup } from '../../../services/wallet-service';
@@ -61,23 +62,19 @@ export default function WalletTopUpScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('topUpTitle')}</Text>
-        <Text className="mt-1 text-sm text-text-secondary">{t('topUpSubtitle')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView topPadding={0} bottomPadding={40}>
+        <ScreenHeader back title={t('topUpTitle')} />
+        <Text className="mt-1 text-subhead text-fg-muted">{t('topUpSubtitle')}</Text>
 
         {!topup ? (
           <View className="mt-6 gap-4">
             <Input label={t('mobileMoneyNumber')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" prefixIcon="call-outline" />
             <View>
-              <Text className="mb-1.5 text-sm font-medium text-ink">{t('amountRwf')}</Text>
-              <Input value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder={t('amountRwf')} prefixIcon="cash-outline" />
+              <Input label={t('amountRwf')} value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder={t('amountRwf')} prefixIcon="cash-outline" />
               <View className="mt-2.5 flex-row flex-wrap gap-2">
                 {QUICK_AMOUNTS.map((a) => (
-                  <Pressable key={a} className="rounded-full border border-border px-3 py-1.5" onPress={() => setAmount(String(a))}>
-                    <Text className="text-[13px] text-ink">{formatFare(a)}</Text>
-                  </Pressable>
+                  <Chip key={a} label={formatFare(a)} selected={amount === String(a)} onPress={() => setAmount(String(a))} />
                 ))}
               </View>
             </View>
@@ -86,17 +83,17 @@ export default function WalletTopUpScreen() {
           </View>
         ) : (
           <View className="mt-6 rounded-2xl border border-border p-5">
-            <Text className="text-sm text-text-secondary">{t('depositing')}</Text>
-            <Text className="mt-1 text-2xl font-bold text-ink">{formatFare(topup.amount)}</Text>
-            <Text className="mt-1 text-xs text-text-secondary">{t('depositTo', { phone: topup.phone })}</Text>
+            <Text className="text-subhead text-fg-muted">{t('depositing')}</Text>
+            <Text className="mt-1 text-title-1 font-bold text-fg">{formatFare(topup.amount)}</Text>
+            <Text className="mt-1 text-caption text-fg-muted">{t('depositTo', { phone: topup.phone })}</Text>
 
             {topup.status === 'succeeded' ? (
-              <Text className="mt-4 font-semibold text-primary">{t('depositReceived')}</Text>
+              <Text className="mt-4 font-semibold text-primary-text">{t('depositReceived')}</Text>
             ) : topup.status === 'failed' ? (
-              <Text className="mt-4 font-semibold text-error">{t('depositFailed')}</Text>
+              <Text className="mt-4 font-semibold text-danger">{t('depositFailed')}</Text>
             ) : (
               <>
-                <Text className="mt-4 text-sm text-text-secondary">{t('depositPendingHint')}</Text>
+                <Text className="mt-4 text-subhead text-fg-muted">{t('depositPendingHint')}</Text>
                 <View className="mt-3">
                   <Button title={t('checkStatus')} variant="outline" onPress={handleCheckStatus} loading={checking} />
                 </View>
@@ -104,12 +101,12 @@ export default function WalletTopUpScreen() {
             )}
             {topup.status !== 'succeeded' ? (
               <Pressable className="mt-4 items-center" onPress={() => setTopup(null)}>
-                <Text className="text-sm font-semibold text-text-secondary">{t('startOver')}</Text>
+                <Text className="text-subhead font-semibold text-fg-muted">{t('startOver')}</Text>
               </Pressable>
             ) : null}
           </View>
         )}
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

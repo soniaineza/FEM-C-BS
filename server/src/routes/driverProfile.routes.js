@@ -129,9 +129,18 @@ router.put('/vehicle', asyncHandler(async (req, res) => {
   const { vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate, licenseNumber } = req.body || {};
   const { rows: current } = await getPool().query('SELECT * FROM drivers WHERE id=$1', [req.driverId]);
   if (!current[0]) throw new ApiError(404, 'Driver not found.');
-  const changed = Object.entries({ vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate, licenseNumber })
-    .some(([key, value]) => value !== undefined && String(value) !== String(current[0][key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)] ?? ''));
-  if (changed && (current[0].verified || current[0].status === 'busy')) {
+  const edits = Object.entries({ vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate, licenseNumber })
+    .map(([key, value]) => ({ value, stored: current[0][key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)] }))
+    .filter(({ value, stored }) => value !== undefined && String(value) !== String(stored ?? ''));
+  // Filling in a field that was never set is onboarding, not a change: with
+  // DEV_AUTO_VERIFY_DRIVERS a new driver is verified at sign-up, and blocking
+  // here left them stuck on the profile-setup screen. Replacing details that
+  // are already on file still needs a fresh operator review once verified.
+  const replacesStored = edits.some(({ stored }) => stored != null && String(stored).trim() !== '');
+  if (edits.length && current[0].status === 'busy') {
+    throw new ApiError(409, 'Vehicle details cannot change during a trip.');
+  }
+  if (replacesStored && current[0].verified && !config.devAutoVerifyDrivers) {
     throw new ApiError(409, 'Verified vehicle details require a new operator review. Contact support to update them.');
   }
   const { rows } = await getPool().query(

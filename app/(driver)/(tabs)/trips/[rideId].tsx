@@ -4,13 +4,19 @@ import { SafeAreaViewPlaceholder } from '../../../../components/SafeAreaViewPlac
 import { useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../../components/Button';
+import { Card } from '../../../../components/Card';
 import { BackHeader } from '../../../../components/BackHeader';
+import { ScreenHeader } from '../../../../components/ui/ScreenHeader';
 import { useTranslation } from '../../../../hooks/useTranslation';
+import { useResponsive } from '../../../../hooks/useResponsive';
 import { getDriverRideDetails } from '../../../../services/driver-service';
 import { Ride, formatFare, rideStatusKey } from '../../../../types/ride';
+import { Colors } from '../../../../constants/theme';
+import { LoadingState } from '../../../../components/ui';
 
 export default function DriverTripDetailScreen() {
   const { t } = useTranslation();
+  const { contentStyle } = useResponsive();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const [ride, setRide] = useState<Ride | null>(null);
   const [error, setError] = useState<string | undefined>();
@@ -27,14 +33,14 @@ export default function DriverTripDetailScreen() {
 
   if (!ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
-        <View className="flex-1 px-6 pt-2">
+      <SafeAreaViewPlaceholder className="flex-1 bg-surface" edges={['top', 'left', 'right']}>
+        <View className="flex-1 px-5 pt-2">
           <BackHeader />
           {!error ? (
-            <ActivityIndicator className="mt-10" color="#16A34A" />
+            <LoadingState />
           ) : (
             <View className="mt-10 items-center">
-              <Text className="text-center text-text-secondary">{error}</Text>
+              <Text className="text-center text-fg-muted">{error}</Text>
               <View className="mt-4 min-w-[160px]">
                 <Button title={t('tryAgain')} variant="outline" onPress={load} />
               </View>
@@ -46,37 +52,38 @@ export default function DriverTripDetailScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('rideDetails')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface" edges={['top', 'left', 'right']}>
+      <ScrollView contentContainerClassName="pt-2 pb-10">
+        <View style={contentStyle} className="px-5">
+        <ScreenHeader back title={t('rideDetails')} />
 
-        <View className="mt-4 gap-2 rounded-2xl border border-border p-4">
-          <Text className="text-ink">{ride.pickup.address}</Text>
-          <Text className="text-ink">{ride.destination.address}</Text>
+        <Card className="mt-4 gap-2">
+          <Text className="text-fg">{ride.pickup.address}</Text>
+          <Text className="text-fg">{ride.destination.address}</Text>
           <View className="mt-2 flex-row justify-between">
-            <Text className="text-text-secondary">{ride.distanceKm.toFixed(1)} km</Text>
-            <Text className="text-text-secondary">{ride.durationMinutes} {t('minutesShort')}</Text>
+            <Text className="text-fg-muted">{ride.distanceKm.toFixed(1)} km</Text>
+            <Text className="text-fg-muted">{ride.durationMinutes} {t('minutesShort')}</Text>
           </View>
           <View className="mt-2 flex-row justify-between">
-            <Text className="text-base font-semibold text-ink">{t('fare')}</Text>
-            <Text className="text-lg font-bold text-primary">{formatFare(ride.finalFare ?? ride.estimatedFare)}</Text>
+            <Text className="text-body font-semibold text-fg">{t('fare')}</Text>
+            <Text className="text-title-3 font-bold text-primary-text">{formatFare(ride.finalFare ?? ride.estimatedFare)}</Text>
           </View>
-          <Text className="mt-1 text-xs text-text-secondary">{t(rideStatusKey(ride.status))}</Text>
-        </View>
+          <Text className="mt-1 text-caption text-fg-muted">{t(rideStatusKey(ride.status))}</Text>
+        </Card>
 
         {ride.rider ? (
-          <View className="mt-4 rounded-2xl border border-border p-4">
-            <Text className="text-base font-semibold text-ink">{ride.rider.name}</Text>
-          </View>
+          <Card className="mt-4">
+            <Text className="text-body font-semibold text-fg">{ride.rider.name}</Text>
+          </Card>
         ) : null}
 
         {ride.rating != null ? (
-          <View className="mt-4 rounded-2xl border border-border p-4">
-            <Text className="text-sm font-semibold text-ink">{t('driverRiderRating')}</Text>
-            <Text className="mt-1 text-lg font-bold text-primary">{ride.rating} / 5</Text>
-          </View>
+          <Card className="mt-4">
+            <Text className="text-subhead font-semibold text-fg">{t('driverRiderRating')}</Text>
+            <Text className="mt-1 text-title-3 font-bold text-primary-text">{ride.rating} / 5</Text>
+          </Card>
         ) : null}
+      </View>
       </ScrollView>
     </SafeAreaViewPlaceholder>
   );

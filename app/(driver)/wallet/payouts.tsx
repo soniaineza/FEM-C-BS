@@ -2,19 +2,23 @@ import { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
-import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Button } from '../../../components/Button';
+import { Card } from '../../../components/Card';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { useResponsive } from '../../../hooks/useResponsive';
 import { getDriverPayouts } from '../../../services/driver-profile-service';
 import { DriverPayout } from '../../../types/driver';
 import { formatFare } from '../../../types/ride';
+import { Colors } from '../../../constants/theme';
+import { ErrorState, LoadingState } from '../../../components/ui';
 
 const STATUS_COLORS: Record<DriverPayout['status'], string> = {
-  pending: '#D97706',
-  processing: '#D97706',
-  completed: '#16A34A',
-  failed: '#DC2626',
-  reversed: '#DC2626',
+  pending: Colors.warning,
+  processing: Colors.warning,
+  completed: Colors.primary,
+  failed: Colors.danger,
+  reversed: Colors.danger,
 };
 
 const STATUS_KEYS: Record<DriverPayout['status'], string> = {
@@ -27,6 +31,7 @@ const STATUS_KEYS: Record<DriverPayout['status'], string> = {
 
 export default function DriverPayoutsScreen() {
   const { t } = useTranslation();
+  const { contentStyle } = useResponsive();
   const [payouts, setPayouts] = useState<DriverPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
@@ -43,35 +48,32 @@ export default function DriverPayoutsScreen() {
   useEffect(() => { load(); }, []);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('driverPayouts')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <View style={[{ flex: 1 }, contentStyle]} className="px-5 pt-2">
+        <ScreenHeader back title={t('driverPayouts')} />
 
         {loading ? (
-          <ActivityIndicator className="mt-8" color="#16A34A" />
+          <LoadingState />
         ) : error ? (
-          <View className="mt-8 gap-4">
-            <Text className="text-center text-error">{error}</Text>
-            <Button title={t('tryAgain')} variant="outline" onPress={load} />
-          </View>
+          <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
         ) : payouts.length === 0 ? (
-          <Text className="mt-8 text-text-secondary">{t('driverNoPayoutsYet')}</Text>
+          <Text className="mt-8 text-fg-muted">{t('driverNoPayoutsYet')}</Text>
         ) : (
           <FlatList
             className="mt-4"
             data={payouts}
             keyExtractor={(p) => p.id}
             renderItem={({ item }) => (
-              <View className="mb-3 flex-row items-center justify-between rounded-xl border border-border p-4">
-                <View>
-                  <Text className="text-base font-semibold text-ink">{formatFare(item.amount)}</Text>
-                  <Text className="mt-0.5 text-xs text-text-secondary">{item.method}</Text>
+              <Card padded={false} className="mb-3 flex-row items-center justify-between p-4">
+                <View className="flex-1 pr-3">
+                  <Text className="text-body font-semibold text-fg">{formatFare(item.amount)}</Text>
+                  <Text className="mt-0.5 text-subhead text-fg-muted">{item.method}</Text>
+                  <Text className="mt-0.5 text-subhead text-fg-muted">{new Date(item.createdAt).toLocaleDateString()}</Text>
                 </View>
-                <Text className="text-xs font-semibold" style={{ color: STATUS_COLORS[item.status] }}>
+                <Text className="text-subhead font-semibold" style={{ color: STATUS_COLORS[item.status], flexShrink: 1, textAlign: 'right' }}>
                   {t(STATUS_KEYS[item.status] as any)}
                 </Text>
-              </View>
+              </Card>
             )}
           />
         )}

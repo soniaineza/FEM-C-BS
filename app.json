@@ -43,8 +43,9 @@
         {
           "android": {
             "buildArchs": ["arm64-v8a", "armeabi-v7a"],
-            "enableMinifyInReleaseBuilds": false,
-            "enableShrinkResourcesInReleaseBuilds": false
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableBundleCompression": true
           }
         }
       ]

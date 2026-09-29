@@ -46,3 +46,6 @@ yarn-error.*
 server/*.log
 /tests/e2e/report/
 /tests/e2e/results/
+
+# Local demo APK builds (see docs); not source.
+fem-cabs-demo-local.apk

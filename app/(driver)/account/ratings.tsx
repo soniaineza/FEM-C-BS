@@ -3,14 +3,19 @@ import { View, Text, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 
-import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Button } from '../../../components/Button';
+import { Card } from '../../../components/Card';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { useResponsive } from '../../../hooks/useResponsive';
 import { getDriverRatings } from '../../../services/driver-profile-service';
 import { DriverRating, DriverRatingSummary } from '../../../types/driver';
+import { Colors } from '../../../constants/theme';
+import { EmptyState, ErrorState, LoadingState } from '../../../components/ui';
 
 export default function DriverRatingsScreen() {
   const { t } = useTranslation();
+  const { contentStyle } = useResponsive();
   const [ratings, setRatings] = useState<DriverRating[]>([]);
   const [summary, setSummary] = useState<DriverRatingSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,54 +36,50 @@ export default function DriverRatingsScreen() {
   useEffect(() => { load(); }, []);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('ratings')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <View style={[{ flex: 1 }, contentStyle]} className="px-5 pt-2">
+        <ScreenHeader back title={t('ratings')} />
 
         {loading ? (
-          <ActivityIndicator className="mt-8" color="#16A34A" />
+          <LoadingState />
         ) : error ? (
-          <View className="mt-8 gap-4">
-            <Text className="text-center text-error">{error}</Text>
-            <Button title={t('tryAgain')} variant="outline" onPress={load} />
-          </View>
+          <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
         ) : (
           <>
-            <View className="mt-4 flex-row items-center rounded-2xl border border-border p-4">
-              <Text className="text-3xl font-bold text-ink">{summary?.average.toFixed(1) ?? '—'}</Text>
+            <Card padded={false} className="mt-4 flex-row items-center p-4">
+              <Text className="text-large-title font-bold text-fg">{summary?.average.toFixed(1) ?? '—'}</Text>
               <View className="ml-4 flex-1">
                 {[5, 4, 3, 2, 1].map((stars) => {
                   const count = summary?.breakdown.find((b) => b.stars === stars)?.count ?? 0;
                   const total = summary?.total || 1;
                   return (
                     <View key={stars} className="mb-1 flex-row items-center">
-                      <Text className="w-4 text-xs text-text-secondary">{stars}</Text>
-                      <Ionicons name="star" size={11} color="#D97706" />
-                      <View className="ml-2 h-1.5 flex-1 overflow-hidden rounded-full bg-gray-light">
+                      <Text className="w-4 text-caption text-fg-muted">{stars}</Text>
+                      <Ionicons name="star" size={11} color={Colors.warning} />
+                      <View className="ml-2 h-1.5 flex-1 overflow-hidden rounded-full bg-surface-muted">
                         <View className="h-1.5 rounded-full bg-warning" style={{ width: `${(count / total) * 100}%` }} />
                       </View>
                     </View>
                   );
                 })}
               </View>
-            </View>
+            </Card>
 
             <FlatList
               className="mt-4"
               data={ratings}
               keyExtractor={(_, i) => String(i)}
-              ListEmptyComponent={<Text className="mt-6 text-text-secondary">{t('driverNoRatingsYet')}</Text>}
+              ListEmptyComponent={<EmptyState icon="star-outline" title={t('driverNoRatingsYet')} />}
               renderItem={({ item }) => (
                 <View className="border-b border-border py-3">
                   <View className="flex-row items-center justify-between">
-                    <Text className="text-[14.5px] font-semibold text-ink">{item.passengerName}</Text>
+                    <Text className="flex-1 pr-2 text-subhead font-semibold text-fg">{item.passengerName}</Text>
                     <View className="flex-row items-center">
-                      <Ionicons name="star" size={13} color="#D97706" />
-                      <Text className="ml-1 text-[13px] text-ink">{item.rating}</Text>
+                      <Ionicons name="star" size={13} color={Colors.warning} />
+                      <Text className="ml-1 text-footnote text-fg">{item.rating}</Text>
                     </View>
                   </View>
-                  {item.comment ? <Text className="mt-1 text-[13px] text-text-secondary">{item.comment}</Text> : null}
+                  {item.comment ? <Text className="mt-1 text-footnote text-fg-muted">{item.comment}</Text> : null}
                 </View>
               )}
             />

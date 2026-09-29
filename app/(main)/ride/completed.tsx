@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
+import { View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../components/Button';
+import { Card } from '../../../components/Card';
+import { ErrorState, LoadingState, Screen, ScreenHeader, Text } from '../../../components/ui';
+import { RouteTimeline } from '../../../components/TripRouteCard';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getRideDetails } from '../../../services/ride-service';
 import { Ride, formatFare } from '../../../types/ride';
+import { Colors } from '../../../constants/theme';
 
 export default function CompletedScreen() {
   const { t } = useTranslation();
@@ -27,46 +31,50 @@ export default function CompletedScreen() {
 
   if (!ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white px-6">
+      <Screen background="surface">
         {error ? (
-          <View className="w-full gap-4">
-            <Text className="text-center text-error">{error}</Text>
-            <Button title={t('tryAgain')} variant="outline" onPress={load} />
-            <Button title={t('backHome')} variant="text" onPress={() => router.replace('/(main)/(tabs)')} />
+          <View className="flex-1 justify-center">
+            <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
+            <Button title={t('backHome')} variant="ghost" onPress={() => router.replace('/(main)/(tabs)')} />
           </View>
-        ) : <ActivityIndicator color="#16A34A" />}
-      </SafeAreaViewPlaceholder>
+        ) : (
+          <View className="flex-1 justify-center"><LoadingState /></View>
+        )}
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-10">
-        <Text className="text-2xl text-primary font-display">{t('tripCompleted')}</Text>
-
-        <View className="mt-6 rounded border border-border p-4">
-          <Text className="text-ink">{ride.pickup.address}</Text>
-          <Text className="mt-1 text-ink">{ride.destination.address}</Text>
-          <View className="mt-3 flex-row justify-between">
-            <Text className="text-text-secondary">{ride.distanceKm.toFixed(1)} km</Text>
-            <Text className="text-text-secondary">{ride.durationMinutes} min</Text>
-          </View>
-          <View className="mt-3 flex-row justify-between">
-            <Text className="text-base font-semibold text-ink">{t('finalFare')}</Text>
-            <Text className="text-lg font-bold text-primary">{formatFare(ride.finalFare ?? ride.estimatedFare)}</Text>
+    <Screen
+      background="surface"
+      header={<ScreenHeader back={() => router.replace('/(main)/(tabs)')} />}
+      footer={
+        <>
+          {ride.rating == null ? (
+            <Button title={t('rating')} icon="star" onPress={() => router.push({ pathname: '/(main)/ride/rating', params: { rideId: ride.id } })} />
+          ) : null}
+          <Button title={t('backHome')} variant={ride.rating == null ? 'ghost' : 'primary'} onPress={() => router.replace('/(main)/(tabs)')} />
+        </>
+      }
+    >
+      <View className="items-center pt-4">
+        <View className="h-20 w-20 items-center justify-center rounded-full bg-primary-soft">
+          <View className="h-14 w-14 items-center justify-center rounded-full bg-primary">
+            <Ionicons name="checkmark" size={32} color={Colors['primary-fg']} />
           </View>
         </View>
-
-        {ride.rating == null ? (
-          <View className="mt-6">
-            <Button title={t('rating')} onPress={() => router.push({ pathname: '/(main)/ride/rating', params: { rideId: ride.id } })} />
-          </View>
-        ) : null}
-
-        <View className="mt-auto pb-8">
-          <Button title={t('backHome')} variant="outline" onPress={() => router.replace('/(main)/(tabs)')} />
-        </View>
+        <Text variant="title-1" align="center" style={{ marginTop: 16 }} accessibilityRole="header">{t('tripCompleted')}</Text>
+        <Text variant="subhead" tone="muted" style={{ marginTop: 16 }}>{t('finalFare')}</Text>
+        <Text variant="large-title" style={{ marginTop: 2 }}>{formatFare(ride.finalFare ?? ride.estimatedFare)}</Text>
       </View>
-    </SafeAreaViewPlaceholder>
+
+      <Card className="mt-8">
+        <RouteTimeline pickup={ride.pickup.address} destination={ride.destination.address} />
+        <View className="mt-4 flex-row gap-6 border-t border-divider pt-4">
+          <Text variant="callout" weight="semibold">{ride.distanceKm.toFixed(1)} <Text variant="subhead" tone="muted">km</Text></Text>
+          <Text variant="callout" weight="semibold">{ride.durationMinutes} <Text variant="subhead" tone="muted">min</Text></Text>
+        </View>
+      </Card>
+    </Screen>
   );
 }

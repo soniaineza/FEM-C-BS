@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../components/Button';
-import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import {
   triggerEmergency,
@@ -16,6 +16,7 @@ import {
 } from '../../../services/safety-service';
 import { ApiError } from '../../../services/api-client';
 import { shareText } from '../../../utils/share';
+import { Colors } from '../../../constants/theme';
 
 // Safety screen — SOS now routes to the FEM C@BS call center: the tap
 // records the emergency server-side (auditable trail + control-room
@@ -71,41 +72,40 @@ export default function SafetyScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-4 text-xl text-ink font-display">{t('safety')}</Text>
-        <Text className="mt-2 text-text-secondary">{t('safetyPriority')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <View className="flex-1 px-5 pt-2">
+        <ScreenHeader back title={t('safety')} />
+        <Text className="mt-2 text-fg-muted">{t('safetyPriority')}</Text>
 
-        <View className="mt-8 rounded border border-error p-4">
-          <Text className="text-base font-semibold text-error">{t('emergencyAssistance')}</Text>
-          <Text className="mt-1 text-xs text-text-secondary">{t('emergencySosHint')}</Text>
+        <View className="mt-8 rounded border border-danger p-4">
+          <Text className="text-body font-semibold text-danger">{t('emergencyAssistance')}</Text>
+          <Text className="mt-1 text-caption text-fg-muted">{t('emergencySosHint')}</Text>
           <View className="mt-3">
-            <Button title={t('sos')} onPress={handleSos} loading={sosLoading} className="bg-error" />
+            <Button title={t('sos')} onPress={handleSos} loading={sosLoading} className="bg-danger" />
           </View>
           {sosResult ? (
             <View className="mt-2 flex-row items-center">
-              <Ionicons name="call" size={13} color="#16A34A" />
-              <Text className="ml-1.5 flex-1 text-xs text-text-secondary">
+              <Ionicons name="call" size={13} color={Colors.primary} />
+              <Text className="ml-1.5 flex-1 text-caption text-fg-muted">
                 {t('sosSent')} {t('sosReferenceLabel', { reference: sosResult.reference })}
               </Text>
             </View>
           ) : null}
-          {sosError ? <Text className="mt-2 text-xs text-error">{sosError}</Text> : null}
+          {sosError ? <Text className="mt-2 text-caption text-danger">{sosError}</Text> : null}
           {callCenterPhone ? (
             <Pressable
-              className="mt-3 flex-row items-center justify-center rounded border border-error py-2.5"
+              className="mt-3 flex-row items-center justify-center rounded border border-danger py-2.5"
               onPress={() => callPhoneNumber(callCenterPhone)}
             >
-              <Ionicons name="call" size={15} color="#DC2626" />
-              <Text className="ml-2 text-sm font-semibold text-error">{t('emergencyCallCenterTitle')}</Text>
+              <Ionicons name="call" size={15} color={Colors.danger} />
+              <Text className="ml-2 text-subhead font-semibold text-danger">{t('emergencyCallCenterTitle')}</Text>
             </Pressable>
           ) : null}
         </View>
 
         <View className="mt-4 rounded border border-border p-4">
-          <Text className="text-base font-semibold text-ink">{t('shareTrip')}</Text>
-          <Text className="mt-1 text-xs text-text-secondary">{t('shareTripHint')}</Text>
+          <Text className="text-body font-semibold text-fg">{t('shareTrip')}</Text>
+          <Text className="mt-1 text-caption text-fg-muted">{t('shareTripHint')}</Text>
           <View className="mt-3">
             <Button title={t('shareTripLink')} variant="outline" onPress={handleShareTrip} loading={shareLoading} />
           </View>

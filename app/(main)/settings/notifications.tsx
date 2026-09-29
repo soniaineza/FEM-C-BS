@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
-import { BackHeader } from '../../../components/BackHeader';
 import { Button } from '../../../components/Button';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getNotifications, markAsRead, markAllRead } from '../../../services/notification-service';
 import { NotificationItem } from '../../../types/notification';
+import { Colors } from '../../../constants/theme';
+import { EmptyState, ErrorState, LoadingState, Banner, ScreenHeader } from '../../../components/ui';
+import { NotificationRow } from '../../../components/NotificationRow';
 
 export default function NotificationsScreen() {
   const { t } = useTranslation();
@@ -35,13 +37,15 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <View className="mt-2 flex-row items-center justify-between">
-          <Text className="text-xl text-ink font-display">{t('notifications')}</Text>
-          {items.some((i) => !i.read) ? (
+    <SafeAreaViewPlaceholder className="flex-1 bg-canvas">
+      <View className="flex-1 px-5 pt-2">
+        <ScreenHeader
+          back
+          title={t('notifications')}
+          right={items.some((i) => !i.read) ? (
             <Pressable
+              accessibilityRole="button"
+              hitSlop={10}
               onPress={async () => {
                 try {
                   await markAllRead();
@@ -49,39 +53,25 @@ export default function NotificationsScreen() {
                 } catch { setError(t('requestFailed')); }
               }}
             >
-              <Text className="text-sm text-primary">{t('markAllRead')}</Text>
+              <Text className="text-subhead font-semibold text-primary-text">{t('markAllRead')}</Text>
             </Pressable>
           ) : null}
-        </View>
+        />
 
-        {error && items.length > 0 ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
+        {error && items.length > 0 ? <View className="mt-3"><Banner tone="danger" message={error} /></View> : null}
 
         {loading ? (
-          <ActivityIndicator className="mt-8" color="#16A34A" />
+          <LoadingState />
         ) : error && items.length === 0 ? (
-          <View className="mt-8 gap-4">
-            <Text className="text-center text-error">{error}</Text>
-            <Button title={t('tryAgain')} variant="outline" onPress={load} />
-          </View>
+          <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
         ) : items.length === 0 ? (
-          <View className="mt-8 items-center">
-            <Text className="text-base font-medium text-ink">{t('noNotificationsYet')}</Text>
-            <Text className="mt-1 text-center text-text-secondary">{t('notificationsEmptySubtitle')}</Text>
-          </View>
+          <EmptyState icon="notifications-outline" title={t('noNotificationsYet')} message={t('notificationsEmptySubtitle')} />
         ) : (
           <FlatList
             className="mt-4"
             data={items}
             keyExtractor={(i) => i.id}
-            renderItem={({ item }) => (
-              <Pressable className="border-b border-border py-3" onPress={() => handleOpen(item)}>
-                <View className="flex-row items-center gap-2">
-                  {!item.read ? <View className="h-2 w-2 rounded-full bg-primary" /> : null}
-                  <Text className="text-base font-medium text-ink">{item.title}</Text>
-                </View>
-                <Text className="mt-1 text-sm text-text-secondary">{item.body}</Text>
-              </Pressable>
-            )}
+            renderItem={({ item }) => <NotificationRow item={item} onPress={() => handleOpen(item)} />}
           />
         )}
       </View>

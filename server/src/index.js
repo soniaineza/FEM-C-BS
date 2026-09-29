@@ -57,6 +57,11 @@ async function main() {
   app.use(express.json());
 
   app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+  // Public feature flags the apps adapt to (e.g. card is demo-only).
+  app.get('/api/config', (req, res) => res.json({
+    demoPayments: config.demoPayments,
+    paymentMethods: require('./services/payments').bookablePaymentMethods(),
+  }));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/vehicles', vehiclesRoutes);

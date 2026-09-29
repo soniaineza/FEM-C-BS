@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../components/Button';
@@ -9,6 +9,7 @@ import { ErrorMessage } from '../components/ErrorMessage';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../stores/useAuthStore';
 import { ApiError } from '../services/api-client';
+import { Colors } from '../constants/theme';
 
 function initialsFor(name: string): string {
   const trimmed = name.trim();
@@ -60,18 +61,18 @@ export default function ProfileSetupScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-6 pb-8">
-        <Text className="text-xl text-ink font-display">{t('completeProfile')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView topPadding={24}>
+        <Text className="text-title-2 text-fg font-display">{t('completeProfile')}</Text>
 
         <View className="mt-6 items-center">
           <View
             className="h-[88px] w-[88px] items-center justify-center rounded-full border-2 border-primary"
-            style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}
+            style={{ backgroundColor: Colors['primary-tint'] }}
           >
-            <Text className="text-3xl font-bold text-primary">{initialsFor(fullName)}</Text>
+            <Text className="text-large-title font-bold text-primary-text">{initialsFor(fullName)}</Text>
           </View>
-          <Text className="mt-3 text-center text-xs text-text-secondary">{t('profilePhotoHint')}</Text>
+          <Text className="mt-3 text-center text-caption text-fg-muted">{t('profilePhotoHint')}</Text>
         </View>
 
         <View className="mt-6 gap-4">
@@ -92,8 +93,8 @@ export default function ProfileSetupScreen() {
           />
         </View>
 
-        <Text className="mt-7 text-base font-bold text-ink">{t('emergencyContactOptional')}</Text>
-        <Text className="mt-1.5 text-xs leading-5 text-text-secondary">{t('emergencyContactHint')}</Text>
+        <Text className="mt-7 text-body font-bold text-fg">{t('emergencyContactOptional')}</Text>
+        <Text className="mt-1.5 text-caption leading-5 text-fg-muted">{t('emergencyContactHint')}</Text>
         <View className="mt-4 gap-4">
           <Input
             label={t('emergencyContactName')}
@@ -114,7 +115,7 @@ export default function ProfileSetupScreen() {
         <View className="mt-7">
           <Button title={t('continueLabel')} onPress={handleContinue} loading={loading} />
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

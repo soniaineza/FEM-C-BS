@@ -1,6 +1,7 @@
 import { ReactNode, memo } from 'react';
 import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../constants/theme';
 
 interface FEMMapCardProps {
   children: ReactNode;
@@ -29,7 +30,7 @@ export const FEMMapCard = memo(function FEMMapCard({
 }: FEMMapCardProps) {
   return (
     <View
-      className={`w-full overflow-hidden rounded-2xl border border-border bg-gray-light ${className ?? ''}`}
+      className={`w-full overflow-hidden rounded-2xl border border-border bg-surface-muted ${className ?? ''}`}
       style={{
         height,
         shadowColor: '#000',
@@ -48,7 +49,7 @@ export const FEMMapCard = memo(function FEMMapCard({
           disabled={recenterDisabled}
           onPress={onRecenter}
           hitSlop={8}
-          className="absolute bottom-3 right-3 h-11 w-11 items-center justify-center rounded-full bg-white"
+          className="absolute bottom-3 right-3 h-11 w-11 items-center justify-center rounded-full bg-surface"
           style={{
             shadowColor: '#000',
             shadowOpacity: 0.18,
@@ -58,7 +59,7 @@ export const FEMMapCard = memo(function FEMMapCard({
             opacity: recenterDisabled ? 0.5 : 1,
           }}
         >
-          <Ionicons name="locate" size={22} color="#16A34A" />
+          <Ionicons name="locate" size={22} color={Colors.primary} />
         </Pressable>
       ) : null}
     </View>

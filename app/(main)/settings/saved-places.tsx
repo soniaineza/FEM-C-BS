@@ -5,6 +5,7 @@ import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceho
 
 import { Button } from '../../../components/Button';
 import { BackHeader } from '../../../components/BackHeader';
+import { EmptyState } from '../../../components/ui/States';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { getSavedPlaces, savePlace, deleteSavedPlace } from '../../../services/user-service';
 import { searchLocations } from '../../../services/location-service';
@@ -85,28 +86,25 @@ export default function SavedPlacesScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <View className="flex-1 px-5 pt-2">
         <BackHeader />
         <View className="mt-2 flex-row items-center justify-between">
-          <Text className="text-xl text-ink font-display">{t('savedPlaces')}</Text>
+          <Text className="text-title-2 text-fg font-display">{t('savedPlaces')}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={t('addPlace')} onPress={() => setModalOpen(true)}>
-            <Text className="font-semibold text-primary">{t('addPlace')}</Text>
+            <Text className="font-semibold text-primary-text">{t('addPlace')}</Text>
           </Pressable>
         </View>
 
         {error && !modalOpen ? (
           <View className="mt-5">
-            <Text className="text-sm text-error">{error}</Text>
+            <Text className="text-subhead text-danger">{error}</Text>
             <Button title={t('tryAgain')} variant="outline" onPress={load} />
           </View>
         ) : null}
 
         {!loading && !error && places.length === 0 ? (
-          <View className="mt-8 items-center">
-            <Text className="text-base font-medium text-ink">{t('noSavedPlaces')}</Text>
-            <Text className="mt-1 text-center text-text-secondary">{t('savePlacesHint')}</Text>
-          </View>
+          <EmptyState icon="bookmark-outline" tone="primary" title={t('noSavedPlaces')} message={t('savePlacesHint')} />
         ) : (
           <FlatList
             className="mt-4"
@@ -115,11 +113,11 @@ export default function SavedPlacesScreen() {
             renderItem={({ item }) => (
               <View className="flex-row items-center justify-between border-b border-border py-3">
                 <View className="flex-1">
-                  <Text className="text-base font-medium text-ink">{item.name}</Text>
-                  <Text className="text-sm text-text-secondary">{item.place.address}</Text>
+                  <Text className="text-body font-medium text-fg">{item.name}</Text>
+                  <Text className="text-subhead text-fg-muted">{item.place.address}</Text>
                 </View>
                 <Pressable accessibilityRole="button" accessibilityLabel={`${t('deleteTooltip')} ${item.name}`} onPress={() => handleDelete(item.id)}>
-                  <Text className="text-error">{t('deleteTooltip')}</Text>
+                  <Text className="text-danger">{t('deleteTooltip')}</Text>
                 </Pressable>
               </View>
             )}
@@ -129,24 +127,24 @@ export default function SavedPlacesScreen() {
 
       <Modal visible={modalOpen} animationType="slide" transparent>
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <View className="flex-1 items-center justify-center bg-black/40 px-6">
-          <View className="w-full max-w-[480px] rounded-2xl bg-white p-6">
-            <Text className="text-lg text-ink font-display">{t('addAPlace')}</Text>
+        <View className="flex-1 items-center justify-center bg-black/50 px-5">
+          <View className="w-full max-w-[480px] rounded-2xl bg-surface p-6">
+            <Text className="text-title-3 text-fg font-display">{t('addAPlace')}</Text>
             <TextInput
-              className="mt-4 h-button rounded border border-border px-4 text-ink"
+              className="mt-4 h-button rounded border border-border px-4 text-fg"
               placeholder={t('placeNameHint')}
               value={name}
               onChangeText={setName}
               accessibilityLabel={t('placeNameHint')}
             />
             <TextInput
-              className="mt-3 h-button rounded border border-border px-4 text-ink"
+              className="mt-3 h-button rounded border border-border px-4 text-fg"
               placeholder={t('addressHint')}
               value={address}
               onChangeText={(value) => { setAddress(value); setSelectedPlace(null); setResults([]); setHasSearched(false); setError(undefined); }}
               accessibilityLabel={t('addressHint')}
             />
-            {searching ? <Text className="mt-2 text-sm text-text-secondary">{t('searching')}</Text> : null}
+            {searching ? <Text className="mt-2 text-subhead text-fg-muted">{t('searching')}</Text> : null}
             {results.length > 0 ? (
               <View className="mt-2 max-h-48 rounded-xl border border-border">
                 {results.slice(0, 5).map((place, index) => (
@@ -156,15 +154,15 @@ export default function SavedPlacesScreen() {
                     onPress={() => { setSelectedPlace(place); setAddress(place.address); setResults([]); setError(undefined); }}
                     className="border-b border-border px-3 py-3"
                   >
-                    <Text numberOfLines={2} className="text-sm text-ink">{place.address}</Text>
+                    <Text numberOfLines={2} className="text-subhead text-fg">{place.address}</Text>
                   </Pressable>
                 ))}
               </View>
             ) : null}
             {hasSearched && results.length === 0 && !selectedPlace && !searching ? (
-              <Text className="mt-2 text-sm text-text-secondary">{t('noLocationsFound')}</Text>
+              <Text className="mt-2 text-subhead text-fg-muted">{t('noLocationsFound')}</Text>
             ) : null}
-            {error ? <Text className="mt-2 text-sm text-error">{error}</Text> : null}
+            {error ? <Text className="mt-2 text-subhead text-danger">{error}</Text> : null}
             <View className="mt-4 flex-row gap-3">
               <View className="flex-1">
                 <Button title={t('back')} variant="outline" onPress={() => setModalOpen(false)} />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { Pressable } from '../../components/ui/Pressable';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,16 +8,19 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { BackHeader } from '../../components/BackHeader';
 import { RideMap, RideMapMarker } from '../../components/RideMap';
+import { useResponsive } from '../../hooks/useResponsive';
 import { useDriverRideDetails } from '../../hooks/useDriverRideDetails';
 import { useTranslation } from '../../hooks/useTranslation';
 import { markDriverArrived, verifyDriverRidePin, completeDriverTrip, confirmDriverCashPayment, cancelDriverRide } from '../../services/driver-service';
 import { formatFare, RoutePoint } from '../../types/ride';
 import { MapDefaults, getRoute } from '../../services/location-service';
 import { ApiError } from '../../services/driver-api-client';
+import { Colors } from '../../constants/theme';
 
 // Reason sent to the backend stays a stable English id (stored verbatim as
 // rides.cancellation_reason — an internal/audit string, not shown to the
@@ -36,6 +40,7 @@ export default function DriverJourneyScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const { ride } = useDriverRideDetails(rideId ?? null);
+  const { contentStyle, mapHeight } = useResponsive();
   // The cancel-reason bottom sheet lives in a transparent Modal (no automatic
   // SafeArea) — pad its bottom by the system inset so the action list stays
   // clear of the gesture bar / 3-button nav.
@@ -61,8 +66,8 @@ export default function DriverJourneyScreen() {
 
   if (!ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator color="#16A34A" />
+      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-surface">
+        <ActivityIndicator color={Colors.primary} />
       </SafeAreaViewPlaceholder>
     );
   }
@@ -133,14 +138,14 @@ export default function DriverJourneyScreen() {
     const fare = completion?.fare ?? ride.finalFare ?? ride.estimatedFare;
     const method = completion?.method ?? ride.paymentMethod.id;
     return (
-      <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 bg-surface">
         <View className="flex-1 items-center justify-center px-8">
-          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
-            <Ionicons name="checkmark" size={32} color="#16A34A" />
+          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: Colors['primary-tint'] }}>
+            <Ionicons name="checkmark" size={32} color={Colors.primary} />
           </View>
-          <Text className="mt-4 text-xl text-ink font-display">{t('driverTripComplete')}</Text>
-          <Text className="mt-1 text-3xl font-bold text-primary">{formatFare(fare)}</Text>
-          <Text className="mt-1 text-sm text-text-secondary">
+          <Text className="mt-4 text-title-2 text-fg font-display">{t('driverTripComplete')}</Text>
+          <Text className="mt-1 text-large-title font-bold text-primary-text">{formatFare(fare)}</Text>
+          <Text className="mt-1 text-subhead text-fg-muted">
             {method === 'cash' ? t('driverCollectCash') : t('driverPaymentPending')}
           </Text>
           {method === 'cash' ? (
@@ -162,13 +167,13 @@ export default function DriverJourneyScreen() {
   // must say so plainly rather than showing a blank action area forever.
   if (ride.status === 'cancelled') {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <SafeAreaViewPlaceholder className="flex-1 bg-surface">
         <View className="flex-1 items-center justify-center px-8">
           <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(220,38,38,0.1)' }}>
-            <Ionicons name="close" size={32} color="#DC2626" />
+            <Ionicons name="close" size={32} color={Colors.danger} />
           </View>
-          <Text className="mt-4 text-xl text-ink font-display">{t('driverRideCancelledTitle')}</Text>
-          <Text className="mt-1 text-center text-sm text-text-secondary">
+          <Text className="mt-4 text-title-2 text-fg font-display">{t('driverRideCancelledTitle')}</Text>
+          <Text className="mt-1 text-center text-subhead text-fg-muted">
             {ride.cancelledBy === 'passenger' ? t('driverRiderCancelledBody') : t('driverTripCancelledBody')}
           </Text>
           <View className="mt-8 w-full">
@@ -197,9 +202,12 @@ export default function DriverJourneyScreen() {
   ];
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <View className="h-56 w-full">
+      {/* Map takes ~28% of the screen (clamped 200–320pt) instead of a
+          fixed 224px, so short phones keep room for the actions and tablets
+          don't get a postage stamp. */}
+      <View style={{ height: mapHeight }} className="w-full">
         <RideMap
           center={center}
           markers={markers}
@@ -210,24 +218,22 @@ export default function DriverJourneyScreen() {
         />
       </View>
 
-      <View className="flex-1 px-6 pt-2">
+      <ScrollView className="flex-1" keyboardShouldPersistTaps="handled" contentContainerClassName="pb-8">
+      <View style={contentStyle} className="px-5 pt-2">
         <BackHeader onBack={() => router.replace('/(driver)/(tabs)' as any)} />
 
-        <View
-          className="mt-3 flex-row items-center justify-between rounded-2xl border border-border bg-white p-4"
-          style={{ shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 }}
-        >
-          <View className="flex-1">
-            <Text className="text-base font-bold text-ink">{ride.rider?.name ?? t('driver')}</Text>
-            <Text className="mt-0.5 text-[13px] text-text-secondary" numberOfLines={1}>
+        <Card padded={false} className="mt-3 flex-row items-center justify-between p-4">
+          <View className="flex-1 pr-2">
+            <Text className="text-body font-bold text-fg" numberOfLines={1}>{ride.rider?.name ?? t('driver')}</Text>
+            <Text className="mt-0.5 text-footnote text-fg-muted" numberOfLines={2}>
               {awaitingPin || inTrip ? ride.destination.address : ride.pickup.address}
             </Text>
           </View>
-        </View>
+        </Card>
 
         {awaitingArrival ? (
           <View className="mt-5">
-            <Text className="text-sm text-text-secondary">{t('driverHeadToPickup')}</Text>
+            <Text className="text-subhead text-fg-muted">{t('driverHeadToPickup')}</Text>
             <View className="mt-3">
               <Button title={t('driverIveArrived')} onPress={handleArrived} loading={actionLoading} />
             </View>
@@ -236,8 +242,8 @@ export default function DriverJourneyScreen() {
 
         {awaitingPin ? (
           <View className="mt-5">
-            <Text className="text-sm font-semibold text-ink">{t('driverEnterRiderCode')}</Text>
-            <Text className="mt-1 text-xs text-text-secondary">{t('driverEnterRiderCodeSubtitle')}</Text>
+            <Text className="text-subhead font-semibold text-fg">{t('driverEnterRiderCode')}</Text>
+            <Text className="mt-1 text-caption text-fg-muted">{t('driverEnterRiderCodeSubtitle')}</Text>
             <View className="mt-3">
               <Input value={pin} onChangeText={setPin} keyboardType="number-pad" maxLength={4} placeholder="0000" />
             </View>
@@ -249,10 +255,12 @@ export default function DriverJourneyScreen() {
 
         {inTrip ? (
           <View className="mt-5">
-            <View className="rounded-2xl bg-gray-light p-4">
-              <Text className="text-xs text-text-secondary">{t('driverEstimatedFare')}</Text>
-              <Text className="mt-1 text-2xl font-bold text-ink">{formatFare(ride.estimatedFare)}</Text>
-            </View>
+            <Card tone="tint" padded={false} className="p-4">
+              <Text className="text-caption text-fg-muted">{t('driverEstimatedFare')}</Text>
+              <Text className="mt-1 text-title-1 font-bold text-fg" numberOfLines={1} adjustsFontSizeToFit>
+                {formatFare(ride.estimatedFare)}
+              </Text>
+            </Card>
             <View className="mt-3">
               <Button title={t('driverCompleteTrip')} onPress={handleComplete} loading={actionLoading} />
             </View>
@@ -262,25 +270,31 @@ export default function DriverJourneyScreen() {
         {actionError ? <View className="mt-3"><ErrorMessage message={actionError} /></View> : null}
 
         {!inTrip ? (
-          <Pressable className="mt-4 items-center" onPress={() => setCancelSheetOpen(true)}>
-            <Text className="text-sm font-semibold text-error">{t('driverCancelTrip')}</Text>
+          <Pressable className="mt-4 items-center py-2" onPress={() => setCancelSheetOpen(true)}>
+            <Text className="text-subhead font-semibold text-danger">{t('driverCancelTrip')}</Text>
           </Pressable>
         ) : null}
       </View>
+      </ScrollView>
 
       <Modal visible={cancelSheetOpen} transparent animationType="slide" onRequestClose={() => setCancelSheetOpen(false)}>
-        <View className="flex-1 justify-end bg-black/40">
-          <View className="rounded-t-[28px] bg-white p-6" style={{ paddingBottom: 32 + insets.bottom }}>
-            <Text className="text-lg font-bold text-ink">{t('driverWhyCancelling')}</Text>
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="rounded-t-sheet bg-surface p-6" style={{ paddingBottom: 32 + insets.bottom }}>
+            <Text className="text-title-3 font-bold text-fg">{t('driverWhyCancelling')}</Text>
             <View className="mt-4 gap-2">
               {CANCEL_REASONS.map((reason) => (
-                <Pressable key={reason.id} className="rounded-xl border border-border px-4 py-3.5" onPress={() => handleCancel(reason.id)}>
-                  <Text className="text-[14.5px] text-ink">{t(reason.key as any)}</Text>
+                <Pressable
+                  key={reason.id}
+                  className="rounded-2xl border border-border bg-surface px-4 py-3.5"
+                  style={({ pressed }) => ({ backgroundColor: pressed ? Colors['surface-muted'] : Colors.surface })}
+                  onPress={() => handleCancel(reason.id)}
+                >
+                  <Text className="text-subhead text-fg">{t(reason.key as any)}</Text>
                 </Pressable>
               ))}
             </View>
             <Pressable className="mt-4 items-center" onPress={() => setCancelSheetOpen(false)}>
-              <Text className="text-sm font-semibold text-text-secondary">{t('driverNeverMind')}</Text>
+              <Text className="text-subhead font-semibold text-fg-muted">{t('driverNeverMind')}</Text>
             </Pressable>
           </View>
         </View>

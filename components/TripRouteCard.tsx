@@ -1,12 +1,12 @@
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { memo } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 
+import { Colors } from '../constants/theme';
 import { Place } from '../types/place';
+import { Card } from './Card';
+import { Text } from './ui/Text';
 
-// Direct port of lib/widgets/trip_route_card.dart: pickup (filled dot) and
-// destination (pin) connected by a short vertical line, with distance/
-// duration on the right when known.
+/** Pickup → destination timeline card with optional distance/duration. */
 export const TripRouteCard = memo(function TripRouteCard({
   pickup,
   destination,
@@ -19,29 +19,51 @@ export const TripRouteCard = memo(function TripRouteCard({
   durationMinutes?: number;
 }) {
   return (
-    <View className="flex-row items-center rounded-xl border border-border bg-white p-4">
-      <View className="flex-1">
-        <View className="flex-row items-start">
-          <Ionicons name="ellipse" size={10} color="#16A34A" style={{ marginTop: 5 }} />
-          <Text className="ml-2.5 flex-1 text-sm font-semibold leading-5 text-ink">{pickup.address}</Text>
-        </View>
-        <View className="ml-[4.5px] h-[18px] w-[1.6px] bg-border" />
-        <View className="flex-row items-start">
-          <Ionicons name="location-outline" size={10} color="#111111" style={{ marginTop: 5 }} />
-          <Text className="ml-2.5 flex-1 text-sm font-semibold leading-5 text-ink">{destination.address}</Text>
-        </View>
-      </View>
+    <Card>
+      <RouteTimeline pickup={pickup.address} destination={destination.address} />
       {distanceKm != null ? (
-        <View className="ml-3 items-center">
-          <Ionicons name="resize-outline" size={16} color="#6B7280" />
-          <Text className="mt-1 text-[13px] font-bold text-ink">{distanceKm.toFixed(1)} km</Text>
-          {durationMinutes != null ? (
-            <Text className="mt-1.5 text-xs text-text-secondary">~{durationMinutes} min</Text>
-          ) : null}
+        <View style={{ flexDirection: 'row', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.divider, gap: 24 }}>
+          <Metric label="km" value={distanceKm.toFixed(1)} />
+          {durationMinutes != null ? <Metric label="min" value={`~${durationMinutes}`} /> : null}
         </View>
       ) : null}
-    </View>
+    </Card>
   );
 });
 
 TripRouteCard.displayName = 'TripRouteCard';
+
+function Metric({ value, label }: { value: string; label: string }) {
+  return (
+    <Text variant="callout" weight="semibold">
+      {value} <Text variant="subhead" tone="muted">{label}</Text>
+    </Text>
+  );
+}
+
+/** Two stops joined by a vertical rail: ring for pickup, square for drop-off. */
+export function RouteTimeline({ pickup, destination }: { pickup: string; destination: string }) {
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+        <View style={{ width: 20, alignItems: 'center', paddingTop: 5 }}>
+          <View style={{ width: 12, height: 12, borderRadius: 6, borderWidth: 3, borderColor: Colors.primary, backgroundColor: Colors.surface }} />
+        </View>
+        <Text variant="callout" weight="medium" numberOfLines={2} style={{ flex: 1, marginLeft: 10 }}>
+          {pickup}
+        </Text>
+      </View>
+      <View style={{ width: 20, alignItems: 'center' }}>
+        <View style={{ width: 2, height: 18, marginVertical: 2, backgroundColor: Colors.border, borderRadius: 1 }} />
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+        <View style={{ width: 20, alignItems: 'center', paddingTop: 5 }}>
+          <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: Colors.fg }} />
+        </View>
+        <Text variant="callout" weight="medium" numberOfLines={2} style={{ flex: 1, marginLeft: 10 }}>
+          {destination}
+        </Text>
+      </View>
+    </View>
+  );
+}

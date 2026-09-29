@@ -8,7 +8,7 @@ import type { DOMProps } from 'expo/dom';
 
 import type { MapCar, MapMarker, MapRoute, MapScene, LngLat } from './map-types';
 import { KIGALI_CENTER } from './map-types';
-import { CAR_LENGTH_M, createCar, createLights, loadCarModels } from './carModel';
+import { CAR_LENGTH_M, createCar, createLights, loadCarModels, setBrakeLights } from './carModel';
 import { RENDER_DELAY_MS, Track, distanceM, lerpAngle, projectOnRoute } from './trackInterpolation';
 
 // The map engine: MapLibre GL JS over OpenFreeMap's OpenStreetMap vector
@@ -28,6 +28,15 @@ const USER_IDLE_MS = 8000; // after panning, wait this long before re-following
 const REMOVE_AFTER_MS = 4000; // a car missing from updates fades out after this
 const EMPTY_FC = { type: 'FeatureCollection', features: [] } as const;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
+// Rwanda drives on the right: cars are drawn this far right of the road's
+// centreline, so opposing traffic passes side by side instead of overlapping.
+const LANE_OFFSET_M = 1.7;
+// Stylised suspension: a slightly under-damped spring on pitch and roll.
+const SUSPENSION_K = 70;
+const SUSPENSION_C = 10;
+const tmpRot = new THREE.Matrix4();
+const tmpScale = new THREE.Matrix4();
+const tmpMove = new THREE.Matrix4();
 
 interface Props {
   scene: MapScene;
@@ -53,6 +62,14 @@ interface CarEntry {
   lastSeenAt: number;
   lat: number;
   lng: number;
+  /** Smoothed motion for body dynamics and brake lights. */
+  speed: number;
+  accel: number;
+  yawRate: number;
+  pitch: number;
+  pitchVel: number;
+  roll: number;
+  rollVel: number;
 }
 
 class CarLayer implements maplibregl.CustomLayerInterface {
@@ -66,6 +83,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
   private camera = new THREE.Camera();
   private scene = new THREE.Scene();
   private nextFrame: ReturnType<typeof setTimeout> | null = null;
+  private lastRenderAt = 0;
 
   onAdd(map: maplibregl.Map, gl: WebGLRenderingContext | WebGL2RenderingContext) {
     this.map = map;
@@ -126,6 +144,13 @@ class CarLayer implements maplibregl.CustomLayerInterface {
           lastSeenAt: now,
           lat: car.latitude,
           lng: car.longitude,
+          speed: 0,
+          accel: 0,
+          yawRate: 0,
+          pitch: 0,
+          pitchVel: 0,
+          roll: 0,
+          rollVel: 0,
         };
         this.cars.set(car.id, entry);
         this.scene.add(group);
@@ -163,22 +188,51 @@ class CarLayer implements maplibregl.CustomLayerInterface {
     // matrix here in 64-bit JS, so the GPU only sees small, precise numbers.
     const origin = maplibregl.MercatorCoordinate.fromLngLat(this.map.getCenter(), 0);
 
+    // Frame time for time-based smoothing (the loop runs at 4–30 fps).
+    const dt = Math.min(0.25, Math.max(0.001, (now - (this.lastRenderAt || now - 33)) / 1000));
+    this.lastRenderAt = now;
+
     for (const entry of this.cars.values()) {
       const st = entry.track.sample(t);
       if (!st) continue;
       moving = moving || st.moving;
+      const movedM = st.lat !== entry.lat || st.lng !== entry.lng ? distanceM(entry.lat, entry.lng, st.lat, st.lng) : 0;
       // Turn the wheels by the distance covered (scaled with the drawn size).
       const wheels = entry.group.userData.wheels as THREE.Object3D[] | undefined;
-      if (wheels?.length && (st.lat !== entry.lat || st.lng !== entry.lng)) {
-        const movedM = distanceM(entry.lat, entry.lng, st.lat, st.lng);
+      if (wheels?.length && movedM > 0 && movedM < 30) {
         entry.wheelAngle = (entry.wheelAngle + movedM / (entry.group.userData.wheelRadiusM * entry.scale)) % (Math.PI * 2);
         const roll = new THREE.Quaternion().setFromAxisAngle(X_AXIS, entry.wheelAngle);
         for (const w of wheels) w.quaternion.copy(roll).multiply(w.userData.baseQuaternion);
       }
       entry.lat = st.lat;
       entry.lng = st.lng;
-      // Ease the body's rotation so corners read as a turn, not a snap.
-      entry.heading = lerpAngle(entry.heading, st.heading, 0.18);
+
+      // Motion estimates (smoothed): speed, acceleration, yaw rate.
+      const instSpeed = movedM < 30 ? movedM / dt : entry.speed;
+      const prevSpeed = entry.speed;
+      entry.speed += (instSpeed - entry.speed) * (1 - Math.exp(-dt / 0.25));
+      entry.accel += ((entry.speed - prevSpeed) / dt - entry.accel) * (1 - Math.exp(-dt / 0.35));
+      // Ease the body's rotation so corners read as a turn, not a snap
+      // (time-based, so it feels the same at 4 fps and 30 fps).
+      const prevHeading = entry.heading;
+      entry.heading = lerpAngle(entry.heading, st.heading, 1 - Math.exp(-dt / 0.14));
+      const dHeading = ((((entry.heading - prevHeading) % 360) + 540) % 360) - 180;
+      entry.yawRate += ((dHeading * Math.PI) / 180 / dt - entry.yawRate) * (1 - Math.exp(-dt / 0.2));
+
+      // Springy body: nose dips when braking, leans out of corners.
+      const pitchTarget = Math.max(-0.05, Math.min(0.035, entry.accel * 0.014));
+      const rollTarget = Math.max(-0.06, Math.min(0.06, -entry.yawRate * entry.speed * 0.02));
+      // Semi-implicit Euler in small steps: stable at any frame rate.
+      const steps = Math.ceil(dt / 0.016);
+      const h = dt / steps;
+      for (let i = 0; i < steps; i++) {
+        entry.pitchVel += (SUSPENSION_K * (pitchTarget - entry.pitch) - SUSPENSION_C * entry.pitchVel) * h;
+        entry.pitch += entry.pitchVel * h;
+        entry.rollVel += (SUSPENSION_K * (rollTarget - entry.roll) - SUSPENSION_C * entry.rollVel) * h;
+        entry.roll += entry.rollVel * h;
+      }
+      // Brake lights: slowing down, or standing (held on the brake).
+      setBrakeLights(entry.group, entry.accel < -0.7 || entry.speed < 0.4);
 
       const mc = maplibregl.MercatorCoordinate.fromLngLat([st.lng, st.lat], 0);
       const unitsPerMeter = mc.meterInMercatorCoordinateUnits();
@@ -193,10 +247,22 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       entry.scale = k;
       const s = unitsPerMeter * k;
 
+      // Right-hand lane: offset perpendicular to travel (east = +x, south = +y).
+      const hr = (entry.heading * Math.PI) / 180;
+      const laneX = Math.cos(hr) * LANE_OFFSET_M * unitsPerMeter;
+      const laneY = Math.sin(hr) * LANE_OFFSET_M * unitsPerMeter;
+
       const m = entry.group.matrix;
       m.makeRotationZ((-entry.heading * Math.PI) / 180);
-      m.premultiply(new THREE.Matrix4().makeScale(s, -s, s));
-      m.premultiply(new THREE.Matrix4().makeTranslation(mc.x - origin.x, mc.y - origin.y, mc.z - origin.z));
+      m.multiply(tmpRot.makeRotationX(entry.pitch));
+      m.multiply(tmpRot.makeRotationY(entry.roll));
+      // Cars live in a north-up, right-handed frame (y = -mercator y); the
+      // mirror into Web Mercator (y south) is applied once, in the camera.
+      // Mirroring each car instead gave them a negative determinant, so
+      // three.js flipped face winding on top of MapLibre's own mirrored
+      // projection and every car rendered inside-out (dark, outline on top).
+      m.premultiply(tmpScale.makeScale(s, s, s));
+      m.premultiply(tmpMove.makeTranslation(mc.x - origin.x + laneX, -(mc.y - origin.y + laneY), mc.z - origin.z));
       entry.group.matrixWorldNeedsUpdate = true;
 
       const ring = entry.group.getObjectByName('ring');
@@ -208,7 +274,8 @@ class CarLayer implements maplibregl.CustomLayerInterface {
 
     this.camera.projectionMatrix = new THREE.Matrix4()
       .fromArray(args.defaultProjectionData.mainMatrix as unknown as number[])
-      .multiply(new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z));
+      .multiply(new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z))
+      .multiply(new THREE.Matrix4().makeScale(1, -1, 1));
     this.renderer.resetState();
     this.renderer.render(this.scene, this.camera);
 

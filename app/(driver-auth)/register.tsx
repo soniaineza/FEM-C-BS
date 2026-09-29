@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { BackHeader } from '../../components/BackHeader';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { KeyboardFormScrollView } from '../../components/layout/KeyboardFormScrollView';
 import { useDriverAuthStore } from '../../stores/useDriverAuthStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { validators } from '../../utils/validators';
@@ -55,13 +55,12 @@ export default function DriverRegisterScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
-        <BackHeader />
-        <Text className="mt-4 text-2xl text-ink font-display">{t('driverBecomeDriver')}</Text>
-        <Text className="mt-1 text-text-secondary">{t('driverCreateAccountSubtitle')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView>
+        <ScreenHeader back title={t('driverBecomeDriver')} />
+        <Text className="mt-1 text-fg-muted">{t('driverCreateAccountSubtitle')}</Text>
 
-        <View className="mt-8 gap-4">
+        <View className="mt-6 gap-3">
           <Input label={t('fullName')} value={fullName} onChangeText={setFullName} prefixIcon="person-outline" />
           <Input
             label={t('phoneNumber')}
@@ -87,17 +86,17 @@ export default function DriverRegisterScreen() {
           {error ? <ErrorMessage message={error} /> : null}
         </View>
 
-        <View className="mt-8">
+        <View className="mt-6">
           <Button title={t('driverCreateAccount')} onPress={handleSubmit} loading={loading} />
         </View>
 
         <View className="mt-6 flex-row justify-center">
-          <Text className="text-text-secondary">{t('alreadyHaveAccount')} </Text>
+          <Text className="text-fg-muted">{t('alreadyHaveAccount')} </Text>
           <Pressable onPress={() => router.push('/(driver-auth)/login')}>
-            <Text className="font-semibold text-primary">{t('login')}</Text>
+            <Text className="font-semibold text-primary-text">{t('login')}</Text>
           </Pressable>
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

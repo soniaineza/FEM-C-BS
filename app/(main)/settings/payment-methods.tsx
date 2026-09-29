@@ -1,34 +1,20 @@
-import { View, Text, FlatList } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
-
-import { BackHeader } from '../../../components/BackHeader';
+import { PaymentMethodRow } from '../../../components/PaymentMethodRow';
+import { Banner, Screen, ScreenHeader, Text } from '../../../components/ui';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { getAvailablePaymentMethods } from '../../../services/ride-service';
+import { usePaymentMethods } from '../../../hooks/usePaymentMethods';
 
 export default function PaymentMethodsScreen() {
   const { t } = useTranslation();
-  const methods = getAvailablePaymentMethods();
+  const { methods, demo } = usePaymentMethods();
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('paymentMethods')}</Text>
-
-        <FlatList
-          className="mt-4"
-          data={methods}
-          keyExtractor={(m) => m.id}
-          renderItem={({ item }) => (
-            <View className="border-b border-border py-4">
-              <Text className="text-base text-ink">{item.name}</Text>
-            </View>
-          )}
-        />
-
-        <Text className="mt-4 text-xs text-text-secondary">{t('paymentMethodsNote')}</Text>
-        <Text className="mt-2 text-xs text-text-secondary">{t('paymentSecurityNotice')}</Text>
-      </View>
-    </SafeAreaViewPlaceholder>
+    <Screen background="surface" header={<ScreenHeader back title={t('paymentMethods')} />}>
+      {demo ? <Banner tone="info" message={t('demoPaymentsNote')} /> : null}
+      <Text variant="footnote" tone="muted" style={{ marginTop: 16, marginBottom: 10 }}>{t('paymentMethodsNote')}</Text>
+      {methods.map((m) => (
+        <PaymentMethodRow key={m.id} method={m} demo={demo && m.id !== 'cash'} />
+      ))}
+      <Text variant="caption" tone="subtle" style={{ marginTop: 8 }}>{t('paymentSecurityNotice')}</Text>
+    </Screen>
   );
 }

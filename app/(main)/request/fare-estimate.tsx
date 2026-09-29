@@ -16,6 +16,7 @@ import { getRoute } from '../../../services/location-service';
 import { formatFare, FareEstimate } from '../../../types/ride';
 import { placeHasCoordinates } from '../../../types/place';
 import type { MapScene } from '../../../components/map/map-types';
+import { Colors, Elevation } from '../../../constants/theme';
 
 const PADDING = { top: 90, bottom: 460, left: 40, right: 40 };
 
@@ -88,15 +89,15 @@ export default function FareEstimateScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('back')}
           onPress={() => goBack()}
-          className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-white"
-          style={{ elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6 }}
+          className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-surface"
+          style={Elevation[3]}
         >
-          <Ionicons name="arrow-back" size={22} color="#111" />
+          <Ionicons name="arrow-back" size={22} color={Colors.fg} />
         </Pressable>
       </SafeAreaView>
 
       <MapSheet
-        header={<Text className="mb-3 text-xl text-ink font-display">{t('rideSummary')}</Text>}
+        header={<Text className="mb-3 text-title-2 text-fg font-display">{t('rideSummary')}</Text>}
         footer={
           <Button
             title={estimate ? `${t('continueLabel')} · ${formatFare(estimate.estimatedFare)}` : t('continueLabel')}
@@ -108,20 +109,20 @@ export default function FareEstimateScreen() {
         <View className="mb-3 rounded-2xl border border-border p-3.5">
           <View className="flex-row items-center">
             <View className="h-2.5 w-2.5 rounded-full bg-ink" />
-            <Text className="ml-3 flex-1 text-[13px] text-ink" numberOfLines={1}>{pickup.address}</Text>
+            <Text className="ml-3 flex-1 text-footnote text-fg" numberOfLines={1}>{pickup.address}</Text>
           </View>
           <View className="ml-[4px] h-4 w-px bg-border" />
           <View className="flex-row items-center">
             <View className="h-2.5 w-2.5 bg-ink" />
-            <Text className="ml-3 flex-1 text-[13px] text-ink" numberOfLines={1}>{destination.address}</Text>
+            <Text className="ml-3 flex-1 text-footnote text-fg" numberOfLines={1}>{destination.address}</Text>
           </View>
         </View>
 
         {loading ? (
-          <ActivityIndicator className="my-6" color="#16A34A" />
+          <ActivityIndicator className="my-6" color={Colors.primary} />
         ) : loadError ? (
-          <View className="rounded-2xl border border-error/40 bg-error/5 p-4">
-            <Text className="text-sm text-error">{loadError}</Text>
+          <View className="rounded-2xl border border-danger/40 bg-danger/5 p-4">
+            <Text className="text-subhead text-danger">{loadError}</Text>
             <View className="mt-3 self-start">
               <Button title={t('retryLabel')} variant="outline" onPress={load} />
             </View>
@@ -129,8 +130,8 @@ export default function FareEstimateScreen() {
         ) : estimate ? (
           <View>
             <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-[15px] font-bold text-ink">{estimate.vehicle.name}</Text>
-              <Text className="text-[13px] text-text-secondary">
+              <Text className="text-callout font-bold text-fg">{estimate.vehicle.name}</Text>
+              <Text className="text-footnote text-fg-muted">
                 {estimate.distanceKm.toFixed(1)} km · ~{estimate.durationMinutes} min
                 {eta != null ? ` · ${t('dropoffAt', { time: clockIn(eta + estimate.durationMinutes) })}` : ''}
               </Text>
@@ -138,9 +139,9 @@ export default function FareEstimateScreen() {
             {estimate.breakdown ? (
               <FareBreakdownView breakdown={estimate.breakdown} distanceKm={estimate.distanceKm} durationMinutes={estimate.durationMinutes} />
             ) : (
-              <View className="flex-row justify-between rounded-2xl bg-gray-light p-3.5">
-                <Text className="text-base font-semibold text-ink">{t('fare')}</Text>
-                <Text className="text-lg font-bold text-ink">{formatFare(estimate.estimatedFare)}</Text>
+              <View className="flex-row justify-between rounded-2xl bg-surface-muted p-3.5">
+                <Text className="text-body font-semibold text-fg">{t('fare')}</Text>
+                <Text className="text-title-3 font-bold text-fg">{formatFare(estimate.estimatedFare)}</Text>
               </View>
             )}
           </View>

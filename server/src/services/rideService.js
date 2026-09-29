@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 
 const { getPool } = require('../db');
 const { config } = require('../config');
+const { bookablePaymentMethods } = require('./payments');
 const { ApiError } = require('../utils/asyncHandler');
 const { fareForRide } = require('./pricing');
 const { transitionRide, loadRide } = require('./rideStateMachine');
@@ -87,6 +88,9 @@ async function createRide(passengerId, body) {
     typeof destination.latitude !== 'number' || typeof destination.longitude !== 'number'
   ) {
     throw new ApiError(400, 'Pickup, destination (with coordinates), vehicle and payment method are required.');
+  }
+  if (!bookablePaymentMethods().includes(paymentMethodId)) {
+    throw new ApiError(400, 'That payment method is not available.');
   }
   const type = rideType === 'shared' ? 'shared' : 'private';
 

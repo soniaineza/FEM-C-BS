@@ -3,6 +3,17 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "apk": {
+      "android": {
+        "buildType": "apk"
+      },
+      "autoIncrement": true,
+      "distribution": "internal",
+      "channel": "apk",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://fem-cabs-api.onrender.com/api"
+      }
+    },
     "preview": {
       "android": {
         "buildType": "apk"

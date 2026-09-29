@@ -1,57 +1,53 @@
-import { View, Text, FlatList, Pressable } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
-import { BackHeader } from '../../../components/BackHeader';
+import { PaymentMethodRow } from '../../../components/PaymentMethodRow';
+import { Banner, Screen, ScreenHeader } from '../../../components/ui';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { usePaymentMethods } from '../../../hooks/usePaymentMethods';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
-import { getBookablePaymentMethods } from '../../../services/ride-service';
-import { PaymentMethod } from '../../../types/payment';
+import { getWallet } from '../../../services/wallet-service';
+import { formatFare } from '../../../types/ride';
 
 export default function PaymentMethodScreen() {
   const { t } = useTranslation();
   const paymentMethod = useRideWizardStore((s) => s.paymentMethod);
   const setPaymentMethod = useRideWizardStore((s) => s.setPaymentMethod);
+  // Only methods the backend can charge now (card appears in demo mode).
+  const { methods, demo } = usePaymentMethods();
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
-  // Only methods the backend can actually charge (no 'card' placeholder).
-  const methods = getBookablePaymentMethods();
-
-  function choose(method: PaymentMethod) {
-    setPaymentMethod(method);
-  }
-
-  function proceed() {
-    if (paymentMethod) router.push('/(main)/request/confirm-ride');
-  }
+  useEffect(() => {
+    getWallet()
+      .then((w) => setWalletBalance(w.balance))
+      .catch(() => setWalletBalance(null));
+  }, []);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-1 text-xl text-ink font-display">{t('paymentMethod')}</Text>
-
-        <FlatList
-          className="mt-4"
-          data={methods}
-          keyExtractor={(m) => m.id}
-          renderItem={({ item }) => {
-            const selected = paymentMethod?.id === item.id;
-            return (
-              <Pressable
-                className={`mb-3 rounded border p-4 ${selected ? 'border-primary bg-primary/5' : 'border-border'}`}
-                onPress={() => choose(item)}
-              >
-                <Text className="text-base font-medium text-ink">{item.name}</Text>
-              </Pressable>
-            );
-          }}
-        />
-
-        <View className="mt-auto pb-8">
-          <Button title={t('continueLabel')} onPress={proceed} disabled={!paymentMethod} />
-        </View>
+    <Screen
+      background="surface"
+      header={<ScreenHeader back title={t('paymentMethod')} />}
+      footer={
+        <Button title={t('continueLabel')} onPress={() => paymentMethod && router.push('/(main)/request/confirm-ride')} disabled={!paymentMethod} />
+      }
+    >
+      {demo ? (
+        <Banner tone="info" message={t('demoPaymentsNote')} />
+      ) : null}
+      <View style={{ marginTop: demo ? 16 : 8 }}>
+        {methods.map((m) => (
+          <PaymentMethodRow
+            key={m.id}
+            method={m}
+            demo={demo && m.id !== 'cash'}
+            selected={paymentMethod?.id === m.id}
+            onPress={() => setPaymentMethod(m)}
+            detail={m.id === 'wallet' && walletBalance != null ? t('walletBalanceShort', { amount: formatFare(walletBalance) }) : undefined}
+          />
+        ))}
       </View>
-    </SafeAreaViewPlaceholder>
+    </Screen>
   );
 }

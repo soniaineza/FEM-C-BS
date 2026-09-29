@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import MapEngine from './MapEngine';
 import type { MapScene } from './map-types';
-import { FemColors } from '../../constants/theme';
+import { Colors, FemColors } from '../../constants/theme';
 
 export interface LiveMapProps {
   scene: MapScene;
@@ -102,9 +102,9 @@ export function LiveMap({
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#eef0f2' },
+  fill: { flex: 1, backgroundColor: Colors['surface-muted'] },
   rounded: { borderRadius: 16, overflow: 'hidden' },
-  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#eef0f2' },
+  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: Colors['surface-muted'] },
   center: { alignItems: 'center', justifyContent: 'center' },
   padded: { paddingHorizontal: 24 },
   hint: { marginTop: 8, fontSize: 12, color: FemColors.textSecondary },

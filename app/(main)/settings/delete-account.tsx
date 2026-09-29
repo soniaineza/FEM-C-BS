@@ -9,6 +9,7 @@ import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { ApiError } from '../../../services/api-client';
+import { Colors } from '../../../constants/theme';
 
 export default function DeleteAccountScreen() {
   const { t } = useTranslation();
@@ -33,15 +34,15 @@ export default function DeleteAccountScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <View className="flex-1 px-5 pt-2">
         <BackHeader />
-        <Text className="mt-6 text-xl text-error font-display">{t('deleteYourAccount')}</Text>
-        <Text className="mt-3 text-text-secondary">{t('deleteAccountBody')}</Text>
+        <Text className="mt-6 text-title-2 text-danger font-display">{t('deleteYourAccount')}</Text>
+        <Text className="mt-3 text-fg-muted">{t('deleteAccountBody')}</Text>
 
         <Pressable className="mt-6 flex-row items-start" onPress={() => setConfirmed((v) => !v)}>
-          <Ionicons name={confirmed ? 'checkbox' : 'checkbox-outline'} size={22} color={confirmed ? '#DC2626' : '#6B7280'} />
-          <Text className="ml-2.5 flex-1 text-sm leading-5 text-ink">{t('deleteConfirm')}</Text>
+          <Ionicons name={confirmed ? 'checkbox' : 'checkbox-outline'} size={22} color={confirmed ? Colors.danger : Colors['fg-muted']} />
+          <Text className="ml-2.5 flex-1 text-subhead leading-5 text-fg">{t('deleteConfirm')}</Text>
         </Pressable>
 
         {error ? (

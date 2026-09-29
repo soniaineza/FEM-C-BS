@@ -173,12 +173,22 @@ minutes) and `osrm/Dockerfile` bakes it into a deployable image. Point the
 API at it with `OSRM_URL=http://<host>:5000/route/v1/driving`. Matching and
 pickup ETAs use OSRM's table service to rank nearby cars by road time.
 
-**Demo fleet** (`DEMO_FLEET=1`, refused in production): 32 simulated
-drivers drive real Kigali roads between real places and serve rides end to
-end (accept, drive to the pickup, start with the PIN, drive, complete)
-through the same code paths as the driver app. `FLEET_DEBUG=1` logs each
-car's decisions. Nearby cars and the assigned driver are served with the
-last ~12 s of their trail so the app can animate them along the road.
+**Demo fleet** (`DEMO_FLEET=1`, refused in production): 64 simulated
+drivers (`DEMO_FLEET_SIZE`) drive real Kigali roads between 36 real places
+and serve rides end to end (accept, drive to the pickup, start with the PIN,
+drive, complete, and confirm cash for cash trips) through the same code paths
+as the driver app. Motion is integrated in 250 ms steps with road speeds from
+OSRM's speed annotations scaled to city driving, braking for corners and for
+the car ahead. Re-routing never stops a car: the next route starts a few
+seconds ahead on the current one and the car switches over there. Trail
+timestamps use a monotonic clock, so wall-clock corrections can't make cars
+jump. `FLEET_DEBUG=1` logs each car's decisions. Nearby cars (with their
+colour) and the assigned driver are served with their recent trail so the
+app can animate them along the road.
+
+**Demo payments** (`DEMO_PAYMENTS=1`): MTN MoMo, Airtel Money and card settle
+instantly; card is bookable only in this mode. `GET /api/config` tells the
+apps which payment methods are available.
 
 **Tests**: `test/invariants.js` (production mode, fake Paypack/SMS, random
 walk with money/state invariants after every step), `test/smoke.js`,

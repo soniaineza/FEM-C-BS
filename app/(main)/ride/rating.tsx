@@ -6,11 +6,13 @@ import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceho
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../components/Button';
+import { ErrorMessage } from '../../../components/ErrorMessage';
 import { Input } from '../../../components/Input';
-import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { rateRide } from '../../../services/ride-service';
 import { ApiError } from '../../../services/api-client';
+import { Colors } from '../../../constants/theme';
 
 export default function RatingScreen() {
   const { t } = useTranslation();
@@ -36,13 +38,12 @@ export default function RatingScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-4 text-2xl text-ink font-display">{t('howWasRide')}</Text>
+      <View className="flex-1 px-5 pt-2">
+        <ScreenHeader back title={t('howWasRide')} />
 
-        <View className="mt-6 flex-row justify-center gap-2">
+        <View className="mt-8 flex-row justify-center gap-3">
           {[1, 2, 3, 4, 5].map((n) => (
             <Pressable
               key={n}
@@ -53,7 +54,7 @@ export default function RatingScreen() {
               aria-checked={n === stars}
               accessibilityLabel={`${n} ${n === 1 ? 'star' : 'stars'}`}
             >
-              <Ionicons name={n <= stars ? 'star' : 'star-outline'} size={38} color={n <= stars ? '#16A34A' : '#E5E7EB'} />
+              <Ionicons name={n <= stars ? 'star' : 'star-outline'} size={44} color={n <= stars ? Colors.star : Colors['border-strong']} />
             </Pressable>
           ))}
         </View>
@@ -61,7 +62,7 @@ export default function RatingScreen() {
         <View className="mt-6">
           <Input value={comment} onChangeText={setComment} placeholder={t('commentOptional')} multiline />
         </View>
-        {error ? <Text className="mt-2 text-sm text-error">{error}</Text> : null}
+        {error ? <View className="mt-3"><ErrorMessage message={error} /></View> : null}
 
         <View className="mt-8">
           <Button title={t('submitRating')} onPress={handleSubmit} loading={loading} />

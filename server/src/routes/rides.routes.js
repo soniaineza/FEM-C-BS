@@ -17,7 +17,7 @@ const {
 } = require('../services/payments');
 
 const { quoteTrip } = require('../services/pricing');
-const { recentTrail } = require('../services/driverTrails');
+const { recentTrail, nowMs } = require('../services/driverTrails');
 const { LOCATION_MAX_AGE_SECONDS } = require('../services/driverKyc');
 
 const router = express.Router();
@@ -161,7 +161,7 @@ router.get(
       [ride.driver_id, LOCATION_MAX_AGE_SECONDS]
     );
     const loc = rows[0];
-    const now = Date.now();
+    const now = nowMs();
     res.json({
       serverTime: now,
       location: loc

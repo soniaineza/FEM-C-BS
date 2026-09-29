@@ -1,19 +1,14 @@
-import { View, Text, ScrollView } from 'react-native';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { MenuTile } from '../../../components/MenuTile';
-import { SectionTitle } from '../../../components/SectionTitle';
+import { Card } from '../../../components/Card';
+import { Avatar, Badge, Banner, ListSection, Screen, ScreenHeader, Text } from '../../../components/ui';
 import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useAppModeStore } from '../../../stores/useAppModeStore';
-
-function initialsFor(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return '?';
-  return trimmed.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-}
+import { Colors } from '../../../constants/theme';
 
 // Driver-side counterpart to app/(main)/(tabs)/profile.tsx — same header +
 // grouped-menu layout, as the "More" tab (matches the reference driver-home
@@ -24,61 +19,51 @@ export default function DriverMoreScreen() {
   const setMode = useAppModeStore((s) => s.setMode);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerClassName="px-5 pb-6 pt-6">
-        <Text className="text-xl text-ink font-display">{t('account')}</Text>
+    <Screen edges={['top', 'left', 'right']}>
+      <ScreenHeader title={t('account')} className="pt-3" />
 
-        <View className="mt-4 flex-row items-center rounded-2xl border border-border bg-white p-4">
-          <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
-            <Text className="text-xl font-bold text-primary">{initialsFor(currentDriver?.fullName ?? '')}</Text>
-          </View>
-          <View className="ml-3.5 flex-1">
-            <Text className="text-[17px] font-bold text-ink">{currentDriver?.fullName || t('driver')}</Text>
-            <Text className="text-[13.5px] text-text-secondary">{currentDriver?.phone}</Text>
-            <Text className="mt-0.5 text-[13.5px] text-text-secondary">
-              {currentDriver?.rating != null ? (
-                <>
-                  <Ionicons name="star" size={13} color="#D97706" /> {currentDriver.rating.toFixed(1)}
-                </>
-              ) : (
-                t('driverNoRatingYet')
-              )}{' '}
-              <Text className="text-text-secondary">·</Text> {t('driverTripsCount', { count: currentDriver?.totalTrips ?? 0 })}
-            </Text>
+      <Card className="mt-3 flex-row items-center" onPress={() => router.push('/(driver)/account/edit-profile' as any)} accessibilityLabel={t('editProfile')}>
+        <Avatar name={currentDriver?.fullName} size={60} />
+        <View className="ml-4 flex-1">
+          <Text variant="title-3" numberOfLines={1}>{currentDriver?.fullName || t('driver')}</Text>
+          {currentDriver?.phone ? <Text variant="subhead" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>{currentDriver.phone}</Text> : null}
+          <View className="mt-2 flex-row items-center gap-2">
+            {currentDriver?.rating != null ? (
+              <Badge icon="star" tone="warning" label={currentDriver.rating.toFixed(1)} />
+            ) : (
+              <Badge label={t('driverNoRatingYet')} />
+            )}
+            <Badge label={t('driverTripsCount', { count: currentDriver?.totalTrips ?? 0 })} />
           </View>
         </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors['fg-disabled']} />
+      </Card>
 
-        {!currentDriver?.verified ? (
-          <View className="mt-3 rounded-xl border border-warning bg-white p-3.5">
-            <Text className="text-xs font-semibold text-warning">{t('driverVerificationPending')}</Text>
-            <Text className="mt-0.5 text-xs text-text-secondary">{t('driverUploadDocumentsHint')}</Text>
-          </View>
-        ) : null}
-
-        <View className="mt-5">
-          <SectionTitle>{t('driverProfileAndVehicle')}</SectionTitle>
-          <View className="mt-2">
-            <MenuTile icon="person-outline" label={t('editProfile')} onPress={() => router.push('/(driver)/account/edit-profile' as any)} />
-            <MenuTile icon="car-outline" label={t('vehicle')} onPress={() => router.push('/(driver)/account/vehicle' as any)} />
-            <MenuTile icon="document-text-outline" label={t('documents')} onPress={() => router.push('/(driver)/account/documents' as any)} />
-            <MenuTile icon="star-outline" label={t('ratings')} onPress={() => router.push('/(driver)/account/ratings' as any)} />
-          </View>
+      {!currentDriver?.verified ? (
+        <View className="mt-4">
+          <Banner
+            tone="warning"
+            title={t('driverVerificationPending')}
+            message={t('driverUploadDocumentsHint')}
+            actionLabel={t('documents')}
+            onAction={() => router.push('/(driver)/account/documents' as any)}
+          />
         </View>
+      ) : null}
 
-        <View className="mt-5">
-          <SectionTitle>{t('support')}</SectionTitle>
-          <View className="mt-2">
-            <MenuTile icon="notifications-outline" label={t('notifications')} onPress={() => router.push('/(driver)/notifications' as any)} />
-            <MenuTile icon="headset-outline" label={t('helpSupportTitle')} onPress={() => router.push('/(driver)/account/support' as any)} />
-            <MenuTile icon="settings-outline" label={t('settings')} onPress={() => router.push('/(driver)/account/settings' as any)} />
-            <MenuTile
-              icon="person-outline"
-              label={t('driverSwitchToRiderHint')}
-              onPress={() => setMode('passenger')}
-            />
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaViewPlaceholder>
+      <ListSection title={t('driverProfileAndVehicle')}>
+        <MenuTile icon="person-outline" label={t('editProfile')} onPress={() => router.push('/(driver)/account/edit-profile' as any)} />
+        <MenuTile icon="car-outline" label={t('vehicle')} onPress={() => router.push('/(driver)/account/vehicle' as any)} />
+        <MenuTile icon="document-text-outline" label={t('documents')} onPress={() => router.push('/(driver)/account/documents' as any)} />
+        <MenuTile icon="star-outline" label={t('ratings')} onPress={() => router.push('/(driver)/account/ratings' as any)} />
+      </ListSection>
+
+      <ListSection title={t('support')}>
+        <MenuTile icon="notifications-outline" label={t('notifications')} onPress={() => router.push('/(driver)/notifications' as any)} />
+        <MenuTile icon="headset-outline" label={t('helpSupportTitle')} onPress={() => router.push('/(driver)/account/support' as any)} />
+        <MenuTile icon="settings-outline" label={t('settings')} onPress={() => router.push('/(driver)/account/settings' as any)} />
+        <MenuTile icon="swap-horizontal-outline" label={t('driverSwitchToRiderHint')} onPress={() => setMode('passenger')} />
+      </ListSection>
+    </Screen>
   );
 }

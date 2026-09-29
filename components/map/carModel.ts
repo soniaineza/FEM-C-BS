@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import { CAR_MODEL_GLB_BASE64 } from './carModelData';
 
@@ -14,6 +15,10 @@ import { CAR_MODEL_GLB_BASE64 } from './carModelData';
 // that turn as it drives (chosen with TypeSafe's Jev, 1.0).
 // Fallback: a procedural low-poly car, shown until the models have loaded
 // or if they fail. Geometry/materials are shared between cars either way.
+//
+// Stylised look (both kinds): cel shading (MeshToonMaterial, 3-step ramp),
+// a soft ink outline (inverted hull on smoothed normals), a glowing FEM taxi
+// sign on the roof and brake lights the engine switches on as a car slows.
 
 export const CAR_LENGTH_M = 4.4;
 
@@ -43,12 +48,7 @@ interface Shared {
 
 let shared: Shared | null = null;
 
-/** Hex for a car colour name as drivers enter it ("Red", "Silver"...). */
-export const CAR_COLOR_NAMES: Record<string, string> = {
-  white: '#f8fafc', black: '#1f2937', silver: '#c0c4ca', grey: '#8b9098', gray: '#8b9098',
-  red: '#c8102e', blue: '#1d4ed8', green: '#15803d', yellow: '#eab308', orange: '#ea580c',
-  brown: '#78350f', beige: '#d6c7a1', gold: '#b8923a', maroon: '#7f1d1d', navy: '#1e3a8a',
-};
+export { CAR_COLOR_NAMES } from './map-types';
 
 function shadowTexture(): THREE.Texture {
   const size = 64;
@@ -112,10 +112,157 @@ function bodyMaterial(color: number): THREE.Material {
   const s = getShared();
   let mat = s.bodyMats.get(color);
   if (!mat) {
-    mat = new THREE.MeshLambertMaterial({ color });
+    mat = new THREE.MeshToonMaterial({ color, gradientMap: getToonRamp() });
     s.bodyMats.set(color, mat);
   }
   return mat;
+}
+
+// ---------------------------------------------------------------------------
+// Stylisation: toon ramp, outlines, taxi sign, brake lights
+// ---------------------------------------------------------------------------
+
+const OUTLINE_COLOR = 0x0b1220;
+const OUTLINE_M = 0.07; // outline thickness in metres (scales with the car)
+const SIGN_AVAILABLE = 0x22c55e; // FEM green: free cab
+const SIGN_ASSIGNED = 0xffffff; // the rider's own car
+
+let toonRamp: THREE.Texture | null = null;
+/** 3-step light ramp: shadow, mid, lit — the cel-shaded look. */
+function getToonRamp(): THREE.Texture {
+  if (toonRamp) return toonRamp;
+  const tex = new THREE.DataTexture(new Uint8Array([110, 190, 255]), 3, 1, THREE.RedFormat);
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  toonRamp = tex;
+  return tex;
+}
+
+const outlineMats = new Map<number, THREE.Material>();
+/** Back-face hull material that pushes vertices out along their normals. */
+function outlineMaterial(width: number): THREE.Material {
+  const key = Math.round(width * 1e5);
+  let mat = outlineMats.get(key);
+  if (mat) return mat;
+  const m = new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide });
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `vec3 transformed = vec3(position) + normalize(normal) * ${width.toFixed(6)};`
+    );
+  };
+  m.customProgramCacheKey = () => `fem-outline-${key}`;
+  outlineMats.set(key, m);
+  return m;
+}
+
+const outlineGeometries = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+/** Position-only copy with welded vertices and smooth normals, so the hull has no cracks. */
+function outlineGeometry(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  const cached = outlineGeometries.get(geometry);
+  if (cached) return cached;
+  // glTF positions may be interleaved or quantized (normalized ints); copy
+  // them into a plain float attribute (getX() de-quantizes) before welding.
+  const src = geometry.getAttribute('position');
+  const positions = new Float32Array(src.count * 3);
+  for (let i = 0; i < src.count; i++) {
+    positions[i * 3] = src.getX(i);
+    positions[i * 3 + 1] = src.getY(i);
+    positions[i * 3 + 2] = src.getZ(i);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  if (geometry.index) g.setIndex(Array.from(geometry.index.array as ArrayLike<number>));
+  const welded = mergeVertices(g, 1e-4);
+  welded.computeVertexNormals();
+  outlineGeometries.set(geometry, welded);
+  return welded;
+}
+
+/** Adds an outline hull as a child of every mesh under `root`. */
+function addOutlines(root: THREE.Object3D) {
+  root.updateMatrixWorld(true);
+  const meshes: THREE.Mesh[] = [];
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && !mesh.userData.outline && !mesh.userData.noOutline) meshes.push(mesh);
+  });
+  const scale = new THREE.Vector3();
+  for (const mesh of meshes) {
+    mesh.getWorldScale(scale);
+    const avg = (Math.abs(scale.x) + Math.abs(scale.y) + Math.abs(scale.z)) / 3 || 1;
+    const hull = new THREE.Mesh(outlineGeometry(mesh.geometry), outlineMaterial(OUTLINE_M / avg));
+    hull.userData.outline = true;
+    hull.frustumCulled = false;
+    mesh.add(hull);
+  }
+}
+
+interface Accessories {
+  sign: THREE.BufferGeometry;
+  signStripe: THREE.BufferGeometry;
+  lamp: THREE.BufferGeometry;
+  signMats: Map<number, THREE.Material>;
+  stripeMat: THREE.Material;
+  brakeOn: THREE.Material;
+  brakeOff: THREE.Material;
+  outline: THREE.Material;
+}
+let accessories: Accessories | null = null;
+function getAccessories(): Accessories {
+  if (accessories) return accessories;
+  accessories = {
+    sign: new RoundedBoxGeometry(0.95, 0.42, 0.32, 2, 0.08),
+    signStripe: new THREE.BoxGeometry(0.78, 0.1, 0.03),
+    lamp: new RoundedBoxGeometry(0.42, 0.08, 0.16, 1, 0.03),
+    signMats: new Map(),
+    stripeMat: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    brakeOn: new THREE.MeshBasicMaterial({ color: 0xff3b30 }),
+    brakeOff: new THREE.MeshBasicMaterial({ color: 0x5b1414 }),
+    outline: new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide }),
+  };
+  return accessories;
+}
+
+/** Roof taxi sign + brake lights; lights are listed in userData.brakeLights. */
+function addTaxiParts(car: THREE.Group, roofZ: number, rearY: number, lampZ: number, assigned: boolean) {
+  const a = getAccessories();
+  const signColor = assigned ? SIGN_ASSIGNED : SIGN_AVAILABLE;
+  let signMat = a.signMats.get(signColor);
+  if (!signMat) {
+    signMat = new THREE.MeshBasicMaterial({ color: signColor });
+    a.signMats.set(signColor, signMat);
+  }
+  const sign = new THREE.Mesh(a.sign, signMat);
+  sign.position.set(0, -0.15, roofZ + 0.16);
+  const signHull = new THREE.Mesh(a.sign, a.outline);
+  signHull.scale.setScalar(1.14);
+  sign.add(signHull);
+  const stripe = new THREE.Mesh(a.signStripe, assigned ? signMat : a.stripeMat);
+  stripe.position.set(0, 0, 0.17);
+  sign.add(stripe);
+  sign.name = 'sign';
+  car.add(sign);
+
+  const lights: THREE.Mesh[] = [];
+  for (const x of [-0.6, 0.6]) {
+    const lamp = new THREE.Mesh(a.lamp, a.brakeOff);
+    lamp.position.set(x, rearY - 0.02, lampZ);
+    car.add(lamp);
+    lights.push(lamp);
+  }
+  car.userData.brakeLights = lights;
+  car.userData.brakeOn = false;
+}
+
+/** Switches a car's brake lights (cheap: only swaps materials on change). */
+export function setBrakeLights(car: THREE.Object3D, on: boolean) {
+  if (car.userData.brakeOn === on) return;
+  car.userData.brakeOn = on;
+  const a = getAccessories();
+  for (const lamp of (car.userData.brakeLights as THREE.Mesh[] | undefined) ?? []) lamp.material = on ? a.brakeOn : a.brakeOff;
 }
 
 // ---------------------------------------------------------------------------
@@ -137,6 +284,8 @@ interface CarTemplate {
   material: THREE.MeshStandardMaterial;
   paintCell: { x: number; y: number; w: number; h: number } | null;
   wheelRadiusM: number;
+  /** Roof height and tail-light height in metres (for the sign and brake lights). */
+  heightM: number;
 }
 
 const templates = new Map<string, CarTemplate>();
@@ -201,7 +350,14 @@ async function loadModel(loader: GLTFLoader, name: string): Promise<void> {
   const paintCell = cell
     ? { x: cell[0] * PALETTE_CELL.w, y: cell[1] * PALETTE_CELL.h, w: PALETTE_CELL.w, h: PALETTE_CELL.h }
     : null;
-  templates.set(name, { root, material: mat, paintCell, wheelRadiusM: wheelRadius * ((sx + sz) / 2) });
+  addOutlines(root);
+  templates.set(name, {
+    root,
+    material: mat,
+    paintCell,
+    wheelRadiusM: wheelRadius * ((sx + sz) / 2),
+    heightM: size.y * ((sx + sz) / 2),
+  });
 }
 
 /** Loads the embedded car models once; resolves when ready (or failed). */
@@ -218,6 +374,10 @@ export function loadCarModels(): Promise<void> {
   return loading;
 }
 
+function toonFromTemplate(src: THREE.MeshStandardMaterial): THREE.Material {
+  return new THREE.MeshToonMaterial({ map: src.map, color: src.color, gradientMap: getToonRamp() });
+}
+
 /** A copy of the model's palette with the paint cell recoloured (cached). */
 function paintedMaterial(name: string, tpl: CarTemplate, color: number): THREE.Material {
   const key = `${name}:${color}`;
@@ -225,13 +385,13 @@ function paintedMaterial(name: string, tpl: CarTemplate, color: number): THREE.M
   if (cached) return cached;
   const map = tpl.material.map;
   const image = map?.image as CanvasImageSource & { width: number; height: number } | undefined;
-  if (!map || !image || !tpl.paintCell) return tpl.material;
+  if (!map || !image || !tpl.paintCell) return toonFromTemplate(tpl.material);
 
   const canvas = document.createElement('canvas');
   canvas.width = image.width;
   canvas.height = image.height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return tpl.material;
+  if (!ctx) return toonFromTemplate(tpl.material);
   ctx.drawImage(image, 0, 0);
   const { x, y, w, h } = tpl.paintCell;
   const cell = ctx.getImageData(x, y, w, h);
@@ -260,8 +420,7 @@ function paintedMaterial(name: string, tpl: CarTemplate, color: number): THREE.M
   tex.magFilter = map.magFilter;
   tex.minFilter = map.minFilter;
   tex.needsUpdate = true;
-  const mat = tpl.material.clone();
-  mat.map = tex;
+  const mat = new THREE.MeshToonMaterial({ map: tex, gradientMap: getToonRamp() });
   paintedMaterials.set(key, mat);
   return mat;
 }
@@ -271,11 +430,13 @@ function addShadowAndRing(car: THREE.Group, assigned: boolean) {
   const shadowMesh = new THREE.Mesh(s.shadow, s.shadowMat);
   shadowMesh.position.z = 0.02;
   shadowMesh.renderOrder = -1;
+  shadowMesh.userData.noOutline = true;
   car.add(shadowMesh);
   if (assigned) {
     const ring = new THREE.Mesh(s.ring, s.ringMat);
     ring.position.z = 0.03;
     ring.name = 'ring';
+    ring.userData.noOutline = true;
     car.add(ring);
   }
 }
@@ -311,7 +472,7 @@ export function createCar(
     body.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh) {
-        mesh.material = material;
+        if (!mesh.userData.outline) mesh.material = material;
         mesh.frustumCulled = false;
       }
       // Outermost wheel object only (a node and its mesh can share the name).
@@ -321,6 +482,7 @@ export function createCar(
       }
     });
     car.add(body);
+    addTaxiParts(car, tpl.heightM, -CAR_LENGTH_M / 2, tpl.heightM * 0.42, assigned);
     car.userData.wheels = wheels;
     car.userData.wheelRadiusM = tpl.wheelRadiusM;
     car.matrixAutoUpdate = false;
@@ -352,15 +514,19 @@ function createProceduralCar(color: number, assigned: boolean): THREE.Group {
     tail.position.set(x, -CAR_LENGTH_M / 2 - 0.01, 0.74);
     car.add(tail);
   }
+  addOutlines(car);
+  addTaxiParts(car, 1.54, -CAR_LENGTH_M / 2, 0.74, assigned);
   car.matrixAutoUpdate = false;
   return car;
 }
 
 export function createLights(): THREE.Object3D[] {
   // World space is MapLibre's mercator frame (x east, y south, z up).
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x8a8f98, 1.6);
+  // Toon shading reads the key light through its 3-step ramp; the
+  // hemisphere fill keeps shadow sides colourful rather than muddy.
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x9aa3b2, 1.35);
   hemi.position.set(0, 0, 1);
-  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-  sun.position.set(0.35, 0.6, 1);
+  const sun = new THREE.DirectionalLight(0xfff4e0, 1.9);
+  sun.position.set(0.45, 0.55, 1);
   return [hemi, sun];
 }

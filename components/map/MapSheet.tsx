@@ -1,8 +1,10 @@
-import { ReactNode, useState } from 'react';
-import { LayoutChangeEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Extrapolation,
   SlideInDown,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -11,110 +13,220 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import * as Haptics from 'expo-haptics';
 
+import { Colors, Elevation, Radius } from '../../constants/theme';
+
 interface MapSheetProps {
-  children: ReactNode;
-  /** Always-visible top part (e.g. status line). Dragging it collapses the rest. */
+  children?: ReactNode;
+  /** Always-visible top part (title, status, key fields). */
   header?: ReactNode;
-  /** Pinned under the content (e.g. the main action button). */
+  /** Always-visible bottom part (the main action button). */
   footer?: ReactNode;
+  /** Let the rider slide the body away to see more map (default true). */
   collapsible?: boolean;
-  /** Reports the sheet's full height, e.g. to pad the map's visible centre. */
+  /** Start collapsed instead of expanded. */
+  initiallyCollapsed?: boolean;
+  /** Reports the sheet's visible height (after every snap), e.g. to pad the map. */
   onHeightChange?: (height: number) => void;
+  /** Bottom padding under the sheet; defaults to the device's safe-area inset. */
+  bottomInset?: number;
+  /** Cap on the sheet's height; defaults to the screen minus a top strip. */
+  maxHeight?: number;
+  /** Floating controls that ride just above the sheet's top edge (e.g. locate-me). */
+  floating?: ReactNode;
+  /** Labels for the handle's accessibility action. */
+  expandLabel?: string;
+  collapseLabel?: string;
 }
 
 // Space kept clear above the sheet, under the status bar, for floating
 // controls such as the back button.
 const TOP_CLEARANCE = 72;
-
-const SPRING = { damping: 22, stiffness: 220, mass: 0.9 };
+const SPRING = { damping: 26, stiffness: 260, mass: 0.8 };
+const RUBBER = 0.18; // resistance past the ends
 
 /**
- * Bottom sheet over the map (Uber-style). Drag the handle or header down to
- * peek at the map, up to expand. Built on Reanimated + Gesture Handler (UI
- * thread, 60fps) rather than a sheet library, per the Jev decision recorded
- * with the map architecture.
+ * Bottom sheet over the map (Uber-style), on Reanimated + Gesture Handler
+ * (UI thread). The header and footer always stay on screen; the body between
+ * them slides open and closed. Drag the handle/header (or anywhere, when the
+ * body doesn't scroll), fling to snap, or tap the handle to toggle.
  */
-export function MapSheet({ children, header, footer, collapsible = true, onHeightChange }: MapSheetProps) {
+export function MapSheet({
+  children,
+  header,
+  footer,
+  collapsible = true,
+  initiallyCollapsed = false,
+  onHeightChange,
+  bottomInset,
+  maxHeight: maxHeightProp,
+  floating,
+  expandLabel = 'Expand',
+  collapseLabel = 'Collapse',
+}: MapSheetProps) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  // Never taller than the screen minus the status bar and a strip for the
-  // back button: long content scrolls inside the sheet instead of climbing
-  // under the clock/battery on short phones.
-  const maxHeight = windowHeight - insets.top - TOP_CLEARANCE;
-  const [bodyHeight, setBodyHeight] = useState(0);
-  const offset = useSharedValue(0); // 0 = expanded, bodyHeight = collapsed
+  const padBottom = bottomInset ?? Math.max(insets.bottom, 12);
+  const maxHeight = Math.min(maxHeightProp ?? Infinity, windowHeight - insets.top - TOP_CLEARANCE);
+
+  const [headerHeight, setHeaderHeight] = useState(0); // handle + header
+  const [footerHeight, setFooterHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const chromeHeight = headerHeight + footerHeight + padBottom;
+  const [collapsed, setCollapsed] = useState(initiallyCollapsed);
+  const bodyMax = Math.max(0, maxHeight - chromeHeight);
+  const bodyOpen = Math.min(contentHeight, bodyMax);
+  const scrolls = contentHeight > bodyMax + 1;
+  const canCollapse = collapsible && bodyOpen > 24;
+
+  const progress = useSharedValue(initiallyCollapsed ? 0 : 1); // 1 = expanded
   const start = useSharedValue(0);
+  const open = useSharedValue(bodyOpen);
+  useEffect(() => {
+    open.value = bodyOpen;
+  }, [bodyOpen, open]);
+
+  const report = useCallback(
+    (expanded: boolean) => {
+      setCollapsed(!expanded);
+      onHeightChange?.(Math.round(chromeHeight + (expanded ? bodyOpen : 0)));
+    },
+    [chromeHeight, bodyOpen, onHeightChange]
+  );
+
+  // Re-report when content or chrome size changes (e.g. a payment card appears).
+  useEffect(() => {
+    if (chromeHeight) onHeightChange?.(Math.round(chromeHeight + (collapsed ? 0 : bodyOpen)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chromeHeight, bodyOpen]);
+
+  // A sheet that can't collapse (or whose body vanished) is always open.
+  useEffect(() => {
+    if (!canCollapse && progress.value !== 1) {
+      progress.value = withSpring(1, SPRING);
+      setCollapsed(false);
+    }
+  }, [canCollapse, progress]);
 
   const buzz = () => Haptics.selectionAsync().catch(() => {});
 
-  const pan = Gesture.Pan()
-    .enabled(collapsible && bodyHeight > 0)
-    .activeOffsetY([-8, 8])
-    .onStart(() => {
-      start.value = offset.value;
-    })
-    .onUpdate((e) => {
-      offset.value = Math.min(bodyHeight, Math.max(0, start.value + e.translationY));
-    })
-    .onEnd((e) => {
-      const collapse = e.velocityY > 500 || (e.velocityY > -500 && offset.value > bodyHeight / 2);
-      const target = collapse ? bodyHeight : 0;
-      if (target !== start.value) scheduleOnRN(buzz);
-      offset.value = withSpring(target, SPRING);
-    });
-
-  const style = useAnimatedStyle(() => ({ transform: [{ translateY: offset.value }] }));
-
-  function onBodyLayout(e: LayoutChangeEvent) {
-    setBodyHeight(Math.round(e.nativeEvent.layout.height));
+  function snap(expanded: boolean) {
+    progress.value = withSpring(expanded ? 1 : 0, SPRING);
+    buzz();
+    report(expanded);
   }
 
-  return (
-    // Entrance animation and drag transform live on separate views: a
-    // layout animation would otherwise overwrite the drag's transform.
-    <Animated.View entering={SlideInDown.springify().damping(20)} style={styles.anchor} pointerEvents="box-none">
-    <Animated.View
-      onLayout={onHeightChange ? (e) => onHeightChange(Math.round(e.nativeEvent.layout.height)) : undefined}
-      style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12), maxHeight }, style]}
+  const pan = Gesture.Pan()
+    .enabled(canCollapse)
+    .activeOffsetY([-6, 6])
+    .failOffsetX([-24, 24])
+    .onStart(() => {
+      start.value = progress.value;
+    })
+    .onUpdate((e) => {
+      const range = Math.max(1, open.value);
+      let p = start.value - e.translationY / range;
+      if (p > 1) p = 1 + (p - 1) * RUBBER;
+      if (p < 0) p = p * RUBBER;
+      progress.value = p;
+    })
+    .onEnd((e) => {
+      const expand = e.velocityY < -450 || (e.velocityY < 450 && progress.value > 0.5);
+      const changed = expand !== start.value > 0.5;
+      progress.value = withSpring(expand ? 1 : 0, { ...SPRING, velocity: -e.velocityY / Math.max(1, open.value) });
+      if (changed) scheduleOnRN(buzz);
+      scheduleOnRN(report, expand);
+    });
+
+  const bodyStyle = useAnimatedStyle(() => {
+    const p = Math.max(0, progress.value);
+    return {
+      height: open.value * Math.min(p, 1) + (p > 1 ? (p - 1) * 40 : 0),
+      opacity: interpolate(p, [0, 0.35], [0, 1], Extrapolation.CLAMP),
+    };
+  });
+  // Handle stretches a little while dragging past the ends: tactile feedback.
+  const handleStyle = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [-0.2, 0, 1, 1.2], [52, 40, 40, 52], Extrapolation.CLAMP),
+  }));
+
+  const measure = (set: (h: number) => void) => (e: LayoutChangeEvent) => {
+    const h = Math.round(e.nativeEvent.layout.height);
+    set(h);
+  };
+
+  const handle = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={collapsed ? expandLabel : collapseLabel}
+      accessibilityState={{ expanded: !collapsed }}
+      disabled={!canCollapse}
+      onPress={() => snap(collapsed)}
+      hitSlop={{ top: 8, bottom: 8, left: 60, right: 60 }}
+      style={styles.handleArea}
     >
-      <GestureDetector gesture={pan}>
-        <View>
-          <View style={styles.handleArea}>
-            <View style={styles.handle} />
-          </View>
-          {header}
+      <Animated.View style={[styles.handle, handleStyle, !canCollapse && { opacity: 0.5 }]} />
+    </Pressable>
+  );
+
+  // Whole sheet is draggable when the body doesn't need to scroll;
+  // otherwise only the handle/header, so scrolling the body still works.
+  const dragWholeSheet = canCollapse && !scrolls;
+  const top = (
+    <View onLayout={measure(setHeaderHeight)} collapsable={false}>
+      {handle}
+      {header}
+    </View>
+  );
+
+  const sheet = (
+    <View style={[styles.sheet, { paddingBottom: padBottom }]} collapsable={false}>
+      {dragWholeSheet ? top : <GestureDetector gesture={pan}>{top}</GestureDetector>}
+      <Animated.View style={[styles.bodyClip, bodyStyle]}>
+        <ScrollView
+          scrollEnabled={scrolls}
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{ maxHeight: bodyMax || undefined }}
+        >
+          <View onLayout={measure(setContentHeight)}>{children}</View>
+        </ScrollView>
+      </Animated.View>
+      {footer ? (
+        <View onLayout={measure(setFooterHeight)} style={styles.footer}>
+          {footer}
         </View>
-      </GestureDetector>
-      <ScrollView
-        style={styles.body}
-        onLayout={onBodyLayout}
-        bounces={false}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {children}
-      </ScrollView>
-      {footer ? <View style={styles.footer}>{footer}</View> : null}
-    </Animated.View>
+      ) : null}
+    </View>
+  );
+
+  return (
+    // Entrance animation and drag live on separate views: a layout animation
+    // would otherwise overwrite the drag.
+    <Animated.View entering={SlideInDown.springify().damping(22)} style={styles.anchor} pointerEvents="box-none">
+      {floating ? (
+        <View style={styles.floating} pointerEvents="box-none">
+          {floating}
+        </View>
+      ) : null}
+      {dragWholeSheet ? <GestureDetector gesture={pan}>{sheet}</GestureDetector> : sheet}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   anchor: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  floating: { position: 'absolute', left: 0, right: 0, bottom: '100%', paddingBottom: 12 },
   sheet: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius['3xl'],
+    borderTopRightRadius: Radius['3xl'],
     paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 16,
+    ...Elevation[4],
+    shadowOffset: { width: 0, height: -6 },
   },
-  handleArea: { alignItems: 'center', paddingTop: 8, paddingBottom: 10 },
-  handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#D1D5DB' },
-  body: { flexShrink: 1, flexGrow: 0 },
+  handleArea: { alignItems: 'center', paddingTop: 10, paddingBottom: 10 },
+  handle: { height: 5, borderRadius: 3, backgroundColor: Colors['border-strong'] },
+  bodyClip: { overflow: 'hidden' },
   footer: { paddingTop: 12 },
 });

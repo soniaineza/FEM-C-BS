@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { MapCar } from '../components/map/map-types';
+import { carColorHex, type MapCar } from '../components/map/map-types';
 import { getNearbyDrivers } from '../services/ride-service';
 
 const POLL_MS = 2000;
@@ -43,6 +43,7 @@ export function useNearbyCars(center: { latitude: number; longitude: number } | 
             longitude: d.longitude,
             heading: d.heading,
             vehicleClass: d.vehicleId,
+            color: carColorHex(d.color),
             trail: d.trail,
           }))
         );

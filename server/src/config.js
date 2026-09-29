@@ -130,7 +130,7 @@ const config = {
   // Demo fleet (services/demoFleet.js): simulated drivers driving real
   // Kigali roads and serving rides end to end. Refused in production.
   demoFleet: process.env.DEMO_FLEET === '1',
-  demoFleetSize: Number(process.env.DEMO_FLEET_SIZE || 32),
+  demoFleetSize: Number(process.env.DEMO_FLEET_SIZE || 64),
   simAcceptDelaySeconds: Number(process.env.SIM_ACCEPT_DELAY || 3),
   simWaitAtPickupSeconds: Number(process.env.SIM_WAIT_AT_PICKUP || 5),
 };

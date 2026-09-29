@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { MapCar, MapPadding, MapScene } from '../components/map/map-types';
 import { distanceM, projectOnRoute } from '../components/map/trackInterpolation';
-import { CAR_COLOR_NAMES } from '../components/map/carModel';
+import { CAR_COLOR_NAMES } from '../components/map/map-types';
 import { getRoute } from '../services/location-service';
 import type { DriverLocation } from '../services/ride-service';
 import type { Ride } from '../types/ride';

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../../components/Button';
@@ -70,22 +70,20 @@ export default function VerificationScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
       <View className="px-5 pt-1">
         <BackHeader />
       </View>
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled"
-        contentContainerClassName="flex-grow justify-center px-6 pb-10 pt-2"
-      >
+      <KeyboardFormScrollView centered bottomPadding={40}>
         <View className="w-full max-w-[440px] self-center">
-          <Text className="text-center text-2xl text-ink font-display">{t('verifyAccount')}</Text>
-          <Text className="mt-2 text-center leading-relaxed text-text-secondary">
+          <Text className="text-center text-title-1 text-fg font-display">{t('verifyAccount')}</Text>
+          <Text className="mt-2 text-center leading-relaxed text-fg-muted">
             {t('verificationCodeSent')}
           </Text>
 
           {devCode ? (
             <View className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
-              <Text className="text-center font-bold tracking-widest text-primary">
+              <Text className="text-center font-bold tracking-widest text-primary-text">
                 {t('demoOtpHint', { code: devCode })}
               </Text>
             </View>
@@ -106,12 +104,12 @@ export default function VerificationScreen() {
           </View>
 
           <Pressable className="mt-5 items-center" onPress={handleResend} disabled={resendSeconds > 0} hitSlop={8}>
-            <Text className={resendSeconds > 0 ? 'text-text-secondary' : 'font-semibold text-primary'}>
+            <Text className={resendSeconds > 0 ? 'text-fg-muted' : 'font-semibold text-primary-text'}>
               {resendSeconds > 0 ? t('resendCodeIn', { seconds: resendSeconds }) : t('resendCode')}
             </Text>
           </Pressable>
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

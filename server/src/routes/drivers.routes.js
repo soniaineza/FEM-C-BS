@@ -1,6 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
-const { recentTrail } = require('../services/driverTrails');
+const { recentTrail, nowMs } = require('../services/driverTrails');
 const bcrypt = require('bcryptjs');
 
 const { getPool } = require('../db');
@@ -107,19 +107,20 @@ passengerFacing.get(
     }
     const { rows } = await getPool().query(
       `SELECT d.id, d.current_latitude AS latitude, d.current_longitude AS longitude,
-              d.current_heading AS heading, d.current_vehicle_id AS vehicle_id
+              d.current_heading AS heading, d.current_vehicle_id AS vehicle_id,
+              d.vehicle_color AS color
          FROM drivers d
         WHERE d.status = 'active' AND d.verified = TRUE
           AND d.current_latitude IS NOT NULL AND d.current_longitude IS NOT NULL
           ${eligibleDriverSql}
         LIMIT 300`
     );
-    const now = Date.now();
+    const now = nowMs();
     const nearby = rows
       .map((r) => ({ ...r, distanceKm: haversineKm(lat, lng, r.latitude, r.longitude) }))
       .filter((r) => r.distanceKm <= 5)
       .sort((a, b) => a.distanceKm - b.distanceKm)
-      .slice(0, 24);
+      .slice(0, 40);
     res.json({
       serverTime: now,
       drivers: nearby.map((r) => ({
@@ -129,7 +130,9 @@ passengerFacing.get(
         longitude: r.longitude,
         heading: r.heading ?? null,
         vehicleId: r.vehicle_id,
-        trail: recentTrail(r.id, now),
+        color: r.color ?? null,
+        // ~8 s covers the client's render delay plus a poll interval.
+        trail: recentTrail(r.id, now, 8000),
       })),
     });
   })

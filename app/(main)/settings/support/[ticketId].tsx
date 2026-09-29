@@ -10,6 +10,8 @@ import { BackHeader } from '../../../../components/BackHeader';
 import { useTranslation } from '../../../../hooks/useTranslation';
 import { getTicketWithMessages, replyToTicket } from '../../../../services/support-service';
 import { SupportTicket, SupportMessage } from '../../../../types/support';
+import { Colors } from '../../../../constants/theme';
+import { ErrorState, LoadingState } from '../../../../components/ui';
 
 // Ticket statuses stored by the backend ('open' | 'resolved' | 'closed')
 // rendered through the dictionary like everything else.
@@ -62,14 +64,11 @@ export default function TicketThreadScreen() {
 
   if (loading || !ticket) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 bg-white">
-        <View className="flex-1 px-6 pt-2">
+      <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+        <View className="flex-1 px-5 pt-2">
           <BackHeader />
-          {loading ? <ActivityIndicator className="mt-10" color="#16A34A" /> : (
-            <View className="mt-10 gap-4">
-              <Text className="text-center text-error">{error ?? t('requestFailed')}</Text>
-              <Button title={t('tryAgain')} variant="outline" onPress={load} />
-            </View>
+          {loading ? <LoadingState /> : (
+            <ErrorState message={error ?? t('requestFailed')} retryLabel={t('tryAgain')} onRetry={load} />
           )}
         </View>
       </SafeAreaViewPlaceholder>
@@ -77,21 +76,21 @@ export default function TicketThreadScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <View className="flex-1 px-6 pt-2">
+      <View className="flex-1 px-5 pt-2">
         <BackHeader />
-        <Text className="mt-2 text-xl font-bold text-ink">{ticket.subject}</Text>
-        <Text className="mt-1 text-sm text-text-secondary">{t((STATUS_KEYS[ticket.status] ?? ticket.status) as any)}</Text>
-        {error ? <Text className="mt-2 text-sm text-error">{error}</Text> : null}
+        <Text className="mt-2 text-title-2 font-bold text-fg">{ticket.subject}</Text>
+        <Text className="mt-1 text-subhead text-fg-muted">{t((STATUS_KEYS[ticket.status] ?? ticket.status) as any)}</Text>
+        {error ? <Text className="mt-2 text-subhead text-danger">{error}</Text> : null}
 
         <FlatList
           className="mt-4"
           data={messages}
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => (
-            <View className={`mt-2 max-w-[85%] rounded p-3 ${item.senderRole === 'passenger' ? 'self-end bg-primary/10' : 'self-start bg-gray-light'}`}>
-              <Text className="text-ink">{item.message}</Text>
+            <View className={`mt-2 max-w-[85%] rounded p-3 ${item.senderRole === 'passenger' ? 'self-end bg-primary/10' : 'self-start bg-surface-muted'}`}>
+              <Text className="text-fg">{item.message}</Text>
             </View>
           )}
         />

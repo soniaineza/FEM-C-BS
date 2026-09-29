@@ -1,7 +1,7 @@
 import { View, Text, ScrollView } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 
-import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 
 const SECTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -9,14 +9,13 @@ const SECTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 export default function PrivacyScreen() {
   const { t } = useTranslation();
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('privacyPolicyTitle')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <ScrollView contentContainerClassName="px-5 pt-2 pb-10">
+        <ScreenHeader back title={t('privacyPolicyTitle')} />
         {SECTIONS.map((n) => (
           <View key={n} className="mt-5">
-            <Text className="text-base font-semibold text-ink">{t(`privacySection${n}Title` as any)}</Text>
-            <Text className="mt-1 text-sm text-text-secondary">{t(`privacySection${n}Body` as any)}</Text>
+            <Text className="text-body font-semibold text-fg">{t(`privacySection${n}Title` as any)}</Text>
+            <Text className="mt-1 text-subhead text-fg-muted">{t(`privacySection${n}Body` as any)}</Text>
           </View>
         ))}
       </ScrollView>

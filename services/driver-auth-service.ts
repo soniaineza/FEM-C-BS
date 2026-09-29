@@ -46,11 +46,9 @@ export async function updateDriverProfile(patch: {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   preferredLanguage?: string;
-  vehicleMake?: string;
-  vehicleModel?: string;
-  vehicleYear?: number;
-  vehicleColor?: string;
-  vehiclePlate?: string;
+  // NOTE: no vehicle* keys — PUT /driver/me answers those with 400
+  // "Update vehicle details through /driver/vehicle." Use
+  // updateDriverVehicle() in services/driver-profile-service.ts instead.
 }): Promise<DriverProfile> {
   const json = await driverApiClient.put<{ driver: any }>('/driver/me', patch);
   return driverFromBackendJson(json.driver);

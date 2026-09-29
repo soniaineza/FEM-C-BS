@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
+import { View } from 'react-native';
+import { Pressable } from '../../../components/ui/Pressable';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useTranslation } from '../../../hooks/useTranslation';
-import { Button } from '../../../components/Button';
+import { EmptyState, ErrorState, ListItem, ListSection, LoadingState, Screen, ScreenHeader, Text } from '../../../components/ui';
+import { Card } from '../../../components/Card';
 import { getDriverEarningsSummary, getDriverEarningsHistory } from '../../../services/driver-profile-service';
 import { DriverEarningEntry, DriverEarningsSummary } from '../../../types/driver';
 import { formatFare } from '../../../types/ride';
+import { Colors } from '../../../constants/theme';
 
 // Backend earning statuses ('pending' | 'settled' | 'failed') rendered
 // through the dictionary like everything else.
@@ -48,36 +50,30 @@ export default function DriverWalletScreen() {
   useEffect(() => { load(); }, []);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
-      <View className="px-5 pb-3 pt-4">
-        <Text className="text-xl text-ink font-display">{t('wallet')}</Text>
-      </View>
-
+    <Screen edges={['top', 'left', 'right']} header={<ScreenHeader title={t('wallet')} className="pt-3" />}>
       {loading ? (
-        <ActivityIndicator className="mt-8" color="#16A34A" />
+        <LoadingState />
       ) : error ? (
-        <View className="mt-8 gap-4 px-5">
-          <Text className="text-center text-error">{error}</Text>
-          <Button title={t('tryAgain')} variant="outline" onPress={load} />
-        </View>
+        <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
       ) : (
-        <ScrollView contentContainerClassName="px-5 pb-8">
-          <View
-            className="rounded-2xl bg-primary p-5"
-            style={{ shadowColor: '#16A34A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
-          >
-            <Text className="text-xs font-medium text-white/80">{t('driverPendingBalance')}</Text>
-            <Text className="mt-1 text-3xl font-bold text-white">{formatFare(summary?.pendingBalance ?? 0)}</Text>
+        <>
+          <Card tone="primary" className="mt-2">
+            <Text variant="subhead" weight="medium" tone="inverse" style={{ opacity: 0.85 }}>{t('driverPendingBalance')}</Text>
+            <Text variant="large-title" tone="inverse" numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 4 }}>
+              {formatFare(summary?.pendingBalance ?? 0)}
+            </Text>
             <Pressable
-              className="mt-4 flex-row items-center justify-center rounded-xl bg-white/15 py-2.5"
+              accessibilityRole="button"
+              className="mt-5 flex-row items-center justify-center self-start rounded-full bg-surface px-4 py-2.5"
+              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
               onPress={() => router.push('/(driver)/wallet/payouts' as any)}
             >
-              <Ionicons name="cash-outline" size={16} color="#fff" />
-              <Text className="ml-2 font-semibold text-white">{t('driverViewPayouts')}</Text>
+              <Ionicons name="cash-outline" size={16} color={Colors['primary-text']} />
+              <Text variant="subhead" weight="semibold" tone="primary" style={{ marginLeft: 6 }}>{t('driverViewPayouts')}</Text>
             </Pressable>
-          </View>
+          </Card>
 
-          <View className="mt-4 flex-row gap-3">
+          <View className="mt-3 flex-row gap-3">
             <SummaryCard label={t('driverToday')} amount={summary?.today.amount ?? 0} rides={summary?.today.rides ?? 0} />
             <SummaryCard label={t('thisWeek')} amount={summary?.week.amount ?? 0} rides={summary?.week.rides ?? 0} />
           </View>
@@ -86,37 +82,34 @@ export default function DriverWalletScreen() {
             <SummaryCard label={t('driverAllTime')} amount={summary?.total.amount ?? 0} rides={summary?.total.rides ?? 0} />
           </View>
 
-          <Text className="mt-6 text-base font-bold text-ink">{t('driverRecentEarnings')}</Text>
           {history.length === 0 ? (
-            <Text className="mt-3 text-sm text-text-secondary">{t('driverNoEarningsYet')}</Text>
+            <EmptyState compact icon="receipt-outline" title={t('driverNoEarningsYet')} />
           ) : (
-            <View className="mt-3 gap-2.5">
+            <ListSection title={t('driverRecentEarnings')}>
               {history.map((entry) => (
-                <View key={entry.id} className="flex-row items-center justify-between rounded-xl border border-border bg-white p-3.5">
-                  <View className="flex-1 pr-3">
-                    <Text numberOfLines={1} className="text-[13.5px] font-semibold text-ink">{entry.destAddress}</Text>
-                    <Text className="mt-0.5 text-xs text-text-secondary">
-                      {entry.distanceKm.toFixed(1)} km · {entry.paymentMethod} · {t(earningStatusKey(entry.status) as any)}
-                    </Text>
-                  </View>
-                  <Text className="font-bold text-primary">{formatFare(entry.netAmount)}</Text>
-                </View>
+                <ListItem
+                  key={entry.id}
+                  icon="arrow-down"
+                  title={entry.destAddress}
+                  subtitle={`${entry.distanceKm.toFixed(1)} km · ${entry.paymentMethod} · ${t(earningStatusKey(entry.status) as any)}`}
+                  right={<Text variant="callout" weight="semibold" tone="primary" numberOfLines={1}>{formatFare(entry.netAmount)}</Text>}
+                />
               ))}
-            </View>
+            </ListSection>
           )}
-        </ScrollView>
+        </>
       )}
-    </SafeAreaViewPlaceholder>
+    </Screen>
   );
 }
 
 function SummaryCard({ label, amount, rides }: { label: string; amount: number; rides: number }) {
   const { t } = useTranslation();
   return (
-    <View className="flex-1 rounded-2xl border border-border bg-white p-4">
-      <Text className="text-xs font-medium text-text-secondary">{label}</Text>
-      <Text className="mt-1 text-base font-bold text-ink">{formatFare(amount)}</Text>
-      <Text className="mt-0.5 text-[11px] text-text-secondary">{t('driverTripsCount', { count: rides })}</Text>
-    </View>
+    <Card padded={false} className="flex-1 p-4">
+      <Text variant="caption" weight="medium" tone="muted" numberOfLines={1}>{label}</Text>
+      <Text variant="title-3" weight="bold" numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 4 }}>{formatFare(amount)}</Text>
+      <Text variant="caption" tone="subtle" numberOfLines={1} style={{ marginTop: 2 }}>{t('driverTripsCount', { count: rides })}</Text>
+    </Card>
   );
 }

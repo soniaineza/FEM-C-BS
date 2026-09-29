@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { View, Text as RNText, ScrollView, Pressable, Modal } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
@@ -7,7 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 import { Button } from '../../../components/Button';
+import { Card } from '../../../components/Card';
 import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
+import { useResponsive } from '../../../hooks/useResponsive';
 import { useDriverActiveRide } from '../../../hooks/useDriverActiveRide';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { setDriverStatus, acceptDriverRide, declineDriverRide } from '../../../services/driver-service';
@@ -15,14 +17,11 @@ import { getDriverEarningsSummary } from '../../../services/driver-profile-servi
 import { driverCanGoActive, DriverEarningsSummary } from '../../../types/driver';
 import { formatFare } from '../../../types/ride';
 import { ApiError } from '../../../services/driver-api-client';
+import { Colors, Elevation } from '../../../constants/theme';
+import { Avatar, Badge, Banner, ListItem, ListSection, Text } from '../../../components/ui';
+import { RouteTimeline } from '../../../components/TripRouteCard';
 
 const OFFER_COUNTDOWN_SECONDS = 20;
-
-function initialsFor(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return '?';
-  return trimmed.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-}
 
 function greetingKey(): 'driverGoodMorning' | 'driverGoodAfternoon' | 'driverGoodEvening' {
   const hour = new Date().getHours();
@@ -42,6 +41,7 @@ function greetingKey(): 'driverGoodMorning' | 'driverGoodAfternoon' | 'driverGoo
 export default function DriverHomeScreen() {
   const isFocused = useIsFocused();
   const { t } = useTranslation();
+  const { contentStyle, isSmallPhone } = useResponsive();
   // Bottom sheets render inside a transparent full-screen Modal, which gets
   // no SafeArea automatically — the OfferOverlay pads its own bottom edge by
   // the device's system inset so Accept/Decline never sit behind the gesture
@@ -108,100 +108,78 @@ export default function DriverHomeScreen() {
       {isFocused ? <StatusBar style="light" /> : null}
       <View className="bg-primary px-5 pb-8 pt-3">
         <View className="flex-row items-center">
-          <View className="h-11 w-11 items-center justify-center rounded-xl bg-white">
-            <Text className="text-2xl font-bold text-primary">F</Text>
+          <View className="h-11 w-11 items-center justify-center rounded-xl bg-surface">
+            <RNText className="text-title-1 font-bold text-primary-text">F</RNText>
           </View>
           <View className="ml-3 flex-1">
-            <Text className="text-xl font-bold text-white">FEM C@BS</Text>
-            <Text className="text-xs font-medium tracking-wide text-white/85">{t('driverRoleLabel')}</Text>
+            <RNText className="text-title-2 font-bold text-white">FEM C@BS</RNText>
+            <RNText className="text-caption font-medium tracking-wide text-white/85">{t('driverRoleLabel')}</RNText>
           </View>
           <Pressable
-            className="h-11 w-11 items-center justify-center rounded-full bg-white/20"
+            className="h-11 w-11 items-center justify-center rounded-full bg-surface/20"
             onPress={() => router.push('/(driver)/(tabs)/more' as any)}
           >
-            <Ionicons name="person-outline" color="#fff" size={22} />
+            <Ionicons name="person-outline" color={Colors.surface} size={22} />
           </Pressable>
         </View>
       </View>
 
-      <ScrollView className="-mt-5 flex-1 rounded-t-[28px] bg-bg-light" contentContainerClassName="px-5 pb-6 pt-5">
-        <View
-          className="flex-row items-center rounded-2xl border border-border bg-white p-4"
-          style={{ shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 }}
-        >
-          <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
-            <Text className="text-lg font-bold text-primary">{initialsFor(currentDriver?.fullName ?? '')}</Text>
-          </View>
+      <ScrollView className="-mt-5 flex-1 rounded-t-sheet bg-canvas" contentContainerClassName="pb-8 pt-5">
+        <View style={contentStyle} className="px-5">
+        <Card className="flex-row items-center">
+          <Avatar name={currentDriver?.fullName} size={52} />
           <View className="ml-3.5 flex-1">
-            <Text className="text-[13px] text-text-secondary">{t(greetingKey())},</Text>
-            <Text className="text-lg font-bold text-ink">{currentDriver?.fullName?.split(' ')[0] || t('driverRoleLabel')}</Text>
+            <Text variant="footnote" tone="muted">{t(greetingKey())},</Text>
+            <Text variant="title-3" numberOfLines={1}>{currentDriver?.fullName?.split(' ')[0] || t('driverRoleLabel')}</Text>
           </View>
-          <View className={`flex-row items-center rounded-full px-3 py-1.5 ${isOnline ? 'bg-primary/10' : 'bg-gray-light'}`}>
-            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: isOnline ? '#16A34A' : '#9CA3AF' }} />
-            <Text className={`ml-1.5 text-xs font-semibold ${isOnline ? 'text-primary' : 'text-text-secondary'}`}>
-              {isOnline ? t('driverOnline') : t('driverOffline')}
-            </Text>
-          </View>
-        </View>
+          <Badge dot tone={isOnline ? 'success' : 'neutral'} label={isOnline ? t('driverOnline') : t('driverOffline')} />
+        </Card>
 
-        <View
-          className="mt-3.5 flex-row items-center justify-around rounded-2xl border border-border bg-white py-4"
-          style={{ shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 }}
-        >
-          <StatColumn icon="car-outline" value={String(activeRideCount)} label={t('driverActiveRides')} />
-          <View className="h-10 w-px bg-border" />
-          <StatColumn icon="star" value={currentDriver?.rating != null ? currentDriver.rating.toFixed(1) : '5.0'} label={t('driverRatingLabel')} iconColor="#D97706" />
-          <View className="h-10 w-px bg-border" />
-          <StatColumn icon="wallet-outline" value={summary ? formatFare(summary.today.amount) : '—'} label={t('driverTodaysEarnings')} />
-        </View>
+        <Card padded={false} className="mt-3 flex-row items-stretch py-4">
+          <StatColumn icon="car-outline" value={String(activeRideCount)} label={t('driverActiveRides')} small={isSmallPhone} />
+          <View className="w-px bg-divider" />
+          <StatColumn icon="star" value={currentDriver?.rating != null ? currentDriver.rating.toFixed(1) : '5.0'} label={t('driverRatingLabel')} iconColor={Colors.star} small={isSmallPhone} />
+          <View className="w-px bg-divider" />
+          <StatColumn icon="wallet-outline" value={summary ? formatFare(summary.today.amount) : '—'} label={t('driverTodaysEarnings')} small={isSmallPhone} />
+        </Card>
 
         {!currentDriver?.verified ? (
-          <View className="mt-3.5 flex-row items-center rounded-2xl border border-warning bg-white p-4">
-            <Ionicons name="alert-circle-outline" size={20} color="#D97706" />
-            <Text className="ml-2.5 flex-1 text-[13px] text-ink">{t('driverVerificationPendingBody')}</Text>
+          <View className="mt-3">
+            <Banner tone="warning" message={t('driverVerificationPendingBody')} />
           </View>
         ) : null}
 
-        <View className="mt-3.5">
-          {togglingOnline ? (
-            <View className="h-button w-full items-center justify-center rounded bg-primary/80">
-              <ActivityIndicator color="#fff" />
-            </View>
-          ) : (
-            <Button
-              title={isOnline ? t('driverGoOffline') : t('driverGoOnline')}
-              icon={isOnline ? 'power' : 'location'}
-              onPress={handleToggleOnline}
-              variant={isOnline ? 'outline' : 'primary'}
-            />
-          )}
-          {toggleError ? <Text className="mt-2 text-xs text-error">{toggleError}</Text> : null}
+        <View className="mt-4">
+          <Button
+            title={isOnline ? t('driverGoOffline') : t('driverGoOnline')}
+            icon={isOnline ? 'power' : 'radio-button-on'}
+            onPress={handleToggleOnline}
+            loading={togglingOnline}
+            variant={isOnline ? 'outline' : 'primary'}
+          />
+          {toggleError ? <View className="mt-3"><Banner tone="danger" message={toggleError} /></View> : null}
         </View>
 
         {tripInProgress ? (
-          <Pressable
-            className="mt-3.5 flex-row items-center rounded-2xl border border-primary bg-white p-4"
+          <Card
+            tone="tint"
+            className="mt-4 flex-row items-center"
             onPress={() => router.push({ pathname: '/(driver)/journey', params: { rideId: tripInProgress.id } } as any)}
           >
-            <View className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
-              <Ionicons name="navigate" size={20} color="#16A34A" />
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
+              <Ionicons name="navigate" size={20} color={Colors['primary-fg']} />
             </View>
             <View className="ml-3 flex-1">
-              <Text className="text-[15px] font-bold text-ink">{t('driverTripInProgress')}</Text>
-              <Text numberOfLines={1} className="text-[13px] text-text-secondary">{tripInProgress.destination.address}</Text>
+              <Text variant="callout" weight="semibold">{t('driverTripInProgress')}</Text>
+              <Text variant="footnote" tone="muted" numberOfLines={1}>{tripInProgress.destination.address}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-          </Pressable>
+            <Ionicons name="chevron-forward" size={18} color={Colors['fg-muted']} />
+          </Card>
         ) : null}
 
-        <View className="mt-3.5 gap-3">
-          <Pressable className="flex-row items-center justify-between rounded-2xl border border-border bg-white p-4" onPress={() => router.push('/(driver)/wallet/payouts' as any)}>
-            <View className="flex-row items-center">
-              <Ionicons name="cash-outline" size={20} color="#16A34A" />
-              <Text className="ml-3 text-[14.5px] font-semibold text-ink">{t('driverPayouts')}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-          </Pressable>
+        <ListSection className="mt-4">
+          <ListItem icon="cash-outline" title={t('driverPayouts')} onPress={() => router.push('/(driver)/wallet/payouts' as any)} />
+        </ListSection>
         </View>
       </ScrollView>
 
@@ -223,18 +201,27 @@ function StatColumn({
   icon,
   value,
   label,
-  iconColor = '#16A34A',
+  iconColor = Colors['primary-text'],
+  small = false,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   value: string;
   label: string;
   iconColor?: string;
+  small?: boolean;
 }) {
+  // Each column owns an equal third and shrinks: long fares ("1,250,000
+  // RWF") and long locale labels scale down instead of pushing siblings
+  // off a 320px screen.
   return (
-    <View className="items-center px-2">
-      <Ionicons name={icon} size={20} color={iconColor} />
-      <Text className="mt-1.5 text-base font-bold text-ink">{value}</Text>
-      <Text className="mt-0.5 text-[11px] text-text-secondary">{label}</Text>
+    <View className="flex-1 items-center px-1">
+      <Ionicons name={icon} size={small ? 18 : 20} color={iconColor} />
+      <Text variant="headline" weight="bold" align="center" numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 6 }}>
+        {value}
+      </Text>
+      <Text variant={small ? 'micro' : 'caption'} tone="muted" align="center" numberOfLines={2} style={{ marginTop: 2 }}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -292,47 +279,35 @@ function OfferOverlay({
 
   return (
     <Modal visible={!!rideId} transparent animationType="slide">
-      <View className="flex-1 justify-end bg-black/40">
-        <View
-          className="rounded-t-[28px] bg-white p-6"
-          style={{
-            paddingBottom: 24 + bottomInset,
-            shadowColor: '#111827',
-            shadowOpacity: 0.2,
-            shadowRadius: 24,
-            shadowOffset: { width: 0, height: -6 },
-            elevation: 8,
-          }}
-        >
+      <View className="flex-1 justify-end" style={{ backgroundColor: Colors.overlay }}>
+        <View className="rounded-t-sheet bg-surface px-5 pt-3" style={{ ...Elevation[4], paddingBottom: 20 + bottomInset }}>
+          <View className="mb-4 h-[5px] w-10 self-center rounded-full bg-border-strong" />
           <View className="flex-row items-center justify-between">
-            <Text className="text-lg font-bold text-ink">{t('driverNewRideRequest')}</Text>
-            <View className="rounded-full bg-primary/10 px-3 py-1">
-              <Text className="font-bold text-primary">{seconds}s</Text>
+            <Text variant="title-2">{t('driverNewRideRequest')}</Text>
+            <View
+              className="h-12 w-12 items-center justify-center rounded-full"
+              style={{ borderWidth: 3, borderColor: seconds <= 5 ? Colors.danger : Colors.primary }}
+              accessibilityLabel={`${seconds}s`}
+            >
+              <Text variant="headline" weight="bold" tone={seconds <= 5 ? 'danger' : 'primary'}>{seconds}</Text>
             </View>
           </View>
 
-          <View className="mt-4 gap-3">
-            <View className="flex-row items-start">
-              <Ionicons name="ellipse" size={12} color="#16A34A" style={{ marginTop: 4 }} />
-              <Text className="ml-2.5 flex-1 text-[14.5px] text-ink">{pickupAddress}</Text>
-            </View>
-            <View className="flex-row items-start">
-              <Ionicons name="location" size={14} color="#DC2626" style={{ marginTop: 2 }} />
-              <Text className="ml-2 flex-1 text-[14.5px] text-ink">{destinationAddress}</Text>
-            </View>
+          <View className="mt-4 flex-row items-end justify-between">
+            <Text variant="large-title">{fare}</Text>
+            {distanceKm ? <Text variant="callout" tone="muted" style={{ marginBottom: 4 }}>{`${distanceKm.toFixed(1)} km`}</Text> : null}
           </View>
 
-          <View className="mt-4 flex-row items-center justify-between rounded-xl bg-gray-light px-4 py-3">
-            <Text className="text-sm text-text-secondary">{distanceKm ? `${distanceKm.toFixed(1)} km` : ''}</Text>
-            <Text className="text-lg font-bold text-primary">{fare}</Text>
+          <View className="mt-4 rounded-2xl bg-surface-muted p-4">
+            <RouteTimeline pickup={pickupAddress ?? ''} destination={destinationAddress ?? ''} />
           </View>
 
           <View className="mt-5 flex-row gap-3">
             <View className="flex-1">
-              <Button title={t('driverDecline')} variant="outline" destructive onPress={onDecline} />
+              <Button title={t('driverDecline')} variant="outline" onPress={onDecline} />
             </View>
-            <View className="flex-1">
-              <Button title={t('driverAccept')} onPress={onAccept} />
+            <View style={{ flex: 1.6 }}>
+              <Button title={t('driverAccept')} icon="checkmark" onPress={onAccept} />
             </View>
           </View>
         </View>

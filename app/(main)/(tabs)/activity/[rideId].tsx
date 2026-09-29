@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../../../components/SafeAreaViewPlaceholder';
+import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../../../components/Button';
-import { BackHeader } from '../../../../components/BackHeader';
+import { Card } from '../../../../components/Card';
+import { Avatar, ErrorState, LoadingState, Screen, ScreenHeader, Text } from '../../../../components/ui';
+import { RouteTimeline } from '../../../../components/TripRouteCard';
 import { useTranslation } from '../../../../hooks/useTranslation';
 import { getRideDetails } from '../../../../services/ride-service';
 import { Ride, formatFare, rideStatusKey } from '../../../../types/ride';
@@ -34,67 +35,111 @@ export default function RideDetailsScreen() {
 
   if (loading && !ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white" edges={['top', 'left', 'right']}>
-        <ActivityIndicator color="#16A34A" />
-      </SafeAreaViewPlaceholder>
+      <Screen header={<ScreenHeader back title={t('rideDetails')} />}>
+        <LoadingState />
+      </Screen>
     );
   }
 
   if (error && !ride) {
     return (
-      <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
-        <View className="flex-1 px-6 pt-2">
-          <BackHeader />
-          <View className="mt-10 items-center">
-            <Text className="text-center text-text-secondary">{error}</Text>
-            <View className="mt-4 min-w-[160px]">
-              <Button title={t('tryAgain')} variant="outline" onPress={load} />
-            </View>
-          </View>
-        </View>
-      </SafeAreaViewPlaceholder>
+      <Screen header={<ScreenHeader back title={t('rideDetails')} />}>
+        <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
+      </Screen>
     );
   }
 
   if (!ride) return null;
 
+  const liveHref = liveRideHref(ride);
+  const canRate = ride.rating == null && ride.status === 'completed';
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('rideDetails')}</Text>
-
-        <View className="mt-4 gap-2 rounded border border-border p-4">
-          <Text className="text-ink">{ride.pickup.address}</Text>
-          <Text className="text-ink">{ride.destination.address}</Text>
-          <View className="mt-2 flex-row justify-between">
-            <Text className="text-text-secondary">{ride.distanceKm.toFixed(1)} km</Text>
-            <Text className="text-text-secondary">
-              {ride.durationMinutes} {t('minutesShort')}
-            </Text>
+    <Screen
+      header={<ScreenHeader back title={t('rideDetails')} />}
+      footer={
+        liveHref || canRate ? (
+          <>
+            {liveHref ? <Button title={t('trackLiveRide')} icon="navigate" onPress={() => router.replace(liveHref)} /> : null}
+            {canRate ? (
+              <Button
+                title={t('rating')}
+                icon="star-outline"
+                variant={liveHref ? 'secondary' : 'primary'}
+                onPress={() => router.push({ pathname: '/(main)/ride/rating', params: { rideId: ride.id } })}
+              />
+            ) : null}
+          </>
+        ) : undefined
+      }
+    >
+      <Card tone="primary" className="mt-2">
+        <View className="flex-row items-center justify-between">
+          <Text variant="subhead" tone="inverse" style={{ opacity: 0.85 }}>{t('finalFare')}</Text>
+          <View className="rounded-full bg-surface/20 px-2.5 py-1">
+            <Text variant="caption" weight="semibold" tone="inverse">{t(rideStatusKey(ride.status))}</Text>
           </View>
-          <View className="mt-2 flex-row justify-between">
-            <Text className="text-base font-semibold text-ink">{t('finalFare')}</Text>
-            <Text className="text-lg font-bold text-primary">{formatFare(ride.finalFare ?? ride.estimatedFare)}</Text>
-          </View>
-          <Text className="mt-1 text-xs text-text-secondary">{t(rideStatusKey(ride.status))}</Text>
         </View>
+        <Text variant="large-title" tone="inverse" style={{ marginTop: 6 }}>
+          {formatFare(ride.finalFare ?? ride.estimatedFare)}
+        </Text>
+        <View className="mt-3 flex-row gap-5">
+          <Text variant="subhead" tone="inverse" style={{ opacity: 0.85 }}>{ride.distanceKm.toFixed(1)} km</Text>
+          <Text variant="subhead" tone="inverse" style={{ opacity: 0.85 }}>
+            {ride.durationMinutes} {t('minutesShort')}
+          </Text>
+        </View>
+      </Card>
 
-        {ride.driver ? (
-          <View className="mt-4 rounded border border-border p-4">
-            <Text className="text-base font-semibold text-ink">{ride.driver.name}</Text>
-            <Text className="mt-1 text-sm text-text-secondary">
-              {ride.driver.vehicleColor} {ride.driver.vehicleModel} - {ride.driver.licensePlate}
+      <Card className="mt-4">
+        <RouteTimeline pickup={ride.pickup.address} destination={ride.destination.address} />
+      </Card>
+
+      {ride.driver ? (
+        <Card className="mt-4 flex-row items-center">
+          <Avatar name={ride.driver.name} size={48} />
+          <View className="ml-3.5 flex-1">
+            <Text variant="headline">{ride.driver.name}</Text>
+            <Text variant="subhead" tone="muted" style={{ marginTop: 2 }}>
+              {ride.driver.vehicleColor} {ride.driver.vehicleModel}
             </Text>
           </View>
-        ) : null}
-
-        {ride.rating == null && ride.status === 'completed' ? (
-          <View className="mt-4">
-            <Button title={t('rating')} onPress={() => router.push({ pathname: '/(main)/ride/rating', params: { rideId: ride.id } })} />
+          <View className="rounded-lg border border-border-strong bg-surface-muted px-2.5 py-1">
+            <Text variant="subhead" weight="bold">{ride.driver.licensePlate}</Text>
           </View>
-        ) : null}
-      </ScrollView>
-    </SafeAreaViewPlaceholder>
+        </Card>
+      ) : null}
+    </Screen>
   );
+}
+
+// Routes an in-progress ride back into its live screen (the back buttons
+// on driver-accepted/tracking leave the ride running, so this is the way
+// back in from Activity > Active). Returns null for terminal rides.
+function liveRideHref(ride: Ride): {
+  pathname:
+    | '/(main)/ride/searching-driver'
+    | '/(main)/ride/driver-accepted'
+    | '/(main)/ride/tracking'
+    | '/(main)/ride/completed';
+  params: { rideId: string };
+} | null {
+  const params = { rideId: ride.id };
+  switch (ride.status) {
+    case 'searchingDriver':
+    case 'scheduled':
+      return { pathname: '/(main)/ride/searching-driver', params };
+    case 'driverAssigned':
+    case 'driverArriving':
+    case 'driverArrived':
+      return { pathname: '/(main)/ride/driver-accepted', params };
+    case 'pinVerified':
+    case 'inProgress':
+    case 'arrived':
+    case 'paymentPending':
+      return { pathname: '/(main)/ride/tracking', params };
+    case 'completed':
+      return { pathname: '/(main)/ride/completed', params };
+    default:
+      return null;
+  }
 }

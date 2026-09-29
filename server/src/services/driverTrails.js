@@ -8,27 +8,39 @@
 // single-point trails until it has samples.
 
 const MAX_AGE_MS = 12_000;
-const MAX_SAMPLES = 16;
+const MAX_SAMPLES = 64; // the demo fleet records ~4 samples per second
 
 const trails = new Map(); // driverId -> [{ t, lat, lng, heading }]
 
-function recordSample(driverId, { latitude, longitude, heading }, t = Date.now()) {
+// Trail timestamps come from a monotonic clock anchored to the wall clock at
+// start-up. Date.now() can step backwards (NTP, a VM/WSL clock resync); a
+// backwards step made fresh samples look older than recorded ones, so they
+// were dropped and cars leapt across the gap on the map. Responses that
+// carry trails report serverTime from this same clock.
+const { performance } = require('perf_hooks');
+const EPOCH = Date.now() - performance.now();
+function nowMs() {
+  return Math.round(EPOCH + performance.now());
+}
+
+function recordSample(driverId, { latitude, longitude, heading }, t = nowMs()) {
   let list = trails.get(driverId);
   if (!list) {
     list = [];
     trails.set(driverId, list);
   }
   const last = list[list.length - 1];
+  if (last && t < last.t) return; // out of order: keep the timeline monotonic
   if (last && last.t === t) list.pop();
   list.push({ t, lat: latitude, lng: longitude, heading: heading ?? null });
   while (list.length > MAX_SAMPLES || (list.length && t - list[0].t > MAX_AGE_MS)) list.shift();
 }
 
 /** Samples as compact [epochMs, lat, lng, heading] tuples, oldest first. */
-function recentTrail(driverId, now = Date.now()) {
+function recentTrail(driverId, now = nowMs(), maxAgeMs = MAX_AGE_MS) {
   const list = trails.get(driverId) || [];
   return list
-    .filter((s) => now - s.t <= MAX_AGE_MS)
+    .filter((s) => now - s.t <= maxAgeMs)
     .map((s) => [s.t, round6(s.lat), round6(s.lng), s.heading == null ? null : Math.round(s.heading)]);
 }
 
@@ -40,4 +52,4 @@ function forget(driverId) {
   trails.delete(driverId);
 }
 
-module.exports = { recordSample, recentTrail, forget };
+module.exports = { recordSample, recentTrail, forget, nowMs };

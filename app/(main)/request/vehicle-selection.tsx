@@ -19,6 +19,7 @@ import { Vehicle } from '../../../types/vehicle';
 import { formatFare } from '../../../types/ride';
 import { placeHasCoordinates } from '../../../types/place';
 import type { MapScene } from '../../../components/map/map-types';
+import { Colors, Elevation } from '../../../constants/theme';
 
 const SHEET_PADDING = { top: 90, bottom: 430, left: 40, right: 40 };
 
@@ -133,19 +134,19 @@ export default function VehicleSelectionScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('back')}
           onPress={() => goBack()}
-          className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-white"
-          style={{ elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6 }}
+          className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-surface"
+          style={Elevation[3]}
         >
-          <Ionicons name="arrow-back" size={22} color="#111" />
+          <Ionicons name="arrow-back" size={22} color={Colors.fg} />
         </Pressable>
       </SafeAreaView>
 
       <MapSheet
         header={
           <View className="mb-2 flex-row items-center justify-between">
-            <Text className="text-lg font-bold text-ink">{t('chooseRide')}</Text>
+            <Text className="text-title-3 font-bold text-fg">{t('chooseRide')}</Text>
             {quote ? (
-              <Text className="text-xs text-text-secondary">
+              <Text className="text-caption text-fg-muted">
                 {quote.route.distanceKm.toFixed(1)} km · {quote.route.durationMinutes} min
               </Text>
             ) : null}
@@ -160,10 +161,10 @@ export default function VehicleSelectionScreen() {
         }
       >
         {loading ? (
-          <ActivityIndicator className="my-8" color="#16A34A" />
+          <ActivityIndicator className="my-8" color={Colors.primary} />
         ) : loadError ? (
           <View className="my-4">
-            <Text className="text-text-secondary">{loadError}</Text>
+            <Text className="text-fg-muted">{loadError}</Text>
             <View className="mt-3 self-start">
               <Button title={t('retryLabel')} variant="outline" onPress={load} />
             </View>
@@ -172,12 +173,12 @@ export default function VehicleSelectionScreen() {
           <View>
             {quote.surge.multiplier > 1 ? (
               <View className="mb-2 flex-row items-center rounded-xl bg-warning/10 px-3 py-2">
-                <Ionicons name="flash" size={16} color="#D97706" />
-                <Text className="ml-2 flex-1 text-xs text-warning">{t('surgeNotice')}</Text>
+                <Ionicons name="flash" size={16} color={Colors.warning} />
+                <Text className="ml-2 flex-1 text-caption text-warning">{t('surgeNotice')}</Text>
               </View>
             ) : null}
             {quote.route.source === 'estimate' ? (
-              <Text className="mb-2 text-xs text-text-secondary">{t('routeEstimateNotice')}</Text>
+              <Text className="mb-2 text-caption text-fg-muted">{t('routeEstimateNotice')}</Text>
             ) : null}
             {quote.options.map((option) => (
               <VehicleRow
@@ -221,28 +222,37 @@ function VehicleRow({
       accessibilityState={{ checked: selected }}
       aria-checked={selected}
       onPress={onPress}
-      className="mb-2 rounded-2xl px-3 py-3"
-      style={{ borderWidth: selected ? 2 : 1, borderColor: selected ? '#111111' : '#E5E7EB', opacity: eta == null ? 0.55 : 1 }}
+      className="mb-2.5 rounded-card bg-surface px-4 py-3.5"
+      style={{
+        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? Colors.primary : 'rgba(15,23,42,0.08)',
+        opacity: eta == null ? 0.55 : 1,
+        shadowColor: '#0F172A',
+        shadowOpacity: selected ? 0.1 : 0.04,
+        shadowRadius: selected ? 14 : 8,
+        shadowOffset: { width: 0, height: selected ? 6 : 3 },
+        elevation: selected ? 3 : 1,
+      }}
     >
       <View className="flex-row items-center">
-        <View className="h-12 w-14 items-center justify-center rounded-xl bg-gray-light">
-          <Ionicons name={icon} size={28} color="#111" />
+        <View className="h-12 w-14 items-center justify-center rounded-xl bg-surface-muted">
+          <Ionicons name={icon} size={28} color={Colors.fg} />
         </View>
         <View className="ml-3 flex-1">
           <View className="flex-row items-center">
-            <Text className="text-[15px] font-bold text-ink">{option.name}</Text>
-            <Ionicons name="person" size={12} color="#6B7280" style={{ marginLeft: 8 }} />
-            <Text className="ml-0.5 text-xs text-text-secondary">{option.capacity}</Text>
+            <Text className="text-callout font-bold text-fg">{option.name}</Text>
+            <Ionicons name="person" size={12} color={Colors['fg-muted']} style={{ marginLeft: 8 }} />
+            <Text className="ml-0.5 text-caption text-fg-muted">{option.capacity}</Text>
           </View>
-          <Text className="mt-0.5 text-xs text-text-secondary">
+          <Text className="mt-0.5 text-caption text-fg-muted">
             {eta == null
               ? t('noCarsNearby')
               : `${t('minAway', { minutes: eta })} · ${t('dropoffAt', { time: clockIn(eta + durationMinutes) })}`}
           </Text>
         </View>
         <View className="items-end">
-          <Text className="text-base font-bold text-ink">{formatFare(option.fare.total)}</Text>
-          {selected ? <Ionicons name={expanded ? 'chevron-up' : 'information-circle-outline'} size={16} color="#6B7280" /> : null}
+          <Text className="text-body font-bold text-fg">{formatFare(option.fare.total)}</Text>
+          {selected ? <Ionicons name={expanded ? 'chevron-up' : 'information-circle-outline'} size={16} color={Colors['fg-muted']} /> : null}
         </View>
       </View>
       {selected && expanded ? (

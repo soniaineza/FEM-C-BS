@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { goBack } from '../../utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { resetPassword, confirmResetPassword } from '../../services/auth-service';
 import { validators } from '../../utils/validators';
 import { ApiError } from '../../services/api-client';
+import { Colors } from '../../constants/theme';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -60,14 +61,14 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView>
         <View className="w-full max-w-[440px] self-center">
         <BackHeader />
         {stage === 'request' && (
           <>
-            <Text className="text-2xl text-ink font-display">{t('forgotPassword')}</Text>
-            <Text className="mt-1 text-text-secondary">{t('forgotPasswordDescription')}</Text>
+            <Text className="text-title-1 text-fg font-display">{t('forgotPassword')}</Text>
+            <Text className="mt-1 text-fg-muted">{t('forgotPasswordDescription')}</Text>
             <View className="mt-6 gap-4">
               <Input
                 label={t('emailOrPhone')}
@@ -87,13 +88,13 @@ export default function ForgotPasswordScreen() {
         {stage === 'confirm' && (
           <>
             <View className="items-center">
-              <Ionicons name="mail-open-outline" size={56} color="#16A34A" />
+              <Ionicons name="mail-open-outline" size={56} color={Colors.primary} />
             </View>
-            <Text className="mt-4 text-2xl text-ink font-display">{t('codeArrivalHint')}</Text>
-            <Text className="mt-2 leading-relaxed text-text-secondary">{t('checkPhoneOrEmail')}</Text>
+            <Text className="mt-4 text-title-1 text-fg font-display">{t('checkPhoneOrEmail')}</Text>
+            <Text className="mt-2 leading-relaxed text-fg-muted">{t('codeArrivalHint')}</Text>
             {devCode ? (
               <View className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
-                <Text className="text-center font-bold tracking-widest text-primary">
+                <Text className="text-center font-bold tracking-widest text-primary-text">
                   {t('demoOtpHint', { code: devCode })}
                 </Text>
               </View>
@@ -132,9 +133,9 @@ export default function ForgotPasswordScreen() {
         {stage === 'done' && (
           <>
             <View className="items-center pt-6">
-              <Ionicons name="checkmark-circle-outline" size={64} color="#16A34A" />
+              <Ionicons name="checkmark-circle-outline" size={64} color={Colors.primary} />
             </View>
-            <Text className="mt-5 text-center text-xl text-ink font-display">{t('passwordResetDone')}</Text>
+            <Text className="mt-5 text-center text-title-2 text-fg font-display">{t('passwordResetDone')}</Text>
             <View className="mt-7">
               <Button
                 title={t('backToLogin')}
@@ -149,11 +150,11 @@ export default function ForgotPasswordScreen() {
 
         {stage !== 'done' && (
           <Pressable className="mt-6 items-center" onPress={() => goBack()}>
-            <Text className="text-primary">{t('backToLogin')}</Text>
+            <Text className="text-primary-text">{t('backToLogin')}</Text>
           </Pressable>
         )}
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

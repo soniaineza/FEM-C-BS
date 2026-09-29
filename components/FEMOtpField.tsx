@@ -1,7 +1,7 @@
 import { useRef, memo } from 'react';
 import { View, TextInput, StyleSheet, Pressable } from 'react-native';
 
-import { FemColors } from '../constants/theme';
+import { Colors, Fonts } from '../constants/theme';
 
 const OTP_LENGTH = 6;
 
@@ -75,30 +75,33 @@ const styles = StyleSheet.create({
   },
   box: {
     flex: 1,
-    maxWidth: 52,
-    aspectRatio: 0.9,
-    minHeight: 52,
-    borderRadius: 12,
+    maxWidth: 54,
+    aspectRatio: 0.86,
+    minHeight: 54,
+    borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: FemColors.border,
-    backgroundColor: FemColors.white,
+    borderColor: Colors.border,
+    backgroundColor: Colors['surface-muted'],
     alignItems: 'center',
     justifyContent: 'center',
   },
   filled: {
-    borderColor: FemColors.primary,
+    borderColor: Colors['border-strong'],
+    backgroundColor: Colors.surface,
   },
   active: {
-    borderColor: FemColors.primary,
-    backgroundColor: FemColors.primarySoft,
+    borderColor: Colors.primary,
+    borderWidth: 2,
+    backgroundColor: Colors.surface,
   },
   error: {
-    borderColor: FemColors.error,
+    borderColor: Colors.danger,
+    backgroundColor: Colors['danger-soft'],
   },
   digit: {
-    fontSize: 22,
-    fontFamily: 'Inter_600SemiBold',
-    color: FemColors.ink,
+    fontSize: 24,
+    fontFamily: Fonts.semibold,
+    color: Colors.fg,
     textAlign: 'center',
     padding: 0,
   },

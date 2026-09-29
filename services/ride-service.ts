@@ -215,6 +215,8 @@ export interface NearbyDriver {
   longitude: number;
   heading: number | null;
   vehicleId: string | null;
+  /** Car colour name as the driver entered it ("White", "Silver"...). */
+  color?: string | null;
   trail: TrailSample[];
 }
 

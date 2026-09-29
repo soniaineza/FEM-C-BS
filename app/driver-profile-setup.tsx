@@ -1,20 +1,17 @@
 import { useState } from 'react';
-import { View, Text } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { View, Pressable } from 'react-native';
+import { KeyboardFormScrollView } from '../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../components/SafeAreaViewPlaceholder';
 
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { useDriverAuthStore } from '../stores/useDriverAuthStore';
+import { updateDriverVehicle } from '../services/driver-profile-service';
 import { useTranslation } from '../hooks/useTranslation';
 import { ApiError } from '../services/driver-api-client';
-
-function initialsFor(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return '?';
-  return trimmed.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-}
+import { Colors } from '../constants/theme';
+import { Avatar, ScreenHeader, Text } from '../components/ui';
 
 // Driver-side counterpart to app/profile-setup.tsx — gates entry into
 // (driver) until the essentials are filled in. The backend's is_profile_
@@ -23,6 +20,18 @@ function initialsFor(name: string): string {
 // "tell us about your vehicle" since a driver with no vehicle info on file
 // is useless to the matcher (driverMatcher.js denormalises vehicle_model/
 // vehicle_color/vehicle_plate straight from the drivers row onto the ride).
+// Colour names the map's 3D cars know how to paint (carModel.ts).
+const VEHICLE_COLORS: { name: string; hex: string }[] = [
+  { name: 'White', hex: '#f8fafc' },
+  { name: 'Silver', hex: '#c0c4ca' },
+  { name: 'Grey', hex: '#8b9098' },
+  { name: 'Black', hex: '#1f2937' },
+  { name: 'Red', hex: '#c8102e' },
+  { name: 'Blue', hex: '#1d4ed8' },
+  { name: 'Green', hex: '#15803d' },
+  { name: 'Yellow', hex: '#eab308' },
+];
+
 export default function DriverProfileSetupScreen() {
   const { t } = useTranslation();
   const currentDriver = useDriverAuthStore((s) => s.currentDriver);
@@ -30,27 +39,30 @@ export default function DriverProfileSetupScreen() {
 
   const [fullName, setFullName] = useState(currentDriver?.fullName ?? '');
   const [email, setEmail] = useState(currentDriver?.email ?? '');
-  const [vehicleMake, setVehicleMake] = useState('');
-  const [vehicleModel, setVehicleModel] = useState('');
-  const [vehicleColor, setVehicleColor] = useState('');
-  const [vehiclePlate, setVehiclePlate] = useState('');
+  const [vehicleMake, setVehicleMake] = useState(currentDriver?.vehicleMake ?? '');
+  const [vehicleModel, setVehicleModel] = useState(currentDriver?.vehicleModel ?? '');
+  const [vehicleColor, setVehicleColor] = useState(currentDriver?.vehicleColor ?? 'White');
+  const [vehiclePlate, setVehiclePlate] = useState(currentDriver?.vehiclePlate ?? '');
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
 
   async function handleContinue() {
     if (!fullName.trim()) return setError(t('driverEnterFullName'));
     if (!email.trim()) return setError(t('driverEnterEmail'));
+    if (!vehicleMake.trim() || !vehicleModel.trim() || !vehiclePlate.trim()) return setError(t('driverEnterVehicle'));
     setError(undefined);
     setLoading(true);
     try {
-      await updateProfile({
-        fullName: fullName.trim(),
-        email: email.trim(),
-        vehicleMake: vehicleMake.trim() || undefined,
-        vehicleModel: vehicleModel.trim() || undefined,
-        vehicleColor: vehicleColor.trim() || undefined,
-        vehiclePlate: vehiclePlate.trim() || undefined,
+      // PUT /driver/me rejects vehicle keys, so the vehicle goes through its
+      // own endpoint FIRST: a failure surfaces here instead of after the
+      // profile gate flips below.
+      await updateDriverVehicle({
+        vehicleMake: vehicleMake.trim(),
+        vehicleModel: vehicleModel.trim(),
+        vehicleColor: vehicleColor.trim(),
+        vehiclePlate: vehiclePlate.trim().toUpperCase(),
       });
+      await updateProfile({ fullName: fullName.trim(), email: email.trim() });
       // Root layout's Stack.Protected swaps to (driver) once
       // currentDriver.isProfileComplete becomes true.
     } catch (err) {
@@ -61,45 +73,86 @@ export default function DriverProfileSetupScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-6 pb-8">
-        <Text className="text-xl text-ink font-display">{t('driverCompleteProfile')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView topPadding={16}>
+        <ScreenHeader title={t('driverCompleteProfile')} subtitle={t('driverVehicleHint')} />
 
-        <View className="mt-6 items-center">
-          <View
-            className="h-[88px] w-[88px] items-center justify-center rounded-full border-2 border-primary"
-            style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}
-          >
-            <Text className="text-3xl font-bold text-primary">{initialsFor(fullName)}</Text>
-          </View>
+        <View className="mt-4 items-center">
+          <Avatar name={fullName} size={80} />
         </View>
 
-        <View className="mt-6 gap-4">
-          <Input label={t('fullName')} value={fullName} onChangeText={setFullName} prefixIcon="person-outline" />
+        <Text variant="footnote" weight="semibold" tone="muted" style={SECTION}>{t('driverSetupStepProfile')}</Text>
+        <View className="gap-4">
+          <Input label={t('fullName')} value={fullName} onChangeText={setFullName} prefixIcon="person-outline" autoComplete="name" />
           <Input
             label={t('email')}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoComplete="email"
             prefixIcon="mail-outline"
           />
         </View>
 
-        <Text className="mt-7 text-base font-bold text-ink">{t('driverYourVehicle')}</Text>
-        <Text className="mt-1.5 text-xs leading-5 text-text-secondary">{t('driverVehicleHint')}</Text>
-        <View className="mt-4 gap-4">
-          <Input label={t('driverMake')} value={vehicleMake} onChangeText={setVehicleMake} prefixIcon="car-outline" />
-          <Input label={t('driverModel')} value={vehicleModel} onChangeText={setVehicleModel} prefixIcon="car-sport-outline" />
-          <Input label={t('driverColor')} value={vehicleColor} onChangeText={setVehicleColor} prefixIcon="color-palette-outline" />
-          <Input label={t('driverPlateNumber')} value={vehiclePlate} onChangeText={setVehiclePlate} autoCapitalize="characters" prefixIcon="card-outline" />
+        <Text variant="footnote" weight="semibold" tone="muted" style={SECTION}>{t('driverSetupStepVehicle')}</Text>
+        <View className="gap-4">
+          <View className="flex-row gap-3">
+            <View className="flex-1">
+              <Input label={t('driverMake')} value={vehicleMake} onChangeText={setVehicleMake} placeholder="Toyota" />
+            </View>
+            <View className="flex-1">
+              <Input label={t('driverModel')} value={vehicleModel} onChangeText={setVehicleModel} placeholder="Corolla" />
+            </View>
+          </View>
+          <Input
+            label={t('driverPlateNumber')}
+            value={vehiclePlate}
+            onChangeText={setVehiclePlate}
+            autoCapitalize="characters"
+            placeholder="RAE 123 T"
+            prefixIcon="card-outline"
+          />
+          <View>
+            <Text variant="subhead" weight="medium" style={{ marginBottom: 8 }}>{t('driverColor')}</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {VEHICLE_COLORS.map((c) => {
+                const selected = vehicleColor.toLowerCase() === c.name.toLowerCase();
+                return (
+                  <Pressable
+                    key={c.name}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={c.name}
+                    onPress={() => setVehicleColor(c.name)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      minHeight: 40,
+                      paddingHorizontal: 12,
+                      borderRadius: 999,
+                      borderWidth: 1.5,
+                      borderColor: selected ? Colors.primary : Colors.border,
+                      backgroundColor: selected ? Colors['primary-soft'] : Colors.surface,
+                    }}
+                  >
+                    <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: c.hex, borderWidth: 1, borderColor: Colors['border-strong'] }} />
+                    <Text variant="subhead" weight={selected ? 'semibold' : 'medium'}>{c.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
           {error ? <ErrorMessage message={error} /> : null}
         </View>
 
-        <View className="mt-7">
-          <Button title={t('continueLabel')} onPress={handleContinue} loading={loading} />
+        <View className="mt-8">
+          <Button title={t('continueLabel')} iconRight="arrow-forward" onPress={handleContinue} loading={loading} />
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }
+
+const SECTION = { marginTop: 28, marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: 0.6 };

@@ -27,7 +27,7 @@ import { useNearbyCars } from '../hooks/useNearbyCars';
 import * as locationService from '../services/location-service';
 import { getRecentPlaces, RecentPlace } from '../services/user-service';
 import { Place, placeHasCoordinates } from '../types/place';
-import { FemColors } from '../constants/theme';
+import { FemColors, Colors } from '../constants/theme';
 
 interface PlacePickerProps {
   mode: 'pickup' | 'destination';
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow,
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   searchInput: { flex: 1, fontSize: 15, color: FemColors.ink, paddingVertical: 0, outlineWidth: 0 },
-  results: { marginTop: 8, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 6, ...shadow },
+  results: { marginTop: 8, backgroundColor: Colors.surface, borderRadius: 16, paddingVertical: 6, ...shadow },
   resultsTitle: { paddingHorizontal: 14, paddingVertical: 6, fontSize: 12, fontWeight: '600', color: FemColors.textSecondary },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
   resultText: { flex: 1, fontSize: 14, color: FemColors.ink },
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   pinHeadSquare: { borderRadius: 6 },
-  pinDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#fff' },
+  pinDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.surface },
   pinStem: { width: 3, height: 16, backgroundColor: FemColors.ink, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
   pinShadow: { width: 12, height: 5, borderRadius: 6, backgroundColor: '#000', marginTop: 1 },
   locate: { position: 'absolute', right: 16 },

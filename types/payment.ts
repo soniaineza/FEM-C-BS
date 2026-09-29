@@ -22,9 +22,19 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = [
   { id: 'card', name: 'Card', type: 'card', detail: '' },
 ];
 
-// Methods the backend can actually charge today. 'card' is excluded until a
-// card processor is wired into server/src/services/payments.js.
+// Methods the backend can charge without asking it. The live list comes from
+// GET /api/config (services/app-config.ts): 'card' is added there when the
+// server runs with DEMO_PAYMENTS=1.
 export const BOOKABLE_PAYMENT_METHOD_IDS = ['cash', 'mtn_momo', 'airtel_money', 'wallet'];
+
+/** How each method is presented: icon, brand tile and a one-line explainer key. */
+export const PAYMENT_METHOD_META: Record<string, { icon: string; tile: string; fg: string; description: string }> = {
+  cash: { icon: 'cash-outline', tile: '#DCFCE7', fg: '#15803D', description: 'payMethodCashDesc' },
+  mtn_momo: { icon: 'phone-portrait-outline', tile: '#FFCC00', fg: '#101828', description: 'payMethodMomoDesc' },
+  airtel_money: { icon: 'phone-portrait-outline', tile: '#E40000', fg: '#FFFFFF', description: 'payMethodMomoDesc' },
+  wallet: { icon: 'wallet-outline', tile: '#101828', fg: '#FFFFFF', description: 'payMethodWalletDesc' },
+  card: { icon: 'card-outline', tile: '#1570EF', fg: '#FFFFFF', description: 'payMethodCardDesc' },
+};
 
 export type PaymentStatus = 'pending' | 'processing' | 'succeeded' | 'failed' | 'refunded';
 

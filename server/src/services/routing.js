@@ -49,16 +49,17 @@ function straightLine(from, to) {
 /**
  * Road route between two points.
  * @returns {Promise<{coordinates: [number, number][], distanceMeters: number,
- *   durationSeconds: number, source: 'osrm'|'estimate'}>} coordinates are [lng, lat].
+ *   durationSeconds: number, source: 'osrm'|'estimate', speeds?: number[]}>}
+ *   coordinates are [lng, lat]; speeds only with `speeds: true` from OSRM.
  */
-async function getRoadRoute(from, to, { timeoutMs = 6000, cacheTtlMs = CACHE_TTL_MS } = {}) {
-  const key = keyFor(from, to);
+async function getRoadRoute(from, to, { timeoutMs = 6000, cacheTtlMs = CACHE_TTL_MS, speeds = false } = {}) {
+  const key = keyFor(from, to) + (speeds ? ':s' : '');
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < cacheTtlMs) return hit.value;
 
   try {
     const url = `${config.osrmUrl}/${from.longitude},${from.latitude};${to.longitude},${to.latitude}` +
-      '?overview=full&geometries=geojson';
+      '?overview=full&geometries=geojson' + (speeds ? '&annotations=speed' : '');
     const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`OSRM ${res.status}`);
     const data = await res.json();
@@ -71,6 +72,10 @@ async function getRoadRoute(from, to, { timeoutMs = 6000, cacheTtlMs = CACHE_TTL
       durationSeconds: route.duration,
       source: 'osrm',
     };
+    // Per-segment road speeds (m/s, one per coordinate pair) when asked for;
+    // the demo fleet drives faster on main roads than in side streets.
+    const legSpeeds = route.legs?.[0]?.annotation?.speed;
+    if (speeds && Array.isArray(legSpeeds) && legSpeeds.length === coordinates.length - 1) value.speeds = legSpeeds;
     remember(key, value);
     return value;
   } catch {

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { View, Text } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardFormScrollView } from '../../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { goBack } from '../../../utils/navigation';
 
 import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
-import { BackHeader } from '../../../components/BackHeader';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { validators } from '../../../utils/validators';
@@ -52,10 +52,9 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('editProfile')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-surface">
+      <KeyboardFormScrollView>
+        <ScreenHeader back title={t('editProfile')} />
 
         <View className="mt-6 gap-4">
           <Input label={t('fullName')} value={fullName} onChangeText={setFullName} autoCapitalize="words" />
@@ -63,13 +62,13 @@ export default function EditProfileScreen() {
           <Input label={t('email')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
           <Input label={t('emergencyContactName')} value={emergencyName} onChangeText={setEmergencyName} />
           <Input label={t('emergencyContactPhone')} value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" />
-          {error ? <Text className="text-sm text-error">{error}</Text> : null}
+          {error ? <Text className="text-subhead text-danger">{error}</Text> : null}
         </View>
 
         <View className="mt-8">
           <Button title={t('saveChanges')} onPress={handleSave} loading={loading} />
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardFormScrollView>
     </SafeAreaViewPlaceholder>
   );
 }
