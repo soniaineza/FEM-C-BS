@@ -49,3 +49,4 @@ server/*.log
 
 # Local demo APK builds (see docs); not source.
 fem-cabs-demo-local.apk
+FEM-CABS.apk
