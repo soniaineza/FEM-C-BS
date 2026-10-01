@@ -21,6 +21,55 @@ import { RENDER_DELAY_MS, Track, distanceM, lerpAngle, projectOnRoute } from './
 // async callbacks (the only kind a DOM component can receive).
 
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+// The standalone (server-free) build has to stay usable with no internet at
+// all, when the tile style cannot be fetched. Literal read so Metro inlines it.
+const OFFLINE_BUILD = process.env.EXPO_PUBLIC_OFFLINE_DEMO === '1';
+const STYLE_WATCHDOG_MS = 12_000; // an unreachable network errors out fast; this only catches a hung one
+
+/**
+ * Tile-free map: a flat background and a faint street-scale grid around the
+ * camera, so panning and zooming still read as movement. Cars, routes and
+ * markers are drawn on top exactly as on the real map.
+ */
+function offlineStyle(center: LngLat): maplibregl.StyleSpecification {
+  type Line = { type: 'Feature'; properties: { major: number }; geometry: { type: 'LineString'; coordinates: [number, number][] } };
+  const features: Line[] = [];
+  const span = 0.3;
+  const step = 0.005;
+  const line = (coords: [number, number][], major: boolean): Line => ({
+    type: 'Feature',
+    properties: { major: major ? 1 : 0 },
+    geometry: { type: 'LineString', coordinates: coords },
+  });
+  for (let i = -Math.round(span / step); i <= Math.round(span / step); i++) {
+    const major = i % 4 === 0;
+    const lat = Math.round(center.latitude / step) * step + i * step;
+    const lng = Math.round(center.longitude / step) * step + i * step;
+    features.push(line([[center.longitude - span, lat], [center.longitude + span, lat]], major));
+    features.push(line([[lng, center.latitude - span], [lng, center.latitude + span]], major));
+  }
+  return {
+    version: 8,
+    sources: { 'fem-grid': { type: 'geojson', data: { type: 'FeatureCollection', features } } },
+    layers: [
+      { id: 'fem-bg', type: 'background', paint: { 'background-color': '#eef0f2' } },
+      {
+        id: 'fem-grid-minor',
+        type: 'line',
+        source: 'fem-grid',
+        filter: ['==', ['get', 'major'], 0],
+        paint: { 'line-color': '#e2e5e9', 'line-width': 1 },
+      },
+      {
+        id: 'fem-grid-major',
+        type: 'line',
+        source: 'fem-grid',
+        filter: ['==', ['get', 'major'], 1],
+        paint: { 'line-color': '#d3d8de', 'line-width': 1.5 },
+      },
+    ],
+  };
+}
 const CAR_PX = 30; // on-screen car length at city zooms
 const ASSIGNED_CAR_PX = 38;
 const FOLLOW_EVERY_MS = 1200;
@@ -417,9 +466,10 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     map.on('load', () => {
       // Compact attribution starts expanded; keep it collapsed until tapped.
       container.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
-      // 3D buildings (OpenMapTiles heights), under the labels.
+      // 3D buildings (OpenMapTiles heights), under the labels. Absent on the
+      // tile-free offline style.
       const firstLabel = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id;
-      map.addLayer(
+      if (map.getSource('openmaptiles')) map.addLayer(
         {
           id: 'fem-buildings-3d',
           type: 'fill-extrusion',
@@ -464,9 +514,28 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
       callbacks.current.onReady?.();
     });
 
+    // No internet in the standalone build: swap to the tile-free style rather
+    // than showing an error, once the style fetch fails or takes too long.
+    let usedOfflineStyle = false;
+    const useOfflineStyle = () => {
+      if (!OFFLINE_BUILD || usedOfflineStyle || loadedRef.current) return false;
+      usedOfflineStyle = true;
+      const cam = sceneRef.current.camera;
+      map.setStyle(
+        offlineStyle({
+          latitude: cam.center?.latitude ?? KIGALI_CENTER.latitude,
+          longitude: cam.center?.longitude ?? KIGALI_CENTER.longitude,
+        }),
+        { diff: false }
+      );
+      return true;
+    };
+    const watchdog = OFFLINE_BUILD ? setTimeout(useOfflineStyle, STYLE_WATCHDOG_MS) : null;
+
     map.on('error', (e) => {
       // Tile hiccups are routine; only a style that never loads is fatal.
       if (!loadedRef.current && !map.isStyleLoaded()) {
+        if (useOfflineStyle()) return;
         callbacks.current.onError?.(e.error?.message ?? 'The map could not be loaded.');
       }
     });
@@ -499,6 +568,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
       window.removeEventListener('error', onWindowError);
       window.removeEventListener('unhandledrejection', onRejection);
       clearInterval(tick);
+      if (watchdog) clearTimeout(watchdog);
       ro.disconnect();
       map.remove();
       mapRef.current = null;

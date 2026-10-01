@@ -31,6 +31,17 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://fem-cabs-api.onrender.com/api"
       }
+    },
+    "offline": {
+      "android": {
+        "buildType": "apk"
+      },
+      "autoIncrement": true,
+      "distribution": "internal",
+      "channel": "offline",
+      "env": {
+        "EXPO_PUBLIC_OFFLINE_DEMO": "1"
+      }
     }
   },
   "submit": {

@@ -2,6 +2,8 @@ import { getDriverToken } from '../storage/driverSession';
 import { ApiError } from './api-client';
 import { useLocaleStore } from '../stores/useLocaleStore';
 import { tFor } from '../utils/i18n-errors';
+import { offlineRequest } from './offline';
+import { OFFLINE_DEMO } from './offline/mode';
 
 // Driver-side counterpart to services/api-client.ts. Duplicated rather than
 // parameterizing the passenger client so the two auth contexts (and their
@@ -31,12 +33,28 @@ async function safeJson(res: Response): Promise<any> {
   }
 }
 
+// Standalone build: answered by the on-device backend (see services/api-client.ts).
+async function sendOffline<T>(
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  body: unknown,
+  auth: boolean
+): Promise<T> {
+  const res = await offlineRequest(method, path, body, auth ? await getDriverToken() : null);
+  if (res.status >= 400) {
+    const message = typeof res.body?.error === 'string' ? res.body.error : translatedError('failed', res.status).message;
+    throw new ApiError(message, res.status);
+  }
+  return res.body as T;
+}
+
 async function send<T>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
   auth = true
 ): Promise<T> {
+  if (OFFLINE_DEMO) return sendOffline<T>(method, path, body, auth);
   const token = auth ? await getDriverToken() : null;
 
   const attempt = async (): Promise<Response> => {

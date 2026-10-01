@@ -1,3 +1,12 @@
+# FEM C@BS
+
+Passenger and driver apps (Expo / React Native) with a Node + PostgreSQL backend in `server/`.
+
+**No server?** A standalone APK runs everything on the phone — see [docs/OFFLINE_APK.md](docs/OFFLINE_APK.md)
+(`scripts/build-offline-apk.sh`).
+
+---
+
 # fem_cabs
 
 A new Flutter project.

@@ -50,3 +50,6 @@ server/*.log
 # Local demo APK builds (see docs); not source.
 fem-cabs-demo-local.apk
 FEM-CABS.apk
+
+# Standalone (server-free) build output
+fem-cabs-offline.apk

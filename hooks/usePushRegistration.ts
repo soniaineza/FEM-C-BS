@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
 import { registerDeviceToken } from '../services/notification-service';
+import { OFFLINE_DEMO } from '../services/offline/mode';
 
 // Registers this device's Expo push token with the backend whenever a
 // passenger is signed in. Web is skipped: Expo push tokens on web require
@@ -22,7 +23,9 @@ export function usePushRegistration(enabled: boolean) {
         const req = await Notifications.requestPermissionsAsync();
         status = req.status;
       }
-      if (status !== 'granted' || cancelled) return;
+      // The standalone build has no push server: permission is still requested
+      // (for the local ride notifications), but there is no token to register.
+      if (status !== 'granted' || cancelled || OFFLINE_DEMO) return;
 
       try {
         const { data: token } = await Notifications.getExpoPushTokenAsync();

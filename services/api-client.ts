@@ -1,6 +1,8 @@
 import { getToken } from '../storage/session';
 import { useLocaleStore } from '../stores/useLocaleStore';
 import { tFor } from '../utils/i18n-errors';
+import { offlineRequest } from './offline';
+import { OFFLINE_DEMO } from './offline/mode';
 
 // Direct TS port of the Flutter app's lib/services/api_client.dart. Every
 // domain service module (auth-service.ts, ride-service.ts, ...) goes
@@ -44,12 +46,30 @@ async function safeJson(res: Response): Promise<any> {
   }
 }
 
+// Standalone build (EXPO_PUBLIC_OFFLINE_DEMO=1): the request is answered by the
+// on-device backend in services/offline/ instead of going over the network;
+// success and error handling downstream are exactly the same.
+async function sendOffline<T>(
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  body: unknown,
+  auth: boolean
+): Promise<T> {
+  const res = await offlineRequest(method, path, body, auth ? await getToken() : null);
+  if (res.status >= 400) {
+    const message = typeof res.body?.error === 'string' ? res.body.error : translatedError('failed', res.status).message;
+    throw new ApiError(message, res.status);
+  }
+  return res.body as T;
+}
+
 async function send<T>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
   auth = true
 ): Promise<T> {
+  if (OFFLINE_DEMO) return sendOffline<T>(method, path, body, auth);
   const token = auth ? await getToken() : null;
 
   const attempt = async (): Promise<Response> => {

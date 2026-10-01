@@ -1,6 +1,8 @@
 import { Linking } from 'react-native';
 
 import { apiClient } from './api-client';
+import { getRideDetails } from './ride-service';
+import { OFFLINE_DEMO } from './offline/mode';
 
 // Response envelopes verified against server/src/routes/{emergency,share}.routes.js.
 
@@ -52,12 +54,19 @@ export function callPhoneNumber(phone: string): void {
 
 export async function createTripShare(rideId: string): Promise<{ token: string; expiresAt: string; url: string }> {
   const json = await apiClient.post<{ share: { token: string; expires_at: string } }>('/share', { rideId });
-  const origin = new URL(apiClientBase()).origin;
   return {
     token: json.share.token,
     expiresAt: json.share.expires_at,
-    url: `${origin}/share/${json.share.token}`,
+    url: OFFLINE_DEMO ? await directionsLink(rideId) : `${new URL(apiClientBase()).origin}/share/${json.share.token}`,
   };
+}
+
+// The standalone build has no web page for a friend to follow, so the shared
+// link opens the trip's route in whatever maps app the friend's phone has.
+async function directionsLink(rideId: string): Promise<string> {
+  const ride = await getRideDetails(rideId);
+  const at = (p: { latitude?: number; longitude?: number }) => `${p.latitude},${p.longitude}`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${at(ride.pickup)}&destination=${at(ride.destination)}`;
 }
 
 function apiClientBase(): string {

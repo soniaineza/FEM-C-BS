@@ -21,8 +21,12 @@ import { useLocaleStore } from '../stores/useLocaleStore';
 import { useAppModeStore } from '../stores/useAppModeStore';
 import { useDriverAuthStore } from '../stores/useDriverAuthStore';
 import { useLocationPermission } from '../hooks/useLocationPermission';
+import { installOfflineDevice } from '../services/offline/device';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Standalone (server-free) build only: local ride notifications + save-on-background.
+installOfflineDevice();
 
 // Set Inter as the native body family. Large screen titles explicitly use
 // Poppins through the font-display utility; controls and body text use Inter.

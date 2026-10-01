@@ -14,6 +14,7 @@ import { resetPassword, confirmResetPassword } from '../../services/auth-service
 import { validators } from '../../utils/validators';
 import { ApiError } from '../../services/api-client';
 import { Colors } from '../../constants/theme';
+import { OFFLINE_DEMO } from '../../services/offline/mode';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -35,6 +36,9 @@ export default function ForgotPasswordScreen() {
     try {
       const result = await resetPassword(identifier.trim());
       setDevCode(result.devCode);
+      // Standalone build: the code is shown on this same screen, so fill it in
+      // rather than make the user copy it across.
+      if (OFFLINE_DEMO && result.devCode) setCode(result.devCode);
       setStage('confirm');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : undefined);

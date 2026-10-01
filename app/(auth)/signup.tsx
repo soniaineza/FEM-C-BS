@@ -42,7 +42,8 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       await signUp({ fullName: fullName.trim(), phone: phone.trim(), email: email.trim(), password });
-      router.push('/(auth)/verification');
+      // Already signed in when the standalone build auto-verifies; the root layout has moved on.
+      if (!useAuthStore.getState().currentUser) router.push('/(auth)/verification');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('accountCreatedFailed'));
     } finally {

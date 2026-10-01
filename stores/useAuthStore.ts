@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import * as authService from '../services/auth-service';
+import { OFFLINE_DEMO } from '../services/offline/mode';
 import { useRideWizardStore } from './useRideWizardStore';
 import { Passenger } from '../types/passenger';
 
@@ -44,6 +45,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signUp: async (params) => {
     const { passenger, devCode } = await authService.signUp(params);
     set({ pendingPassenger: passenger, devCode: devCode ?? null });
+    // Standalone build: the code is only ever shown on this same screen, so typing
+    // it in proves nothing. Verify straight away and skip the code step. (With an
+    // SMS provider configured there is no devCode, and the normal flow applies.)
+    if (OFFLINE_DEMO && devCode) await get().verifyOtp(devCode);
   },
 
   logIn: async (params) => {
