@@ -20,7 +20,6 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLocaleStore } from '../stores/useLocaleStore';
 import { useAppModeStore } from '../stores/useAppModeStore';
 import { useDriverAuthStore } from '../stores/useDriverAuthStore';
-import { useLocationPermission } from '../hooks/useLocationPermission';
 import { installOfflineDevice } from '../services/offline/device';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -66,8 +65,6 @@ export default function RootLayout() {
   const isDriverAuthHydrated = useDriverAuthStore((s) => s.isHydrated);
   const hydrateDriverAuth = useDriverAuthStore((s) => s.hydrate);
 
-  const { ensurePermission } = useLocationPermission();
-
   useEffect(() => {
     hydrateAuth();
     hydrateLocale();
@@ -81,9 +78,9 @@ export default function RootLayout() {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
 
-  useEffect(() => {
-    if (ready) ensurePermission();
-  }, [ready, ensurePermission]);
+  // Location is requested by app/(main)/_layout.tsx once a rider is signed in,
+  // not here: this layout also renders the auth stack, and prompting before
+  // sign-in burns the single OS prompt on a screen with no map.
 
   // Handle Android hardware back button - navigate back in stack instead of exiting
   const handleBackPress = useCallback(() => {

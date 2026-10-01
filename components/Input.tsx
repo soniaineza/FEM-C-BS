@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Colors, Fonts, Type } from '../constants/theme';
 import { Text } from './ui/Text';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -23,6 +24,7 @@ export const Input = memo(
     { label, error, hint, prefixIcon, secureTextEntry, multiline, onFocus, onBlur, editable = true, style, className: _className, ...rest },
     ref
   ) {
+    const { t } = useTranslation();
     const [revealed, setRevealed] = useState(false);
     const [focused, setFocused] = useState(false);
     const isPasswordField = Boolean(secureTextEntry);
@@ -94,7 +96,7 @@ export const Input = memo(
               <Pressable
                 onPress={() => setRevealed((v) => !v)}
                 accessibilityRole="button"
-                accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+                accessibilityLabel={revealed ? t('hidePassword') : t('showPassword')}
                 hitSlop={12}
                 style={{ marginLeft: 8 }}
               >

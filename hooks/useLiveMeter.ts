@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 
 import { RideType, rideTypeFareFactor } from '../types/ride';
 import { tariffFare } from '../utils/tariff';
+import { useLocationPermissionStore } from '../stores/useLocationPermissionStore';
 
 // Builds the running trip meter for the driver live-meter screen: it watches
 // GPS and accumulates travelled distance (Haversine between successive fixes),
@@ -34,7 +35,9 @@ export function useLiveMeter(params: MeterParams | null) {
 
     let cancelled = false;
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Shared store: serialised with the driver-reporting hook, which runs at
+      // the same time during a trip.
+      const { status } = await useLocationPermissionStore.getState().request();
       if (status !== 'granted' || cancelled) return;
 
       subscriptionRef.current = await Location.watchPositionAsync(

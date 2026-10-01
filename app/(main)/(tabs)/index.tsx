@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, AppState, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,8 +15,8 @@ import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
 import { useNearbyCars } from '../../../hooks/useNearbyCars';
-import { ensureLocationAccess } from '../../../utils/location-access';
-import { getCurrentPlace, MapDefaults } from '../../../services/location-service';
+import { getCurrentPlace, getSeedPlace, MapDefaults } from '../../../services/location-service';
+import { useLocationPermission } from '../../../hooks/useLocationPermission';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
 import { placeHasCoordinates } from '../../../types/place';
@@ -40,10 +40,15 @@ export default function HomeScreen() {
   const setPickup = useRideWizardStore((s) => s.setPickup);
   const setRideType = useRideWizardStore((s) => s.setRideType);
 
+  const { ensurePermission } = useLocationPermission();
+
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [mapCenter, setMapCenter] = useState(MapDefaults);
   const [mapLocating, setMapLocating] = useState(false);
   const [recenterToken, setRecenterToken] = useState(0);
+  // Shown inline under the pickup field when location is unavailable, so the
+  // rider knows why it is empty instead of the failure passing silently.
+  const [locationHint, setLocationHint] = useState<string | null>(null);
 
   // Restores an active ride after app restart and blocks duplicate booking:
   // while a ride is live, Home shows a resume banner and the Find Ride flow
@@ -67,32 +72,49 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // Fill in the pickup from GPS once location is approved. Runs on arrival and
-  // again whenever the app returns to the foreground, so approving location in
-  // the system Settings (via the dialog's "Open settings") takes effect at once.
-  const pickupSet = !!pickup;
-  useEffect(() => {
-    if (pickupSet) return;
-    let alive = true;
-    async function locate() {
-      if ((await ensureLocationAccess(t)) !== 'granted') return;
-      try {
-        const place = await getCurrentPlace();
-        if (!alive) return;
+  // Fill the pickup field from the device location.
+  //
+  // Runs on every focus while pickup is still empty, not just once on mount, so
+  // granting the permission in Settings and coming back fills it in rather than
+  // leaving the rider on the Kigali default until a restart. ensurePermission()
+  // is shared and single-flighted, so this never races the app-start prompt
+  // raised by (main)/_layout.tsx.
+  useFocusEffect(
+    useCallback(() => {
+      if (pickup) return;
+      let cancelled = false;
+
+      const apply = (place: Awaited<ReturnType<typeof getCurrentPlace>>) => {
+        if (cancelled || place.latitude == null || place.longitude == null) return;
         setPickup(place);
-        setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 15 });
-      } catch {}
-    }
-    locate();
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') locate();
-    });
-    return () => {
-      alive = false;
-      sub.remove();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickupSet]);
+        setMapCenter({ latitude: place.latitude, longitude: place.longitude, zoom: 15 });
+      };
+
+      (async () => {
+        const granted = await ensurePermission();
+        if (cancelled || !granted) return;
+
+        // Move the map off the default straight away using the device's last
+        // known fix, then refine it once a real reading lands.
+        const seed = await getSeedPlace();
+        if (seed) apply(seed);
+
+        try {
+          apply(await getCurrentPlace());
+        } catch {
+          // Permission is granted but no fix arrived (indoors, GPS warming up).
+          // The seed above may already be showing; either way manual entry and
+          // dragging the map both still work, so this is not worth a dialog.
+          if (!cancelled && !seed) setLocationHint(t('couldNotReadLocationSetManual'));
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pickup, ensurePermission, t])
+  );
 
   useEffect(() => {
     if (pickup?.latitude != null && pickup?.longitude != null) {
@@ -111,14 +133,21 @@ export default function HomeScreen() {
 
   async function recenterMap() {
     setMapLocating(true);
+    setLocationHint(null);
     try {
-      // The locate button is an explicit request: walk through approval.
-      if ((await ensureLocationAccess(t, { interactive: true })) !== 'granted') return;
-      const place = await getCurrentPlace();
-      setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 16 });
+      // An explicit tap is the one place it is right to re-ask: the rider just
+      // said they want their location, so a prior "Not now" deserves a retry.
+      if (!(await ensurePermission({ interactive: true }))) return;
+      // force: skip the cache — the rider tapped because the pin looks wrong.
+      const place = await getCurrentPlace({ force: true });
+      if (place.latitude == null || place.longitude == null) return;
+      setPickup(place);
+      setMapCenter({ latitude: place.latitude, longitude: place.longitude, zoom: 16 });
       setRecenterToken((n) => n + 1);
     } catch {
-      // Never block the booking flow on GPS — the map simply stays where it is.
+      // Never block the booking flow on GPS — the map stays where it is and the
+      // rider can drag it or type the address.
+      setLocationHint(t('couldNotReadLocationSetManual'));
     } finally {
       setMapLocating(false);
     }

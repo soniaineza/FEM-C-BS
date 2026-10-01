@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 
 import { reportDriverLocation } from '../services/driver-service';
 import { useDriverLocationStore } from '../stores/useDriverLocationStore';
+import { useLocationPermissionStore } from '../stores/useLocationPermissionStore';
 
 // Streams the driver's live GPS to the backend (POST /api/drivers/location)
 // while [enabled] — used whenever the driver is online (matches them to new
@@ -28,7 +29,9 @@ export function useDriverLocationReporting(enabled: boolean) {
     let cancelled = false;
 
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Via the shared store so this cannot open a second OS dialog while
+      // another screen's request is already on screen.
+      const { status } = await useLocationPermissionStore.getState().request();
       if (status !== 'granted') {
         if (!cancelled) setError('Location permission is required to go online.');
         return;
