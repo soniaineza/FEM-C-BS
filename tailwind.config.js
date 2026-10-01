@@ -33,6 +33,10 @@ module.exports = {
         'primary-dark': palette['primary-hover'],
         'primary-gradient-end': green[800],
         error: palette.danger,
+        // Orange brand primary from main's home-screen restyle.
+        primary: '#F97316',
+        'primary-dark': '#EA580C',
+        'primary-gradient-end': '#C2410C',
       },
       fontSize,
       borderRadius: {

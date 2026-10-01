@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
@@ -8,17 +8,15 @@ import { StatusBar } from 'expo-status-bar';
 import { Button } from '../../../components/Button';
 import { LocationField } from '../../../components/LocationField';
 import { RideMap } from '../../../components/RideMap';
-import { MapSheet } from '../../../components/map/MapSheet';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
 import { useNearbyCars } from '../../../hooks/useNearbyCars';
-import { getCurrentPlace, MapDefaults } from '../../../services/location-service';
+import { getCurrentPlace, requestPermission, checkPermission, MapDefaults } from '../../../services/location-service';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
 import { placeHasCoordinates } from '../../../types/place';
-import { Colors, Elevation } from '../../../constants/theme';
 
 function greetingKey(): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
   const hour = new Date().getHours();
@@ -66,19 +64,20 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // Ask for location right away on first open, matching home_screen.dart's
-  // addPostFrameCallback(_useCurrentLocation) — but only when the user has
-  // not already chosen a pickup (saved place / manual pin). Previously this
-  // fired on every remount and silently replaced a deliberately chosen
-  // pickup with raw GPS.
   useEffect(() => {
     if (pickup) return;
-    getCurrentPlace()
-      .then((place) => {
+    (async () => {
+      const perm = await checkPermission();
+      if (perm !== 'granted') {
+        const req = await requestPermission();
+        if (req !== 'granted') return;
+      }
+      try {
+        const place = await getCurrentPlace();
         setPickup(place);
         setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 15 });
-      })
-      .catch(() => {});
+      } catch {}
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -97,15 +96,6 @@ export default function HomeScreen() {
     router.push('/(main)/request/vehicle-selection');
   }
 
-  // Stable reference: a new array each render re-sent the whole map scene.
-  const pickupMarkers = useMemo(
-    () =>
-      pickup?.latitude != null && pickup?.longitude != null
-        ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
-        : [],
-    [pickup?.latitude, pickup?.longitude]
-  );
-
   async function recenterMap() {
     setMapLocating(true);
     try {
@@ -119,15 +109,19 @@ export default function HomeScreen() {
     }
   }
 
+  const sheetMaxHeight = Math.min(420, Math.max(280, screenHeight * 0.48));
+
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-surface" edges={['top']}>
+    <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top']}>
       {isFocused ? <StatusBar style="dark" /> : null}
-      <View className="flex-1 bg-surface-muted">
+      <View className="flex-1 bg-gray-light">
         <RideMap
           center={mapCenter}
           zoom={mapCenter.zoom ?? 15}
           recenterToken={recenterToken}
-          markers={pickupMarkers}
+          markers={pickup?.latitude != null && pickup?.longitude != null
+            ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
+            : []}
           cars={nearbyCars}
           serverTimeOffsetMs={serverTimeOffsetMs}
           retryLabel={t('tryAgain')}
@@ -136,128 +130,120 @@ export default function HomeScreen() {
           rounded={false}
         />
 
-        <View className="absolute left-4 right-4 top-3 flex-row items-start justify-between" pointerEvents="box-none">
-          <View className="max-w-[78%] rounded-2xl bg-surface px-4 py-3" style={Elevation[2]}>
-            <Text className="text-headline font-semibold text-fg" numberOfLines={1}>{t('homeGreetingPrefix')} {firstName}</Text>
-            <View className="mt-1 flex-row items-center">
-              <View className="mr-1.5 h-2 w-2 rounded-full bg-primary" />
-              <Text className="text-caption font-medium text-fg-muted">
+        <View className="absolute left-3 right-3 top-3 sm:left-4 sm:right-4 flex-row items-start justify-between gap-3" pointerEvents="box-none">
+          <View className="max-w-[75%] flex-1 rounded-2xl bg-primary px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm">
+            <Text className="text-sm sm:text-base font-bold text-white" numberOfLines={1}>{t('homeGreetingPrefix')} {firstName}</Text>
+            <Text className="mt-0.5 text-[11px] sm:text-xs font-medium text-white/80">
               {nearbyCars.length === 1 ? t('oneDriverNearby') : t('multipleDriversNearby', { count: nearbyCars.length })}
-              </Text>
-            </View>
+            </Text>
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('profile')}
-            className="h-12 w-12 items-center justify-center rounded-full bg-surface"
-            style={Elevation[2]}
+            className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full bg-primary shadow-sm"
             onPress={() => router.push('/(main)/(tabs)/profile')}
           >
-            <Ionicons name="person-outline" color={Colors.fg} size={22} />
+            <Ionicons name="person-outline" color="#FFFFFF" size={22} />
           </Pressable>
         </View>
 
-        <MapSheet
-          bottomInset={12}
-          maxHeight={Math.max(300, screenHeight * 0.62)}
-          expandLabel={t('rideOptions')}
-          collapseLabel={t('showMap')}
-          floating={
-            <View className="flex-row justify-end px-4" pointerEvents="box-none">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('useCurrentLocation')}
-                disabled={mapLocating}
-                onPress={recenterMap}
-                className="h-12 w-12 items-center justify-center rounded-full bg-surface"
-                style={{ ...Elevation[2], opacity: mapLocating ? 0.5 : 1 }}
-              >
-                {mapLocating ? <ActivityIndicator color={Colors.primary} /> : <Ionicons name="locate" size={22} color={Colors['primary-text']} />}
-              </Pressable>
-            </View>
-          }
-          header={
-            <View className="pb-1">
-              {activeRide ? (
-                <Pressable
-                  className="mb-4 flex-row items-center rounded-2xl bg-primary-soft p-4"
-                  accessibilityRole="button"
-                  onPress={() => router.push({ pathname: '/(main)/ride/tracking', params: { rideId: activeRide.id } })}
-                >
-                  <View className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: Colors['primary-tint'] }}>
-                    <Ionicons name="navigate" size={20} color={Colors['primary-text']} />
-                  </View>
-                  <View className="ml-3 flex-1">
-                    <Text className="text-callout font-semibold text-fg">{t('activeRideTitle')}</Text>
-                    <Text numberOfLines={1} className="text-footnote text-fg-muted">{activeRide.destination.address}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={Colors['fg-muted']} />
-                </Pressable>
-              ) : null}
-
-              <Text className="text-title-2 text-fg font-display">{t('whereGoing')}</Text>
-
-              <View className="mt-3 overflow-hidden rounded-2xl bg-surface-muted">
-                <LocationField isPickup value={pickup} placeholder={t('setPickup')} onPress={() => router.push('/(main)/request/pickup')} />
-                <View className="ml-12 mr-4 h-px bg-border" />
-                <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
-              </View>
-            </View>
-          }
-          footer={
-            <View>
-              <Button
-                title={t('findRide')}
-                icon="arrow-forward"
-                onPress={findRide}
-                disabled={!pickup || !destination || !canRequestRide}
-              />
-              {checking ? <Text className="mt-2 text-center text-caption text-fg-muted">{t('checkingActiveRide')}</Text> : null}
-            </View>
-          }
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('useCurrentLocation')}
+          disabled={mapLocating}
+          onPress={recenterMap}
+          className="absolute right-3 sm:right-4 h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-primary shadow-sm"
+          style={{ bottom: sheetMaxHeight + 14, opacity: mapLocating ? 0.5 : 1 }}
         >
-          {savedPlaces.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3" contentContainerClassName="gap-2.5">
-              {savedPlaces.map((place) => (
-                <Pressable
-                  key={place.id}
-                  className="flex-row items-center rounded-full border border-border bg-surface px-3.5 py-2"
-                  onPress={() => {
-                    setPickup(place.place);
-                    // Older saved places may have an address but no map point.
-                    // Let the rider pin the exact pickup before booking.
-                    if (!placeHasCoordinates(place.place)) router.push('/(main)/request/pickup');
-                  }}
-                >
-                  <Ionicons
-                    name={place.type === 'home' ? 'home-outline' : place.type === 'work' ? 'business-outline' : 'star-outline'}
-                    size={16}
-                    color={Colors['primary-text']}
-                  />
-                  <Text className="ml-1.5 text-footnote font-semibold text-fg">{place.name}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : null}
+          {mapLocating ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="locate" size={22} color="#FFFFFF" />}
+        </Pressable>
 
-          <View className="mt-4 flex-row gap-2" accessibilityRole="radiogroup">
-            <RideOptionCard
-              selected={rideType === 'private'}
-              title={t('privateRide')}
-              icon="car-sport-outline"
-              onPress={() => setRideType('private')}
-            />
-            <RideOptionCard
-              selected={rideType === 'shared'}
-              title={t('shareRide')}
-              icon="people-outline"
-              onPress={() => setRideType('shared')}
-            />
+        <View
+          className="absolute bottom-0 left-0 right-0 overflow-hidden rounded-t-[28px] bg-primary"
+          style={{ maxHeight: sheetMaxHeight, elevation: 12, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 18 }}
+        >
+          <View className="items-center pt-2"><View className="h-1 w-10 rounded-full bg-white/40" /></View>
+          <ScrollView className="px-4 sm:px-5" contentContainerClassName="pb-2 pt-3" keyboardShouldPersistTaps="handled">
+        {activeRide ? (
+          <Pressable
+            className="mb-4 flex-row items-center rounded-2xl border border-white/30 bg-white/15 p-4"
+            onPress={() => router.push({ pathname: '/(main)/ride/tracking', params: { rideId: activeRide.id } })}
+          >
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-white/20">
+              <Ionicons name="navigate" size={20} color="#FFFFFF" />
+            </View>
+            <View className="ml-3 flex-1">
+              <Text className="text-[15px] font-bold text-white">{t('activeRideTitle')}</Text>
+              <Text numberOfLines={1} className="text-[13px] text-white/80">{activeRide.destination.address}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+          </Pressable>
+        ) : null}
+
+        <View className="flex-row items-center">
+          <Ionicons name="location-outline" size={20} color="#FFFFFF" />
+          <Text className="ml-2 text-[17px] text-white font-display">{t('whereGoing')}</Text>
+        </View>
+
+        <View className="mt-3.5 rounded-2xl border border-white/30 bg-white/20 p-1">
+          <LocationField isPickup value={pickup} placeholder={t('setPickup')} onPress={() => router.push('/(main)/request/pickup')} />
+          <View className="mx-4 h-px bg-white/25" />
+          <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
+        </View>
+
+        {savedPlaces.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3" contentContainerClassName="gap-2.5">
+            {savedPlaces.map((place) => (
+              <Pressable
+                key={place.id}
+                className="flex-row items-center rounded-xl border border-white/25 bg-white/10 px-3.5 py-2.5"
+                onPress={() => {
+                  setPickup(place.place);
+                  // Older saved places may have an address but no map point.
+                  // Let the rider pin the exact pickup before booking.
+                  if (!placeHasCoordinates(place.place)) router.push('/(main)/request/pickup');
+                }}
+              >
+                <Ionicons
+                  name={place.type === 'home' ? 'home-outline' : place.type === 'work' ? 'business-outline' : 'star-outline'}
+                  size={16}
+                  color="#FFFFFF"
+                />
+                <Text className="ml-2 text-[13px] font-semibold text-white">{place.name}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        <View className="mt-4 flex-row gap-2" accessibilityRole="radiogroup">
+          <RideOptionCard
+            selected={rideType === 'private'}
+            title={t('privateRide')}
+            icon="car-sport-outline"
+            onPress={() => setRideType('private')}
+          />
+          <RideOptionCard
+            selected={rideType === 'shared'}
+            title={t('shareRide')}
+            icon="people-outline"
+            onPress={() => setRideType('shared')}
+          />
+        </View>
+        <Text className="mt-2 text-xs text-white/80">
+          {rideType === 'private' ? t('privateRideDescription') : t('shareRideDescription')}
+        </Text>
+
+          </ScrollView>
+          <View className="border-t border-white/20 bg-primary px-4 sm:px-5 pb-4 pt-3">
+          <Button
+            title={t('findRide')}
+            icon="arrow-forward"
+            onPress={findRide}
+            disabled={!pickup || !destination || !canRequestRide}
+          />
+          {checking ? <Text className="mt-2 text-center text-xs text-white/80">{t('checkingActiveRide')}</Text> : null}
           </View>
-          <Text className="mb-1 mt-2 text-caption text-fg-muted">
-            {rideType === 'private' ? t('privateRideDescription') : t('shareRideDescription')}
-          </Text>
-        </MapSheet>
+        </View>
       </View>
     </SafeAreaViewPlaceholder>
   );
@@ -280,16 +266,16 @@ function RideOptionCard({
       accessibilityState={{ checked: selected }}
       aria-checked={selected}
       accessibilityLabel={title}
-      className="min-h-12 flex-1 flex-row items-center justify-center rounded-2xl px-3 py-3"
+      className="min-h-11 sm:min-h-12 flex-1 flex-row items-center justify-center rounded-xl px-2 sm:px-3 py-2.5 sm:py-3"
       style={{
-        backgroundColor: selected ? Colors['primary-soft'] : Colors.surface,
-        borderWidth: 1.5,
-        borderColor: selected ? Colors.primary : Colors.border,
+        backgroundColor: selected ? '#FFFFFF' : 'rgba(255,255,255,0.12)',
+        borderWidth: 1,
+        borderColor: selected ? '#FFFFFF' : 'rgba(255,255,255,0.3)',
       }}
       onPress={onPress}
     >
-      <Ionicons name={icon} size={19} color={selected ? Colors['primary-hover'] : Colors['fg-muted']} />
-      <Text className={`ml-2 text-subhead font-semibold ${selected ? 'text-primary-text' : 'text-fg'}`}>{title}</Text>
+      <Ionicons name={icon} size={19} color={selected ? '#F97316' : '#FFFFFF'} />
+      <Text className={`ml-2 text-sm font-semibold ${selected ? 'text-primary' : 'text-white'}`}>{title}</Text>
     </Pressable>
   );
 }

@@ -1,123 +1,72 @@
-import { useState, memo, forwardRef } from 'react';
-import { View, TextInput, TextInputProps, Pressable, Platform } from 'react-native';
+import { useState, memo } from 'react';
+import { View, Text, TextInput, TextInputProps, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-import { Colors, Fonts, Type } from '../constants/theme';
-import { Text } from './ui/Text';
 
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
-  /** Helper text under the field when there is no error. */
-  hint?: string;
-  // Ionicons name, e.g. 'person-outline', 'call-outline', 'mail-outline'.
+  // Ionicons name, matching custom_text_field.dart's prefixIcon (e.g.
+  // 'person-outline', 'call-outline', 'mail-outline', 'lock-closed-outline').
   prefixIcon?: keyof typeof Ionicons.glyphMap;
-  className?: string;
+  // Dark mode: use dark theme colors (for dark-bg screens like live-meter)
+  dark?: boolean;
 }
 
-// Text field: label above, 52pt surface with a hairline border that turns
-// brand green with a soft ring on focus and red on error; optional leading
-// icon, automatic password reveal, and helper/error text below.
-export const Input = memo(
-  forwardRef<TextInput, InputProps>(function Input(
-    { label, error, hint, prefixIcon, secureTextEntry, multiline, onFocus, onBlur, editable = true, style, className: _className, ...rest },
-    ref
-  ) {
-    const [revealed, setRevealed] = useState(false);
-    const [focused, setFocused] = useState(false);
-    const isPasswordField = Boolean(secureTextEntry);
-    const borderColor = error ? Colors.danger : focused ? Colors.primary : Colors.border;
-    const ring = focused ? (error ? 'rgba(217,45,32,0.14)' : Colors['primary-tint']) : 'transparent';
+// Mirrors app_theme.dart's inputDecorationTheme (filled white field,
+// bordered, green focus ring, red error text) plus custom_text_field.dart's
+// prefix icon and automatic password show/hide toggle for secureTextEntry
+// fields.
+export const Input = memo(function Input({
+  label,
+  error,
+  prefixIcon,
+  secureTextEntry,
+  dark = false,
+  className,
+  ...rest
+}: InputProps & { className?: string }) {
+  const [revealed, setRevealed] = useState(false);
+  const isPasswordField = Boolean(secureTextEntry);
 
-    return (
-      <View style={{ width: '100%' }}>
-        {label ? (
-          <Text variant="subhead" weight="medium" style={{ marginBottom: 6 }}>
-            {label}
-          </Text>
+  return (
+    <View className="w-full">
+      {label ? <Text className={`mb-1.5 text-sm font-medium ${dark ? 'text-dark-text' : 'text-ink'}`}>{label}</Text> : null}
+      <View className="relative w-full justify-center">
+        {prefixIcon ? (
+          <View className="absolute left-3.5 z-10">
+            <Ionicons name={prefixIcon} size={22} color={dark ? '#93A3C8' : '#6B7280'} />
+          </View>
         ) : null}
-        <View style={{ borderRadius: 16, borderWidth: 3, borderColor: ring, margin: -3 }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: multiline ? 'flex-start' : 'center',
-              minHeight: multiline ? 120 : 52,
-              borderRadius: 14,
-              borderWidth: 1.5,
-              borderColor,
-              backgroundColor: editable ? Colors.surface : Colors['surface-muted'],
-              paddingHorizontal: 14,
-            }}
+        <TextInput
+          className={`h-button w-full rounded border text-base ${
+            dark
+              ? 'border-dark-border bg-dark-surface text-dark-text'
+              : 'border-border bg-white text-ink'
+          } ${
+            prefixIcon ? 'pl-11' : 'px-4'
+          } ${isPasswordField ? 'pr-11' : prefixIcon ? 'pr-4' : ''} ${
+            error ? 'border-error' : dark ? 'border-dark-border' : 'border-border'
+          } ${className ?? ''}`}
+          placeholderTextColor={dark ? '#5C6B8E' : '#6B7280'}
+          secureTextEntry={isPasswordField && !revealed}
+          accessibilityLabel={rest.accessibilityLabel ?? label ?? rest.placeholder}
+          {...rest}
+        />
+        {isPasswordField ? (
+          <Pressable
+            className="absolute right-3.5 z-10"
+            onPress={() => setRevealed((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            hitSlop={8}
           >
-            {prefixIcon ? (
-              <Ionicons
-                name={prefixIcon}
-                size={20}
-                color={focused ? Colors.primary : Colors['fg-subtle']}
-                style={{ marginRight: 10, marginTop: multiline ? 14 : 0 }}
-              />
-            ) : null}
-            <TextInput
-              ref={ref}
-              style={[
-                {
-                  flex: 1,
-                  ...Type.body,
-                  lineHeight: multiline ? Type.body.lineHeight : undefined,
-                  fontFamily: Fonts.regular,
-                  color: Colors.fg,
-                  paddingVertical: multiline ? 14 : 12,
-                  minHeight: multiline ? 116 : 48,
-                },
-                // The field draws its own focus ring; drop the browser outline.
-                Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null,
-                style,
-              ]}
-              placeholderTextColor={Colors['fg-subtle']}
-              secureTextEntry={isPasswordField && !revealed}
-              multiline={multiline}
-              editable={editable}
-              textAlignVertical={multiline ? 'top' : 'center'}
-              // The visible label doubles as the field's accessible name.
-              accessibilityLabel={rest.accessibilityLabel ?? label ?? rest.placeholder}
-              onFocus={(e) => {
-                setFocused(true);
-                onFocus?.(e);
-              }}
-              onBlur={(e) => {
-                setFocused(false);
-                onBlur?.(e);
-              }}
-              {...rest}
-            />
-            {isPasswordField ? (
-              <Pressable
-                onPress={() => setRevealed((v) => !v)}
-                accessibilityRole="button"
-                accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
-                hitSlop={12}
-                style={{ marginLeft: 8 }}
-              >
-                <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={20} color={Colors['fg-muted']} />
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-        {error ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 }}>
-            <Ionicons name="alert-circle" size={14} color={Colors.danger} />
-            <Text variant="footnote" tone="danger" style={{ flex: 1 }}>
-              {error}
-            </Text>
-          </View>
-        ) : hint ? (
-          <Text variant="footnote" tone="subtle" style={{ marginTop: 6 }}>
-            {hint}
-          </Text>
+            <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={20} color={dark ? '#93A3C8' : '#6B7280'} />
+          </Pressable>
         ) : null}
       </View>
-    );
-  })
-);
+      {error ? <Text className="mt-1 text-xs text-error">{error}</Text> : null}
+    </View>
+  );
+});
 
 Input.displayName = 'Input';

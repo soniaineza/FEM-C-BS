@@ -49,30 +49,38 @@ export async function getCurrentPlace(): Promise<Place> {
     throw new Error('Location permission was not granted.');
   }
 
-  // Without a time limit a poor/no GPS fix hangs this forever — same
-  // reasoning as the Flutter app's 10s timeLimit (see the now-deleted
-  // location_service.dart, and the diagnostic fix in commit 5fd55b6).
+  // Try high accuracy first, then fall back to balanced if it times out
   let position: Location.LocationObject;
   try {
     position = await withTimeout(
       Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
-      8_000 // Reduced from 10s to 8s
+      5_000
     );
   } catch {
-    throw new Error(
-      "Couldn't get a GPS fix. Try again outdoors or with a clearer view of the sky, or enter your pickup location manually."
-    );
+    try {
+      position = await withTimeout(
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        5_000
+      );
+    } catch {
+      // Last resort: last known position (fast, no GPS fix needed)
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      if (lastKnown) {
+        position = lastKnown;
+      } else {
+        throw new Error(
+          "Couldn't get a GPS fix. Try again outdoors or with a clearer view of the sky, or enter your pickup location manually."
+        );
+      }
+    }
   }
 
   const { latitude, longitude } = position.coords;
-  // Return coordinates immediately - don't block on reverse geocoding
   const place: Place = { address: 'Current location', latitude, longitude, isCurrentLocation: true };
-  
-  // Cache immediately
+
   cachedPlace = place;
   cachedAt = now;
 
-  // Fire-and-forget reverse geocoding to update address in background
   apiClient.get<{ address: string }>(
     `/locations/reverse?lat=${latitude}&lng=${longitude}`
   ).then((json) => {

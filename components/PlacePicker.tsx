@@ -120,6 +120,14 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
     setLocating(true);
     setGpsError(null);
     try {
+      const perm = await locationService.checkPermission();
+      if (perm !== 'granted') {
+        const req = await locationService.requestPermission();
+        if (req !== 'granted') {
+          setGpsError('Location permission was not granted.');
+          return;
+        }
+      }
       const here = await locationService.getCurrentPlace();
       skipNextLookup.current = false;
       moveCamera({ latitude: here.latitude!, longitude: here.longitude! });
