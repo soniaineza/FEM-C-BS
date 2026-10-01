@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable, Linking, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../../components/Button';
+import { SlideToConfirm } from '../../../components/ui/SlideToConfirm';
 import { Card } from '../../../components/Card';
 import { MapSheet } from '../../../components/map/MapSheet';
 import { useTranslation } from '../../../hooks/useTranslation';
@@ -17,6 +18,11 @@ import { Colors, Elevation } from '../../../constants/theme';
 
 const PADDING = { top: 90, bottom: 380, left: 50, right: 50 };
 
+// Rides the rider has already accepted this session. Once the trip itself has
+// begun (PIN verified or later) the offer no longer applies, so a restored or
+// resumed ride goes straight to the live view.
+const acceptedRides = new Set<string>();
+
 export default function DriverAcceptedScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
@@ -24,6 +30,7 @@ export default function DriverAcceptedScreen() {
   usePassengerLocationReporting(!!ride);
   const { scene, etaMinutes } = useTripMap(ride, driverLocation, serverTimeOffsetMs, PADDING);
   useMapScene(scene);
+  const [accepted, setAccepted] = useState(() => !!rideId && acceptedRides.has(rideId));
 
   useEffect(() => {
     if (ride && (ride.status === 'pinVerified' || ride.status === 'inProgress' || ride.status === 'arrived' || ride.status === 'paymentPending')) {
@@ -49,6 +56,66 @@ export default function DriverAcceptedScreen() {
   const arrived = ride.status === 'driverArrived';
   const initials = driver.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   const vehicleSummary = [driver.vehicleColor, driver.vehicleModel].filter(Boolean).join(' ');
+
+  const offerPending = !accepted && (ride.status === 'driverAssigned' || ride.status === 'driverArriving');
+  if (offerPending) {
+    return (
+      <View style={{ flex: 1 }}>
+        <MapSheet
+          collapsible
+          expandLabel={t('driverFoundTitle')}
+          collapseLabel={t('showMap')}
+          header={
+            <View className="mb-3 items-center">
+              <Text className="text-title-2 font-bold text-fg">{t('driverFoundTitle')}</Text>
+              <Text className="mt-0.5 text-footnote text-fg-muted" numberOfLines={1}>
+                {etaMinutes != null ? t('driverArrivingIn', { minutes: etaMinutes }) : t('driverOnWay')}
+              </Text>
+            </View>
+          }
+          footer={
+            <View className="gap-2">
+              <SlideToConfirm
+                label={t('slideToAccept')}
+                confirmedLabel={t('rideAccepted')}
+                onConfirm={() => {
+                  acceptedRides.add(ride.id);
+                  // Let the success state land before the offer gives way to the live view.
+                  setTimeout(() => setAccepted(true), 650);
+                }}
+              />
+              <Button
+                title={t('declineDriver')}
+                variant="text"
+                onPress={async () => {
+                  try { await cancelRide(ride.id); } finally { router.replace('/(main)/(tabs)'); }
+                }}
+              />
+            </View>
+          }
+        >
+          <Card className="items-center py-5">
+            <View className="h-20 w-20 items-center justify-center rounded-full bg-ink">
+              <Text className="text-title-1 font-bold text-white">{initials}</Text>
+            </View>
+            <Text className="mt-3 text-title-3 font-bold text-fg">{driver.name}</Text>
+            <View className="mt-1 flex-row items-center">
+              <Ionicons name="star" size={14} color={Colors.fg} />
+              <Text className="ml-1 text-subhead text-fg-muted">
+                {driver.rating > 0 ? driver.rating.toFixed(1) : t('driverNoRatingYet')}
+              </Text>
+            </View>
+            {vehicleSummary ? <Text className="mt-2 text-callout text-fg">{vehicleSummary}</Text> : null}
+            {driver.licensePlate ? (
+              <View className="mt-2 rounded-lg border-2 border-ink bg-surface px-3 py-1">
+                <Text className="text-footnote font-bold tracking-wider text-fg">{driver.licensePlate}</Text>
+              </View>
+            ) : null}
+          </Card>
+        </MapSheet>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>

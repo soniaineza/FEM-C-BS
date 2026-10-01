@@ -37,6 +37,10 @@ interface MapSheetProps {
   /** Labels for the handle's accessibility action. */
   expandLabel?: string;
   collapseLabel?: string;
+  /** Sheet surface colour (defaults to the surface token). */
+  backgroundColor?: string;
+  /** Drag-handle colour (defaults to the neutral border). */
+  handleColor?: string;
 }
 
 // Space kept clear above the sheet, under the status bar, for floating
@@ -64,6 +68,8 @@ export function MapSheet({
   floating,
   expandLabel = 'Expand',
   collapseLabel = 'Collapse',
+  backgroundColor,
+  handleColor,
 }: MapSheetProps) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -127,8 +133,9 @@ export function MapSheet({
     return () => clearTimeout(done);
   }, [enter]);
   const enterStyle = useAnimatedStyle(() => ({
+    // Slide only — never fade. A fading parent leaves the whole sheet
+    // translucent on Android if the animation is ever interrupted.
     transform: [{ translateY: enter.value * 120 }],
-    opacity: 1 - enter.value * 0.6,
   }));
 
   const buzz = () => Haptics.selectionAsync().catch(() => {});
@@ -182,7 +189,9 @@ export function MapSheet({
     const p = Math.max(0, progress.value);
     return {
       height: open.value * Math.min(p, 1) + (p > 1 ? (p - 1) * 40 : 0),
-      opacity: interpolate(p, [0, 0.35], [0, 1], Extrapolation.CLAMP),
+      // Fully opaque from the first few percent of travel; only the last
+      // sliver fades so a half-dragged card never looks washed out.
+      opacity: interpolate(p, [0, 0.08], [0, 1], Extrapolation.CLAMP),
     };
   });
   // Handle stretches a little while dragging past the ends: tactile feedback.
@@ -205,7 +214,7 @@ export function MapSheet({
       hitSlop={{ top: 8, bottom: 8, left: 60, right: 60 }}
       style={styles.handleArea}
     >
-      <Animated.View style={[styles.handle, handleStyle, !canCollapse && { opacity: 0.5 }]} />
+      <Animated.View style={[styles.handle, handleStyle, handleColor ? { backgroundColor: handleColor } : null, !canCollapse && { opacity: 0.5 }]} />
     </Pressable>
   );
 
@@ -220,7 +229,7 @@ export function MapSheet({
   );
 
   const sheet = (
-    <View style={[styles.sheet, { paddingBottom: padBottom }]} collapsable={false}>
+    <View style={[styles.sheet, backgroundColor ? { backgroundColor } : null, { paddingBottom: padBottom }]} collapsable={false}>
       {dragWholeSheet ? top : <GestureDetector gesture={pan}>{top}</GestureDetector>}
       <Animated.View style={[styles.bodyClip, bodyStyle]}>
         <ScrollView

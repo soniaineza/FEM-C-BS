@@ -55,6 +55,7 @@ export default function DriverMoreScreen() {
         <MenuTile icon="person-outline" label={t('editProfile')} onPress={() => router.push('/(driver)/account/edit-profile' as any)} />
         <MenuTile icon="car-outline" label={t('vehicle')} onPress={() => router.push('/(driver)/account/vehicle' as any)} />
         <MenuTile icon="document-text-outline" label={t('documents')} onPress={() => router.push('/(driver)/account/documents' as any)} />
+        <MenuTile icon="card-outline" label={t('driverSidebarRegisterCard')} onPress={() => router.push('/(driver)/register-card' as any)} />
         <MenuTile icon="star-outline" label={t('ratings')} onPress={() => router.push('/(driver)/account/ratings' as any)} />
       </ListSection>
 
@@ -62,6 +63,9 @@ export default function DriverMoreScreen() {
         <MenuTile icon="notifications-outline" label={t('notifications')} onPress={() => router.push('/(driver)/notifications' as any)} />
         <MenuTile icon="headset-outline" label={t('helpSupportTitle')} onPress={() => router.push('/(driver)/account/support' as any)} />
         <MenuTile icon="settings-outline" label={t('settings')} onPress={() => router.push('/(driver)/account/settings' as any)} />
+        <MenuTile icon="pricetag-outline" label={t('driverSidebarTariff')} onPress={() => router.push('/(driver)/tariff' as any)} />
+        <MenuTile icon="play-circle-outline" label={t('driverSidebarHelpVideos')} onPress={() => router.push('/(driver)/help-videos' as any)} />
+        <MenuTile icon="document-text-outline" label={t('driverSidebarTerms')} onPress={() => router.push('/(driver)/terms' as any)} />
         <MenuTile icon="swap-horizontal-outline" label={t('driverSwitchToRiderHint')} onPress={() => setMode('passenger')} />
       </ListSection>
     </Screen>

@@ -749,5 +749,20 @@
   "driverSlideToStart": "Kurura kugira ngo utangire",
   "driverSlideToStartHint": "Kurura aho bifata iburyo kugira ngo utangire",
   "driverPaymentSettledAuto": "Kwishyura byakozwe mu buryo bwikora.",
-  "invalidPhoneHint": "Andika numero ya telefoni yemewe"
+  "invalidPhoneHint": "Andika numero ya telefoni yemewe",
+  "payAmount": "Ishyura {amount}",
+  "locationManualHint": "Ushobora no guhitamo aho uzamurirwa ku ikarita.",
+  "driverFoundTitle": "Umushoferi yabonetse",
+  "slideToAccept": "Kurura wemere urugendo",
+  "rideAccepted": "Urugendo rwemewe!",
+  "declineDriver": "Anga umushoferi",
+  "driverTrips": "Ingendo {count}",
+  "waitingFare": "Amafaranga yo gutegereza",
+  "tariffBaseLabel": "Igiciro fatizo (kugeza kuri {km} km)",
+  "tariffStandardLabel": "{from} km – {to} km",
+  "tariffLongLabel": "Nyuma ya {from} km",
+  "tariffPerKmValue": "{amount} / km",
+  "tariffWaitingLabel": "Igihe cyo gutegereza",
+  "tariffWaitingValue": "Iminota {free} y'ubuntu, hanyuma {charge} kuri buri minota {block}",
+  "tariffOneRateNote": "Igiciro kimwe gikoreshwa ku bwoko bwose bw'imodoka."
 }

@@ -500,7 +500,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
           source: `fem-route-${id}`,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: {
-            'line-color': id === 'primary' ? '#111111' : '#16A34A',
+            'line-color': id === 'primary' ? '#111111' : '#F97316',
             'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 17, 7],
             ...(id === 'secondary' ? { 'line-dasharray': [1.2, 1.4] } : {}),
           },
@@ -761,12 +761,12 @@ html, body, #root { margin: 0; padding: 0; height: 100%; overflow: hidden; backg
 .fem-marker > i { position: absolute; transform: translate(-50%, -50%); box-shadow: 0 2px 6px rgba(0,0,0,.35); }
 .fem-pickup > i { width: 16px; height: 16px; border-radius: 50%; background: #111; border: 4px solid #fff; box-sizing: content-box; }
 .fem-destination > i { width: 14px; height: 14px; background: #111; border: 4px solid #fff; box-sizing: content-box; }
-.fem-me > i { width: 14px; height: 14px; border-radius: 50%; background: #16A34A; border: 3px solid #fff; }
+.fem-me > i { width: 14px; height: 14px; border-radius: 50%; background: #F97316; border: 3px solid #fff; }
 .fem-me > span { position: absolute; width: 44px; height: 44px; border-radius: 50%; transform: translate(-50%, -50%);
-  background: rgba(22,163,74,.18); animation: fem-breathe 2.4s ease-in-out infinite; }
+  background: rgba(249,115,22,.18); animation: fem-breathe 2.4s ease-in-out infinite; }
 .fem-radar > i { width: 14px; height: 14px; border-radius: 50%; background: #111; border: 4px solid #fff; box-sizing: content-box; }
 .fem-radar > span { position: absolute; width: 220px; height: 220px; border-radius: 50%; transform: translate(-50%, -50%) scale(0);
-  background: radial-gradient(circle, rgba(22,163,74,0) 40%, rgba(22,163,74,.35) 100%); animation: fem-radar 2.7s ease-out infinite; }
+  background: radial-gradient(circle, rgba(249,115,22,0) 40%, rgba(249,115,22,.35) 100%); animation: fem-radar 2.7s ease-out infinite; }
 .fem-radar > span:nth-child(2) { animation-delay: .9s; }
 .fem-radar > span:nth-child(3) { animation-delay: 1.8s; }
 .fem-label { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); white-space: nowrap;

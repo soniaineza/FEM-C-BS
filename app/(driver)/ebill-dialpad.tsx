@@ -1,25 +1,31 @@
-import { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
-import { BackHeader } from '../../components/BackHeader';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { Pressable } from '../../components/ui/Pressable';
+import { Banner, Screen, ScreenHeader, Text } from '../../components/ui';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { Colors } from '../../constants/theme';
 import { useTranslation } from '../../hooks/useTranslation';
 import { getEbillingPhone, saveEbillingPhone } from '../../utils/driver-device';
 import { validators } from '../../utils/validators';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
 
-// E-Bill entry screen — a dial pad (the reference's "Inomero ya telefone kuri
-// E-Bill" keypad) that accepts the rider's phone number for electronic
-// billing. The number is validated, stored on the device, and "linked" to the
-// current trip until a payment processor / backend endpoint exists to carry
-// the number to the server.
+// E-Bill entry: a dial pad that takes the rider's phone number for electronic
+// billing. The number is validated and stored on the device until a payment
+// processor / backend endpoint can carry it to the server.
 export default function DriverEbillingDialpadScreen() {
   const { t } = useTranslation();
   const [phone, setPhone] = useState('');
   const [savedNumber, setSavedNumber] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getEbillingPhone().then(setSavedNumber).catch(() => {});
+  }, []);
 
   function pressKey(key: string) {
     setError(undefined);
@@ -27,82 +33,76 @@ export default function DriverEbillingDialpadScreen() {
     setPhone((p) => p + key);
   }
 
-  function backspace() {
-    setError(undefined);
-    setPhone((p) => p.slice(0, -1));
-  }
-
   async function confirm() {
     const err = validators.phone(phone, t('invalidPhoneHint'));
     if (err) return setError(err);
     const normalized = phone.startsWith('0') ? `+250${phone.slice(1)}` : phone;
-    await saveEbillingPhone(normalized);
-    setSavedNumber(normalized);
-    setPhone('');
+    setSaving(true);
+    try {
+      await saveEbillingPhone(normalized);
+      setSavedNumber(normalized);
+      setPhone('');
+    } catch {
+      setError(t('requestFailed'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-dark-bg">
-      <View className="flex-1 px-5 pb-6">
-        <BackHeader title={t('driverEbillingTitle')} />
+    <Screen
+      background="surface"
+      scroll={false}
+      header={<ScreenHeader back title={t('driverEbillingTitle')} subtitle={t('driverEbillingSubtitle')} />}
+      footer={<Button title={t('driverEbillingConfirm')} onPress={confirm} loading={saving} disabled={!phone} />}
+    >
+      <Card className="mt-2 items-center py-5">
+        <Text variant="title-1" style={{ letterSpacing: 3 }}>{phone || '…'}</Text>
+        <Text variant="caption" tone="subtle" style={{ marginTop: 6 }}>{t('driverEbillingNumberPlaceholder')}</Text>
+      </Card>
 
-        <Text className="mt-1 text-[13.5px] leading-5 text-dark-sub">{t('driverEbillingSubtitle')}</Text>
-
-        {/* Number display *) */}
-        <View className="mt-4 items-center rounded-2xl border border-dark-border bg-dark-surface px-4 py-5">
-          <Text className="text-3xl font-bold tracking-widest text-dark-text">{phone || '…'}</Text>
-          <Text className="mt-2 text-[11.5px] text-dark-muted">{t('driverEbillingNumberPlaceholder')}</Text>
+      {savedNumber ? (
+        <View className="mt-3">
+          <Banner tone="success" message={`${savedNumber} — ${t('driverEbillingLinked')}`} />
         </View>
+      ) : null}
+      {error ? <View className="mt-3"><Banner tone="danger" message={error} /></View> : null}
 
-        {savedNumber ? (
-          <View className="mt-3 flex-row items-center rounded-xl border border-primary bg-dark-surface px-3.5 py-2.5">
-            <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
-            <Text className="ml-2 flex-1 text-[12.5px] text-dark-text">
-              {savedNumber} — {t('driverEbillingLinked')}
-            </Text>
+      <View className="mt-4 gap-3">
+        {[0, 1, 2, 3].map((row) => (
+          <View key={row} className="flex-row gap-3">
+            {KEYS.slice(row * 3, row * 3 + 3).map((key) => (
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityLabel={key}
+                onPress={() => pressKey(key)}
+                className="h-14 flex-1 items-center justify-center rounded-2xl bg-surface-muted"
+              >
+                <Text variant="title-2">{key}</Text>
+              </Pressable>
+            ))}
           </View>
-        ) : null}
-
-        {error ? (
-          <View className="mt-3 flex-row items-center rounded-xl border px-3.5 py-2.5" style={{ borderColor: 'rgba(220,38,38,0.4)', backgroundColor: 'rgba(220,38,38,0.08)' }}>
-            <Ionicons name="alert-circle-outline" size={16} color="#DC2626" />
-            <Text className="ml-2 flex-1 text-[12.5px] text-dark-text">{error}</Text>
-          </View>
-        ) : null}
-
-        <View className="mt-5 gap-3">
-          {[0, 1, 2].map((row) => (
-            <View key={row} className="flex-row gap-3">
-              {KEYS.slice(row * 3, row * 3 + 3).map((key) => (
-                <DialKey key={key} label={key} onPress={() => pressKey(key)} />
-              ))}
-            </View>
-          ))}
-          <View className="flex-row gap-3">
-            <Pressable className="h-16 flex-1 items-center justify-center rounded-2xl border border-dark-border bg-dark-surface-2" onPress={backspace}>
-              <Ionicons name="backspace-outline" size={22} color="#93A3C8" />
-            </Pressable>
-            <Pressable
-              className="h-16 flex-none items-center justify-center rounded-2xl px-10"
-              style={{ backgroundColor: '#16A34A' }}
-              onPress={confirm}
-            >
-              <Text className="text-lg font-bold text-white">{t('driverEbillingConfirm')}</Text>
-            </Pressable>
-            <Pressable className="h-16 flex-1 items-center justify-center rounded-2xl border border-dark-border bg-dark-surface-2" onPress={() => { setPhone(''); setError(undefined); }}>
-              <Text className="text-sm font-bold text-dark-text">C</Text>
-            </Pressable>
-          </View>
+        ))}
+        <View className="flex-row gap-3">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear"
+            onPress={() => { setPhone(''); setError(undefined); }}
+            className="h-14 flex-1 items-center justify-center rounded-2xl bg-surface-muted"
+          >
+            <Text variant="callout" weight="bold">C</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Backspace"
+            onPress={() => { setError(undefined); setPhone((p) => p.slice(0, -1)); }}
+            className="h-14 flex-1 items-center justify-center rounded-2xl bg-surface-muted"
+          >
+            <Ionicons name="backspace-outline" size={22} color={Colors.fg} />
+          </Pressable>
         </View>
       </View>
-    </SafeAreaViewPlaceholder>
-  );
-}
-
-function DialKey({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable className="h-16 flex-1 items-center justify-center rounded-2xl border border-dark-border bg-dark-surface" onPress={onPress}>
-      <Text className="text-xl font-semibold text-dark-text">{label}</Text>
-    </Pressable>
+    </Screen>
   );
 }

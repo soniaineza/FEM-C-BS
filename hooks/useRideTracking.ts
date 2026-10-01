@@ -22,11 +22,24 @@ import { Ride } from '../types/ride';
 //      scheduling the next tick — clearing the timer stops FUTURE ticks;
 //      the flag stops a response already in flight at unmount time from
 //      updating state or scheduling one more tick.
+// Last known state per ride, shared across the ride-flow screens. Each screen
+// (searching -> driver -> trip -> completed) mounts its own copy of this hook;
+// without the cache every hand-off started from an empty state, flashing a
+// loading spinner and resetting the map camera and route — the ride seemed to
+// "start all over" when it began and again when it finished.
+const snapshots = new Map<string, { ride: Ride; driverLocation: DriverLocation | null; offset: number }>();
+
+/** The most recent ride state seen by any tracking screen (for instant first paint). */
+export function getCachedRide(rideId: string | null | undefined): Ride | null {
+  return (rideId && snapshots.get(rideId)?.ride) || null;
+}
+
 export function useRideTracking(rideId: string | null) {
-  const [ride, setRide] = useState<Ride | null>(null);
-  const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
+  const cached = rideId ? snapshots.get(rideId) : undefined;
+  const [ride, setRide] = useState<Ride | null>(cached?.ride ?? null);
+  const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(cached?.driverLocation ?? null);
   const [error, setError] = useState<Error | null>(null);
-  const [serverTimeOffsetMs, setOffset] = useState(0);
+  const [serverTimeOffsetMs, setOffset] = useState(cached?.offset ?? 0);
 
   useEffect(() => {
     if (!rideId) return;
@@ -42,6 +55,7 @@ export function useRideTracking(rideId: string | null) {
         if (cancelled) return;
         setRide(details);
         setDriverLocation(location);
+        snapshots.set(rideId!, { ride: details, driverLocation: location, offset: offset ?? 0 });
         if (location?.serverTime) {
           // Smoothed server-minus-device clock offset for the map's animation.
           const sample = location.serverTime - (sentAt + Date.now()) / 2;

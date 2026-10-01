@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, AppState, useWindowDimensions } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,12 +8,15 @@ import { StatusBar } from 'expo-status-bar';
 import { Button } from '../../../components/Button';
 import { LocationField } from '../../../components/LocationField';
 import { RideMap } from '../../../components/RideMap';
+import { MapSheet } from '../../../components/map/MapSheet';
+import { Colors } from '../../../constants/theme';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
 import { useNearbyCars } from '../../../hooks/useNearbyCars';
-import { getCurrentPlace, requestPermission, checkPermission, MapDefaults } from '../../../services/location-service';
+import { ensureLocationAccess } from '../../../utils/location-access';
+import { getCurrentPlace, MapDefaults } from '../../../services/location-service';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
 import { placeHasCoordinates } from '../../../types/place';
@@ -64,22 +67,32 @@ export default function HomeScreen() {
     }, [])
   );
 
+  // Fill in the pickup from GPS once location is approved. Runs on arrival and
+  // again whenever the app returns to the foreground, so approving location in
+  // the system Settings (via the dialog's "Open settings") takes effect at once.
+  const pickupSet = !!pickup;
   useEffect(() => {
-    if (pickup) return;
-    (async () => {
-      const perm = await checkPermission();
-      if (perm !== 'granted') {
-        const req = await requestPermission();
-        if (req !== 'granted') return;
-      }
+    if (pickupSet) return;
+    let alive = true;
+    async function locate() {
+      if ((await ensureLocationAccess(t)) !== 'granted') return;
       try {
         const place = await getCurrentPlace();
+        if (!alive) return;
         setPickup(place);
         setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 15 });
       } catch {}
-    })();
+    }
+    locate();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') locate();
+    });
+    return () => {
+      alive = false;
+      sub.remove();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pickupSet]);
 
   useEffect(() => {
     if (pickup?.latitude != null && pickup?.longitude != null) {
@@ -99,6 +112,8 @@ export default function HomeScreen() {
   async function recenterMap() {
     setMapLocating(true);
     try {
+      // The locate button is an explicit request: walk through approval.
+      if ((await ensureLocationAccess(t, { interactive: true })) !== 'granted') return;
       const place = await getCurrentPlace();
       setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 16 });
       setRecenterToken((n) => n + 1);
@@ -147,103 +162,111 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('useCurrentLocation')}
-          disabled={mapLocating}
-          onPress={recenterMap}
-          className="absolute right-3 sm:right-4 h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-primary shadow-sm"
-          style={{ bottom: sheetMaxHeight + 14, opacity: mapLocating ? 0.5 : 1 }}
-        >
-          {mapLocating ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="locate" size={22} color="#FFFFFF" />}
-        </Pressable>
-
-        <View
-          className="absolute bottom-0 left-0 right-0 overflow-hidden rounded-t-[28px] bg-primary"
-          style={{ maxHeight: sheetMaxHeight, elevation: 12, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 18 }}
-        >
-          <View className="items-center pt-2"><View className="h-1 w-10 rounded-full bg-white/40" /></View>
-          <ScrollView className="px-4 sm:px-5" contentContainerClassName="pb-2 pt-3" keyboardShouldPersistTaps="handled">
-        {activeRide ? (
-          <Pressable
-            className="mb-4 flex-row items-center rounded-2xl border border-white/30 bg-white/15 p-4"
-            onPress={() => router.push({ pathname: '/(main)/ride/tracking', params: { rideId: activeRide.id } })}
-          >
-            <View className="h-10 w-10 items-center justify-center rounded-full bg-white/20">
-              <Ionicons name="navigate" size={20} color="#FFFFFF" />
-            </View>
-            <View className="ml-3 flex-1">
-              <Text className="text-[15px] font-bold text-white">{t('activeRideTitle')}</Text>
-              <Text numberOfLines={1} className="text-[13px] text-white/80">{activeRide.destination.address}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-          </Pressable>
-        ) : null}
-
-        <View className="flex-row items-center">
-          <Ionicons name="location-outline" size={20} color="#FFFFFF" />
-          <Text className="ml-2 text-[17px] text-white font-display">{t('whereGoing')}</Text>
-        </View>
-
-        <View className="mt-3.5 rounded-2xl border border-white/30 bg-white/20 p-1">
-          <LocationField isPickup value={pickup} placeholder={t('setPickup')} onPress={() => router.push('/(main)/request/pickup')} />
-          <View className="mx-4 h-px bg-white/25" />
-          <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
-        </View>
-
-        {savedPlaces.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3" contentContainerClassName="gap-2.5">
-            {savedPlaces.map((place) => (
+        <MapSheet
+          backgroundColor={Colors.primary}
+          handleColor="rgba(255,255,255,0.45)"
+          bottomInset={12}
+          maxHeight={sheetMaxHeight}
+          expandLabel={t('rideOptions')}
+          collapseLabel={t('showMap')}
+          floating={
+            <View className="flex-row justify-end px-3 sm:px-4" pointerEvents="box-none">
               <Pressable
-                key={place.id}
-                className="flex-row items-center rounded-xl border border-white/25 bg-white/10 px-3.5 py-2.5"
-                onPress={() => {
-                  setPickup(place.place);
-                  // Older saved places may have an address but no map point.
-                  // Let the rider pin the exact pickup before booking.
-                  if (!placeHasCoordinates(place.place)) router.push('/(main)/request/pickup');
-                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('useCurrentLocation')}
+                disabled={mapLocating}
+                onPress={recenterMap}
+                className="h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-primary shadow-sm"
+                style={{ opacity: mapLocating ? 0.5 : 1 }}
               >
-                <Ionicons
-                  name={place.type === 'home' ? 'home-outline' : place.type === 'work' ? 'business-outline' : 'star-outline'}
-                  size={16}
-                  color="#FFFFFF"
-                />
-                <Text className="ml-2 text-[13px] font-semibold text-white">{place.name}</Text>
+                {mapLocating ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="locate" size={22} color="#FFFFFF" />}
               </Pressable>
-            ))}
-          </ScrollView>
-        ) : null}
+            </View>
+          }
+          header={
+            <View className="flex-row items-center pb-1">
+              <Ionicons name="location-outline" size={20} color="#FFFFFF" />
+              <Text className="ml-2 text-[17px] text-white font-display">{t('whereGoing')}</Text>
+            </View>
+          }
+          footer={
+            <View>
+              <Button
+                title={t('findRide')}
+                icon="arrow-forward"
+                onPress={findRide}
+                disabled={!pickup || !destination || !canRequestRide}
+              />
+              {checking ? <Text className="mt-2 text-center text-xs text-white/80">{t('checkingActiveRide')}</Text> : null}
+            </View>
+          }
+        >
+          <View className="pt-2">
+            {activeRide ? (
+              <Pressable
+                className="mb-4 flex-row items-center rounded-2xl border border-white/30 bg-white/15 p-4"
+                onPress={() => router.push({ pathname: '/(main)/ride/tracking', params: { rideId: activeRide.id } })}
+              >
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white/20">
+                  <Ionicons name="navigate" size={20} color="#FFFFFF" />
+                </View>
+                <View className="ml-3 flex-1">
+                  <Text className="text-[15px] font-bold text-white">{t('activeRideTitle')}</Text>
+                  <Text numberOfLines={1} className="text-[13px] text-white/80">{activeRide.destination.address}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+              </Pressable>
+            ) : null}
 
-        <View className="mt-4 flex-row gap-2" accessibilityRole="radiogroup">
-          <RideOptionCard
-            selected={rideType === 'private'}
-            title={t('privateRide')}
-            icon="car-sport-outline"
-            onPress={() => setRideType('private')}
-          />
-          <RideOptionCard
-            selected={rideType === 'shared'}
-            title={t('shareRide')}
-            icon="people-outline"
-            onPress={() => setRideType('shared')}
-          />
-        </View>
-        <Text className="mt-2 text-xs text-white/80">
-          {rideType === 'private' ? t('privateRideDescription') : t('shareRideDescription')}
-        </Text>
+            <View className="rounded-2xl border border-white/30 bg-white/20 p-1">
+              <LocationField isPickup value={pickup} placeholder={t('setPickup')} onPress={() => router.push('/(main)/request/pickup')} />
+              <View className="mx-4 h-px bg-white/25" />
+              <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
+            </View>
 
-          </ScrollView>
-          <View className="border-t border-white/20 bg-primary px-4 sm:px-5 pb-4 pt-3">
-          <Button
-            title={t('findRide')}
-            icon="arrow-forward"
-            onPress={findRide}
-            disabled={!pickup || !destination || !canRequestRide}
-          />
-          {checking ? <Text className="mt-2 text-center text-xs text-white/80">{t('checkingActiveRide')}</Text> : null}
+            {savedPlaces.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3" contentContainerClassName="gap-2.5">
+                {savedPlaces.map((place) => (
+                  <Pressable
+                    key={place.id}
+                    className="flex-row items-center rounded-xl border border-white/25 bg-white/10 px-3.5 py-2.5"
+                    onPress={() => {
+                      setPickup(place.place);
+                      // Older saved places may have an address but no map point.
+                      // Let the rider pin the exact pickup before booking.
+                      if (!placeHasCoordinates(place.place)) router.push('/(main)/request/pickup');
+                    }}
+                  >
+                    <Ionicons
+                      name={place.type === 'home' ? 'home-outline' : place.type === 'work' ? 'business-outline' : 'star-outline'}
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                    <Text className="ml-2 text-[13px] font-semibold text-white">{place.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+
+            <View className="mt-4 flex-row gap-2" accessibilityRole="radiogroup">
+              <RideOptionCard
+                selected={rideType === 'private'}
+                title={t('privateRide')}
+                icon="car-sport-outline"
+                onPress={() => setRideType('private')}
+              />
+              <RideOptionCard
+                selected={rideType === 'shared'}
+                title={t('shareRide')}
+                icon="people-outline"
+                onPress={() => setRideType('shared')}
+              />
+            </View>
+            <Text className="mb-1 mt-2 text-xs text-white/80">
+              {rideType === 'private' ? t('privateRideDescription') : t('shareRideDescription')}
+            </Text>
           </View>
-        </View>
+        </MapSheet>
       </View>
     </SafeAreaViewPlaceholder>
   );
@@ -274,7 +297,7 @@ function RideOptionCard({
       }}
       onPress={onPress}
     >
-      <Ionicons name={icon} size={19} color={selected ? '#F97316' : '#FFFFFF'} />
+      <Ionicons name={icon} size={19} color={selected ? Colors.primary : '#FFFFFF'} />
       <Text className={`ml-2 text-sm font-semibold ${selected ? 'text-primary' : 'text-white'}`}>{title}</Text>
     </Pressable>
   );

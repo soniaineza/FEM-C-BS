@@ -21,6 +21,22 @@ const green = {
   950: '#052E16',
 };
 
+// Brand scale: orange (the app's primary since the orange restyle). `green`
+// stays for success states.
+const orange = {
+  50: '#FFF7ED',
+  100: '#FFEDD5',
+  200: '#FED7AA',
+  300: '#FDBA74',
+  400: '#FB923C',
+  500: '#F97316', // brand
+  600: '#EA580C',
+  700: '#C2410C',
+  800: '#9A3412',
+  900: '#7C2D12',
+  950: '#431407',
+};
+
 // Cool neutral ramp (between Tailwind gray and slate) — reads crisp on OLED
 // and keeps greys from looking muddy next to the brand green.
 const neutral = {
@@ -60,13 +76,13 @@ const palette = {
   divider: neutral[100],
 
   // Brand
-  primary: green[600],
-  'primary-hover': green[700],
-  'primary-pressed': green[800],
-  'primary-soft': green[50],
-  'primary-tint': green[100],
+  primary: orange[500],
+  'primary-hover': orange[600],
+  'primary-pressed': orange[700],
+  'primary-soft': orange[50],
+  'primary-tint': orange[100],
   'primary-fg': neutral[0],
-  'primary-text': green[700], // brand-colored text on white (AA 5.0:1)
+  'primary-text': orange[700], // brand-colored text on white (AA 4.9:1)
 
   // Status
   success: green[600],
@@ -133,4 +149,4 @@ const motion = {
   slow: 320,
 };
 
-module.exports = { green, neutral, palette, typeScale, fonts, radius, elevation, motion };
+module.exports = { green, orange, neutral, palette, typeScale, fonts, radius, elevation, motion };

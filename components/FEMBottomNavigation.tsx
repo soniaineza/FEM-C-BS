@@ -4,8 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-import { useResponsive } from '../hooks/useResponsive';
-import { FemColors } from '../constants/theme';
+import { Colors, Fonts } from '../constants/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -29,7 +28,6 @@ const ICONS: Record<string, { active: IconName; inactive: IconName }> = {
 //  - Touch targets stay >= 44pt (FemTouch.min) via minHeight.
 export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { spacing, typography, dimensions } = useResponsive();
 
   return (
     <View
@@ -82,14 +80,14 @@ export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, de
                 <Ionicons
                   name={focused ? icons.active : icons.inactive}
                   size={21}
-                  color={focused ? FemColors.primary : FemColors.textSecondary}
+                  color={focused ? Colors['primary-text'] : Colors['fg-subtle']}
                 />
               </View>
               <Text
-                numberOfLines={1}
+                numberOfLines={2}
                 style={[
                   styles.label,
-                  { color: focused ? FemColors.primary : FemColors.textSecondary },
+                  { color: focused ? Colors.fg : Colors['fg-subtle'] },
                   focused ? styles.labelActive : null,
                 ]}
               >
@@ -105,12 +103,14 @@ export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, de
 
 FEMBottomNavigation.displayName = 'FEMBottomNavigation';
 
+// Material 3 navigation bar: pill-shaped active indicator behind the icon,
+// label below; active label goes semibold ink, inactive stays subtle.
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: FemColors.white,
+    backgroundColor: Colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: FemColors.border,
-    paddingTop: 6,
+    borderTopColor: Colors.border,
+    paddingTop: 8,
   },
   row: {
     flexDirection: 'row',
@@ -118,27 +118,29 @@ const styles = StyleSheet.create({
   },
   item: {
     flex: 1,
-    minHeight: 54,
+    minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 2,
   },
   iconPill: {
-    height: 30,
-    minWidth: 44,
-    borderRadius: 15,
+    height: 32,
+    width: 56,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconPillActive: {
-    backgroundColor: FemColors.primarySoft,
+    backgroundColor: Colors['primary-tint'],
   },
   label: {
-    fontSize: 10.5,
-    marginTop: 2,
-    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
+    marginTop: 4,
+    fontFamily: Fonts.medium,
   },
   labelActive: {
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: Fonts.semibold,
   },
 });

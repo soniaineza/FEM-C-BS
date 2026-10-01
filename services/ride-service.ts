@@ -1,3 +1,4 @@
+import { tariffFare } from '../utils/tariff';
 import { apiClient } from './api-client';
 import type { TrailSample } from '../components/map/map-types';
 import { Place } from '../types/place';
@@ -50,8 +51,7 @@ function estimateDurationMinutesLocal(distanceKm: number): number {
 // re-fetches the authoritative number via fetchServerEstimate() before
 // requesting the ride.
 export function estimateFareLocal(vehicle: Vehicle, distanceKm: number, rideType: RideType): FareEstimate {
-  const base = vehicle.baseFare + distanceKm * vehicle.farePerKm;
-  const estimatedFare = base * rideTypeFareFactor(rideType);
+  const estimatedFare = tariffFare(distanceKm).total * rideTypeFareFactor(rideType);
   return {
     vehicle,
     distanceKm,

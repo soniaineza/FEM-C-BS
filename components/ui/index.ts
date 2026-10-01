@@ -17,3 +17,4 @@ export { Input } from '../Input';
 export { Card } from '../Card';
 export { SegmentedControl } from './SegmentedControl';
 export { Chip } from './Chip';
+export { SlideToConfirm } from './SlideToConfirm';

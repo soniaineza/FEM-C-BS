@@ -3,10 +3,10 @@
 // See docs/DESIGN_SYSTEM.md for how to use each role.
 import tokens from './tokens';
 
-const { palette, green, neutral, typeScale, fonts, radius, elevation, motion } = tokens;
+const { palette, green, orange, neutral, typeScale, fonts, radius, elevation, motion } = tokens;
 
 export const Colors = palette;
-export const Palette = { green, neutral };
+export const Palette = { green, orange, neutral };
 export const Fonts = fonts;
 export const Radius = radius;
 export const Elevation = elevation;
@@ -20,9 +20,9 @@ export const Type = Object.fromEntries(
 // Legacy names — existing screens import these; values now come from tokens.
 export const FemColors = {
   primary: palette.primary,
-  primaryBright: green[500],
+  primaryBright: orange[400],
   primaryDark: palette['primary-hover'],
-  primaryDeep: green[800],
+  primaryDeep: orange[800],
   primarySoft: palette['primary-soft'],
   primaryTint: palette['primary-tint'],
   white: neutral[0],
@@ -40,8 +40,8 @@ export const FemColors = {
 } as const;
 
 export const FemGradients = {
-  primary: [green[500], green[600], green[700]],
-  hero: [green[600], green[800]],
+  primary: [orange[400], orange[500], orange[600]],
+  hero: [orange[500], orange[800]],
 } as const;
 
 export const FemShadows = {

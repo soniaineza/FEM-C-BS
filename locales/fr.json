@@ -749,5 +749,20 @@
   "driverSlideToStart": "Glisser pour démarrer",
   "driverSlideToStartHint": "Faites glisser la poignée vers la droite pour commencer",
   "driverPaymentSettledAuto": "Paiement réglé automatiquement.",
-  "invalidPhoneHint": "Saisissez un numéro de téléphone valide"
+  "invalidPhoneHint": "Saisissez un numéro de téléphone valide",
+  "payAmount": "Payer {amount}",
+  "locationManualHint": "Vous pouvez aussi choisir votre point de départ sur la carte.",
+  "driverFoundTitle": "Chauffeur trouvé",
+  "slideToAccept": "Glissez pour accepter la course",
+  "rideAccepted": "Course acceptée !",
+  "declineDriver": "Refuser le chauffeur",
+  "driverTrips": "{count} courses",
+  "waitingFare": "Frais d'attente",
+  "tariffBaseLabel": "Prise en charge (jusqu'à {km} km)",
+  "tariffStandardLabel": "{from} km – {to} km",
+  "tariffLongLabel": "Après {from} km",
+  "tariffPerKmValue": "{amount} / km",
+  "tariffWaitingLabel": "Temps d'attente",
+  "tariffWaitingValue": "{free} min gratuites, puis {charge} par {block} min",
+  "tariffOneRateNote": "Une seule grille tarifaire s'applique à toutes les catégories de véhicule."
 }

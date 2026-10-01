@@ -1,38 +1,36 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
-import { BackHeader } from '../../components/BackHeader';
-import { Input } from '../../components/Input';
-import { Button } from '../../components/Button';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { Input } from '../../components/Input';
+import { Banner, LoadingState, Screen, ScreenHeader, Text } from '../../components/ui';
+import { Colors } from '../../constants/theme';
 import { useTranslation } from '../../hooks/useTranslation';
 import { getRegisteredCard, saveRegisteredCard, RegisteredCard } from '../../utils/driver-device';
 
-// Card registration screen — the reference's "Andikisha ikarita". Collects
-// card details and stores them on this device (masked). There is no payment
-// processor wired up yet, so the note explains that online card payments will
-// follow; the saved card shows up on the dashboard/current-trip flow.
+// Card registration: collects card details and stores them (masked) on this
+// device. No payment processor is wired up yet, so the note explains that
+// online card payments will follow.
+const formatNumber = (raw: string) => raw.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
+const formatExpiry = (raw: string) => {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+};
+
 export default function DriverRegisterCardScreen() {
   const { t } = useTranslation();
   const [number, setNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [name, setName] = useState('');
   const [saved, setSaved] = useState<RegisteredCard | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
 
-  function formatNumber(raw: string): string {
-    return raw.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
-  }
-
-  function formatExpiry(raw: string): string {
-    const digits = raw.replace(/\D/g, '').slice(0, 4);
-    return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
-  }
-
   useEffect(() => {
-    getRegisteredCard().then(setSaved).catch(() => {});
+    getRegisteredCard().then(setSaved).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   async function save() {
@@ -42,75 +40,55 @@ export default function DriverRegisterCardScreen() {
     if (name.trim().length < 3) return setError(t('driverCardNameError'));
     setError(undefined);
     setSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    await saveRegisteredCard({ last4: clean.slice(-4), name: name.trim(), expiry });
-    const fresh = await getRegisteredCard();
-    setSaved(fresh);
-    setSaving(false);
-    setNumber('');
-    setExpiry('');
-    setName('');
+    try {
+      await saveRegisteredCard({ last4: clean.slice(-4), name: name.trim(), expiry });
+      setSaved(await getRegisteredCard());
+      setNumber('');
+      setExpiry('');
+      setName('');
+    } catch {
+      setError(t('requestFailed'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-dark-bg">
-      <ScrollView contentContainerClassName="px-5 pb-10">
-        <BackHeader title={t('driverRegisterCardTitle')} />
+    <Screen background="surface" header={<ScreenHeader back title={t('driverRegisterCardTitle')} />}>
+      {loading ? (
+        <LoadingState />
+      ) : (
+        <>
+          {saved ? (
+            <Card tone="tint" className="mt-2">
+              <View className="flex-row items-center">
+                <Ionicons name="card" size={20} color={Colors['primary-text']} />
+                <Text variant="callout" style={{ marginLeft: 10, flex: 1 }}>•••• •••• •••• {saved.last4}</Text>
+              </View>
+              <Text variant="subhead" tone="muted" style={{ marginTop: 6 }}>{saved.name} · {saved.expiry}</Text>
+              <Text variant="footnote" weight="semibold" tone="primary" style={{ marginTop: 6 }}>{t('driverCardSaved')}</Text>
+            </Card>
+          ) : null}
 
-        {saved ? (
-          <View className="mt-2 rounded-2xl border border-primary bg-dark-surface p-4">
-            <View className="flex-row items-center">
-              <Ionicons name="card" size={20} color="#16A34A" />
-              <Text className="ml-2.5 flex-1 text-[14.5px] text-dark-text">
-                •••• •••• •••• {saved.last4}
-              </Text>
+          <View className="mt-5 gap-4">
+            <Input label={t('driverCardNumber')} value={number} onChangeText={(v) => setNumber(formatNumber(v))} keyboardType="number-pad" placeholder="0000 0000 0000 0000" prefixIcon="card-outline" />
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Input label={t('driverCardExpiry')} value={expiry} onChangeText={(v) => setExpiry(formatExpiry(v))} keyboardType="number-pad" placeholder="MM/YY" />
+              </View>
+              <View className="flex-1">
+                <Input label={t('driverCardFullName')} value={name} onChangeText={setName} placeholder="A. Name" />
+              </View>
             </View>
-            <Text className="mt-2 text-[13px] text-dark-sub">{saved.name} · {saved.expiry}</Text>
-            <Text className="mt-2 text-[12px] text-primary">{t('driverCardSaved')}</Text>
-          </View>
-        ) : null}
-
-        <View className="mt-5 gap-4">
-          <Input
-            label={t('driverCardNumber')}
-            value={number}
-            onChangeText={(v) => setNumber(formatNumber(v))}
-            keyboardType="number-pad"
-            placeholder="0000 0000 0000 0000"
-            dark
-          />
-          <View className="flex-row gap-3">
-            <View className="flex-1">
-              <Input
-                label={t('driverCardExpiry')}
-                value={expiry}
-                onChangeText={(v) => setExpiry(formatExpiry(v))}
-                keyboardType="number-pad"
-                placeholder="MM/YY"
-                dark
-              />
-            </View>
-            <View className="flex-1">
-              <Input
-                label={t('driverCardFullName')}
-                value={name}
-                onChangeText={setName}
-                placeholder="A. Name"
-                dark
-              />
-            </View>
+            {error ? <Banner tone="danger" message={error} /> : null}
+            <Button title={t('driverConfirm')} onPress={save} loading={saving} />
           </View>
 
-          {error ? <Text className="text-xs text-error">{error}</Text> : null}
-
-          <Button title={t('driverConfirm')} onPress={save} loading={saving} />
-        </View>
-
-        <View className="mt-6 flex-row items-start rounded-2xl border border-dark-border bg-dark-surface px-4 py-3.5">
-          <Ionicons name="information-circle-outline" size={18} color="#5C6B8E" style={{ marginTop: 1 }} />
-          <Text className="ml-2.5 flex-1 text-[12.5px] leading-5 text-dark-sub">{t('driverCardNote')}</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaViewPlaceholder>
+          <View className="mt-6">
+            <Banner tone="info" message={t('driverCardNote')} />
+          </View>
+        </>
+      )}
+    </Screen>
   );
 }

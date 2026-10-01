@@ -187,7 +187,8 @@ describe('a passenger ride from request to receipt', () => {
     const q = await call('GET', `/rides/quote?rideType=private&pickup=${pickup.latitude},${pickup.longitude}&destination=${destination.latitude},${destination.longitude}`, undefined, token);
     assert.deepEqual(q.quote.options.map((o) => o.vehicleId), ['fem_economy', 'fem_comfort', 'fem_xl']);
     const [eco, comfort, xl] = q.quote.options.map((o) => o.fare.total);
-    assert.ok(eco < comfort && comfort < xl);
+    // One tariff for every class (utils/tariff.ts), so the three prices match.
+    assert.ok(eco === comfort && comfort === xl && eco >= 1800);
     assert.ok(q.quote.options.every((o) => o.fare.total % 100 === 0 && o.fare.total >= o.fare.minimumFare));
     assert.equal(q.quote.route.source, 'estimate');
   });

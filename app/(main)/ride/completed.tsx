@@ -8,6 +8,7 @@ import { Card } from '../../../components/Card';
 import { ErrorState, LoadingState, Screen, ScreenHeader, Text } from '../../../components/ui';
 import { RouteTimeline } from '../../../components/TripRouteCard';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { getCachedRide } from '../../../hooks/useRideTracking';
 import { getRideDetails } from '../../../services/ride-service';
 import { Ride, formatFare } from '../../../types/ride';
 import { Colors } from '../../../constants/theme';
@@ -15,7 +16,7 @@ import { Colors } from '../../../constants/theme';
 export default function CompletedScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
-  const [ride, setRide] = useState<Ride | null>(null);
+  const [ride, setRide] = useState<Ride | null>(() => getCachedRide(rideId));
   const [error, setError] = useState<string | undefined>();
 
   function load() {

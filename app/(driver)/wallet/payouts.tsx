@@ -11,7 +11,7 @@ import { getDriverPayouts } from '../../../services/driver-profile-service';
 import { DriverPayout } from '../../../types/driver';
 import { formatFare } from '../../../types/ride';
 import { Colors } from '../../../constants/theme';
-import { ErrorState, LoadingState } from '../../../components/ui';
+import { EmptyState, ErrorState, LoadingState } from '../../../components/ui';
 
 const STATUS_COLORS: Record<DriverPayout['status'], string> = {
   pending: Colors.warning,
@@ -57,7 +57,7 @@ export default function DriverPayoutsScreen() {
         ) : error ? (
           <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
         ) : payouts.length === 0 ? (
-          <Text className="mt-8 text-fg-muted">{t('driverNoPayoutsYet')}</Text>
+          <EmptyState icon="cash-outline" title={t('driverPayouts')} message={t('driverNoPayoutsYet')} />
         ) : (
           <FlatList
             className="mt-4"

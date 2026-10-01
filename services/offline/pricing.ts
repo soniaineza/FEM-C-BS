@@ -1,10 +1,10 @@
 // Upfront fares for the on-device backend. Mirrors server/src/services/pricing.js
-// (base + per-km + per-minute, minimum fare, booking fee, shared discount,
-// rounded up to 100 RWF) so the numbers match the server-backed apps. The route
+// (the FEM tariff in utils/tariff.ts, shared discount, rounded up to 100 RWF) so the numbers match the server-backed apps. The route
 // follows real streets when a routing service answered (roads.ts) and is a local
 // curve otherwise; there is no surge.
 
 import { VEHICLES, type VehicleRec } from './db';
+import { tariffFare } from './tariff';
 import { buildRoute, haversineKm, hasRoad, type LatLng, type Path } from './geo';
 
 const SHARED_FACTOR = 0.7;
@@ -45,26 +45,24 @@ export interface FareBreakdown {
 }
 
 export function priceFor(
-  vehicle: VehicleRec,
+  _vehicle: VehicleRec,
   trip: { distanceKm: number; durationMinutes: number },
   rideType: 'private' | 'shared',
-  surge = 1
+  surge = 1,
+  waitingMinutes = 0
 ): FareBreakdown {
-  const distanceFare = trip.distanceKm * vehicle.farePerKm;
-  const timeFare = trip.durationMinutes * vehicle.perMinute;
-  const surged = (vehicle.baseFare + distanceFare + timeFare) * surge;
-  const minimumApplied = surged < vehicle.minFare;
-  let total = Math.max(vehicle.minFare, surged) + vehicle.bookingFee;
-  if (rideType === 'shared') total *= SHARED_FACTOR;
+  // One rate card for every vehicle class (utils/tariff.ts).
+  const fare = tariffFare(trip.distanceKm, waitingMinutes);
+  const total = fare.total * surge * (rideType === 'shared' ? SHARED_FACTOR : 1);
   return {
     currency: 'RWF',
-    baseFare: Math.round(vehicle.baseFare),
-    distanceFare: Math.round(distanceFare),
-    timeFare: Math.round(timeFare),
-    bookingFee: Math.round(vehicle.bookingFee),
+    baseFare: Math.round(fare.baseFare),
+    distanceFare: Math.round(fare.distanceFare),
+    timeFare: Math.round(fare.waitingFare), // waiting charge
+    bookingFee: 0,
     surgeMultiplier: surge,
-    minimumFare: Math.round(vehicle.minFare),
-    minimumApplied,
+    minimumFare: Math.round(fare.baseFare),
+    minimumApplied: false,
     sharedDiscountPercent: rideType === 'shared' ? Math.round((1 - SHARED_FACTOR) * 100) : 0,
     total: Math.ceil(total / ROUND_TO) * ROUND_TO,
   };

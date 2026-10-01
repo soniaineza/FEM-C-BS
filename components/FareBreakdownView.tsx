@@ -20,9 +20,10 @@ export function FareBreakdownView({
   const rows: [string, number][] = [
     [t('baseFare'), breakdown.baseFare],
     [t('distanceFare', { km: distanceKm.toFixed(1) }), breakdown.distanceFare],
-    [t('timeFare', { minutes: durationMinutes }), breakdown.timeFare],
-    [t('bookingFee'), breakdown.bookingFee],
   ];
+  // Waiting is only charged beyond the free window; the booking fee no longer exists.
+  if (breakdown.timeFare > 0) rows.push([t('waitingFare'), breakdown.timeFare]);
+  if (breakdown.bookingFee > 0) rows.push([t('bookingFee'), breakdown.bookingFee]);
   return (
     <View className="rounded-2xl bg-surface-muted p-4">
       <Text className="mb-2 text-footnote font-semibold uppercase tracking-wide text-fg-muted">{t('fareBreakdown')}</Text>

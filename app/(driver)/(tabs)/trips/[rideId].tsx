@@ -3,7 +3,6 @@ import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../../components/SafeAreaViewPlaceholder';
 import { useLocalSearchParams } from 'expo-router';
 
-import { Button } from '../../../../components/Button';
 import { Card } from '../../../../components/Card';
 import { BackHeader } from '../../../../components/BackHeader';
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader';
@@ -12,7 +11,7 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 import { getDriverRideDetails } from '../../../../services/driver-service';
 import { Ride, formatFare, rideStatusKey } from '../../../../types/ride';
 import { Colors } from '../../../../constants/theme';
-import { LoadingState } from '../../../../components/ui';
+import { ErrorState, LoadingState } from '../../../../components/ui';
 
 export default function DriverTripDetailScreen() {
   const { t } = useTranslation();
@@ -39,12 +38,7 @@ export default function DriverTripDetailScreen() {
           {!error ? (
             <LoadingState />
           ) : (
-            <View className="mt-10 items-center">
-              <Text className="text-center text-fg-muted">{error}</Text>
-              <View className="mt-4 min-w-[160px]">
-                <Button title={t('tryAgain')} variant="outline" onPress={load} />
-              </View>
-            </View>
+            <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
           )}
         </View>
       </SafeAreaViewPlaceholder>

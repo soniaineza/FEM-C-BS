@@ -36,13 +36,25 @@ export default function TrackingScreen() {
     }
   }, [ride]);
 
+  // Look up any payment already started (e.g. after an app restart); the
+  // rider starts a new one explicitly with the pay buttons below.
   useEffect(() => {
     if (!ride || (ride.status !== 'paymentPending' && ride.status !== 'arrived')) return;
-    getPaymentForRide(ride.id).then((p) => {
-      if (p) setPayment(p);
-      else if (ride.status === 'paymentPending') initiatePayment(ride.id).then(setPayment).catch(() => setPaymentError(t('paymentPendingNotice')));
-    }).catch(() => setPaymentError(t('paymentPendingNotice')));
+    getPaymentForRide(ride.id).then((p) => p && setPayment(p)).catch(() => {});
   }, [ride?.status, ride?.id]);
+
+  async function handlePay() {
+    if (!ride) return;
+    setPayLoading(true);
+    setPaymentError(null);
+    try {
+      setPayment(await initiatePayment(ride.id));
+    } catch {
+      setPaymentError(t('paymentPendingNotice'));
+    } finally {
+      setPayLoading(false);
+    }
+  }
 
   async function handleRefreshStatus() {
     if (!payment) return;
@@ -124,26 +136,28 @@ export default function TrackingScreen() {
         {awaitingPayment ? (
           <Card className="mt-3">
             <Text className="text-body font-semibold text-fg">{t('preparePayment')}</Text>
-            {payment ? (
-              isPaymentSettled(payment.status) ? (
-                <Text className="mt-2 text-primary-text">{t('depositReceived')}</Text>
-              ) : payment.method === 'cash' ? (
+            {payment && isPaymentSettled(payment.status) ? (
+              <Text className="mt-2 text-primary-text">{t('depositReceived')}</Text>
+            ) : payment && payment.method === 'cash' ? (
+              <Text className="mt-2 text-subhead text-fg-muted">{t('cashAwaitingDriver')}</Text>
+            ) : payment && payment.status !== 'failed' ? (
+              <View className="mt-3">
+                <Text className="text-subhead text-fg-muted">{t('paymentPendingNotice')}</Text>
                 <View className="mt-3">
-                  <Text className="text-subhead text-fg-muted">{t('cashAwaitingDriver')}</Text>
+                  <Button title={t('checkPaymentStatus')} variant="outline" onPress={handleRefreshStatus} loading={payLoading} />
                 </View>
-              ) : (
-                <View className="mt-3">
-                  <Text className="text-subhead text-fg-muted">{t('paymentPendingNotice')}</Text>
-                  {payment.status === 'failed' ? (
-                    <View className="mt-3"><Button title={t('payCashInstead')} onPress={handleCashFallback} loading={payLoading} /></View>
-                  ) : null}
-                  <View className="mt-3">
-                    <Button title={t('checkPaymentStatus')} variant="outline" onPress={handleRefreshStatus} loading={payLoading} />
-                  </View>
-                </View>
-              )
+              </View>
             ) : (
-              <ActivityIndicator className="mt-3" color={Colors.primary} />
+              <View className="mt-3 gap-2.5">
+                {payment?.status === 'failed' ? <Text className="text-subhead text-danger">{t('paymentPendingNotice')}</Text> : null}
+                <Button
+                  title={t('payAmount', { amount: formatFare(ride.finalFare ?? ride.estimatedFare) })}
+                  icon="card-outline"
+                  onPress={handlePay}
+                  loading={payLoading}
+                />
+                <Button title={t('payCashInstead')} icon="cash-outline" variant="outline" onPress={handleCashFallback} disabled={payLoading} />
+              </View>
             )}
             {paymentError ? <Text className="mt-2 text-danger">{paymentError}</Text> : null}
           </Card>

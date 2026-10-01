@@ -25,6 +25,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import { useDebouncedCallback } from '../hooks/useDebounce';
 import { useNearbyCars } from '../hooks/useNearbyCars';
 import * as locationService from '../services/location-service';
+import { ensureLocationAccess } from '../utils/location-access';
 import { getRecentPlaces, RecentPlace } from '../services/user-service';
 import { Place, placeHasCoordinates } from '../types/place';
 import { FemColors, Colors } from '../constants/theme';
@@ -116,17 +117,14 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
   // Start at the rider's GPS position when nothing was chosen yet (pickup).
   const [locating, setLocating] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
-  const locate = useCallback(async () => {
+  const locate = useCallback(async (interactive = true) => {
     setLocating(true);
     setGpsError(null);
     try {
-      const perm = await locationService.checkPermission();
-      if (perm !== 'granted') {
-        const req = await locationService.requestPermission();
-        if (req !== 'granted') {
-          setGpsError('Location permission was not granted.');
-          return;
-        }
+      const access = await ensureLocationAccess(t, { interactive });
+      if (access !== 'granted') {
+        setGpsError(t('locationManualHint'));
+        return;
       }
       const here = await locationService.getCurrentPlace();
       skipNextLookup.current = false;
@@ -136,9 +134,9 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
     } finally {
       setLocating(false);
     }
-  }, [moveCamera]);
+  }, [moveCamera, t]);
   useEffect(() => {
-    if (!start && mode === 'pickup') locate();
+    if (!start && mode === 'pickup') locate(false); // silent on open; the locate button explains denials
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -314,7 +312,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('useCurrentLocation')}
-          onPress={locate}
+          onPress={() => locate(true)}
           disabled={locating}
           style={[styles.roundButton, styles.locate, { bottom: sheetHeight + 12 }]}
         >

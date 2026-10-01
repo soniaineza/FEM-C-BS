@@ -15,6 +15,7 @@ import { BackHeader } from '../../components/BackHeader';
 import { RideMap, RideMapMarker } from '../../components/RideMap';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useDriverRideDetails } from '../../hooks/useDriverRideDetails';
+import { useLiveMeter } from '../../hooks/useLiveMeter';
 import { useTranslation } from '../../hooks/useTranslation';
 import { markDriverArrived, verifyDriverRidePin, completeDriverTrip, confirmDriverCashPayment, cancelDriverRide } from '../../services/driver-service';
 import { formatFare, RoutePoint } from '../../types/ride';
@@ -57,6 +58,13 @@ export default function DriverJourneyScreen() {
     }).catch(() => setRoutePoints([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ride?.id]);
+
+  const meter = useLiveMeter(ride ? { rideType: ride.rideType } : null);
+  const rideInTrip = !!ride && (ride.status === 'pinVerified' || ride.status === 'inProgress');
+  useEffect(() => {
+    if (rideInTrip && !meter.metering) meter.startMeter();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rideInTrip, meter.metering]);
 
   const [pin, setPin] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -250,6 +258,9 @@ export default function DriverJourneyScreen() {
             <View className="mt-3">
               <Button title={t('driverStartTrip')} onPress={handleSubmitPin} loading={actionLoading} />
             </View>
+            <View className="mt-2">
+              <Button title={t('driverPairTripAction')} variant="outline" icon="qr-code-outline" onPress={() => router.push('/(driver)/pair-trip' as any)} />
+            </View>
           </View>
         ) : null}
 
@@ -261,8 +272,15 @@ export default function DriverJourneyScreen() {
                 {formatFare(ride.estimatedFare)}
               </Text>
             </Card>
-            <View className="mt-3">
+            <Card padded={false} className="mt-3 flex-row p-4">
+              <MeterStat label={t('driverMeterDistance')} value={`${meter.distanceKm.toFixed(2)} km`} />
+              <MeterStat label={t('driverMeterDuration')} value={formatClock(meter.elapsedSeconds)} />
+              <MeterStat label={t('waitingFare')} value={formatClock(meter.waitingSeconds)} />
+              <MeterStat label={t('driverMeterFare')} value={formatFare(Math.max(ride.estimatedFare, Math.round(meter.fare)))} />
+            </Card>
+            <View className="mt-3 gap-2">
               <Button title={t('driverCompleteTrip')} onPress={handleComplete} loading={actionLoading} />
+              <Button title={t('driverEbillingTitle')} variant="outline" icon="keypad-outline" onPress={() => router.push('/(driver)/ebill-dialpad' as any)} />
             </View>
           </View>
         ) : null}
@@ -301,5 +319,21 @@ export default function DriverJourneyScreen() {
       </Modal>
       </KeyboardAvoidingView>
     </SafeAreaViewPlaceholder>
+  );
+}
+
+
+function formatClock(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const sec = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function MeterStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-1 items-center">
+      <Text className="text-caption text-fg-muted" numberOfLines={1}>{label}</Text>
+      <Text className="mt-0.5 text-callout font-bold text-fg" numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+    </View>
   );
 }

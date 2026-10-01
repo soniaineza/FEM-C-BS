@@ -1,10 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { View, FlatList } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 
-import { Button } from '../../../components/Button';
+import { Card } from '../../../components/Card';
+import { RideStatusBadge } from '../../../components/RideStatusBadge';
+import { RouteTimeline } from '../../../components/TripRouteCard';
+import { EmptyState, ErrorState, LoadingState, ScreenHeader, SegmentedControl, Text } from '../../../components/ui';
+import { useResponsive } from '../../../hooks/useResponsive';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { TranslationKey } from '../../../locales';
 import { getRideHistory } from '../../../services/ride-service';
@@ -17,6 +21,7 @@ import { ApiError } from '../../../services/api-client';
 // states are tab-specific and intentional (icon + title + hint), never blank.
 export default function RideHistoryScreen() {
   const { t } = useTranslation();
+  const { contentStyle } = useResponsive();
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
@@ -74,52 +79,25 @@ export default function RideHistoryScreen() {
   ];
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
-      <View className="flex-1 px-6 pt-4">
-        <Text className="text-2xl text-ink font-display">{t('myRides')}</Text>
+    <SafeAreaViewPlaceholder className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+      <View style={[{ flex: 1 }, contentStyle]} className="px-5 pt-3">
+        <ScreenHeader title={t('myRides')} />
 
-        {/* Segmented control: pill background on the active tab, equal flex
-            widths so all locales fit without truncation on 320px screens. */}
-        <View className="mt-4 flex-row rounded-xl bg-gray-light p-1">
-          {TABS.map((item) => {
-            const selected = tab === item.id;
-            return (
-              <Pressable
-                key={item.id}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                className="flex-1 items-center rounded-lg py-2"
-                style={{ backgroundColor: selected ? '#fff' : 'transparent' }}
-                onPress={() => setTab(item.id)}
-              >
-                <Text className={`text-[13.5px] ${selected ? 'font-semibold text-ink' : 'font-medium text-text-secondary'}`}>
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+        <View className="mt-3">
+          <SegmentedControl options={TABS} value={tab} onChange={setTab} />
         </View>
 
         {loading ? (
-          <ActivityIndicator className="mt-8" color="#16A34A" />
+          <LoadingState />
         ) : error ? (
-          <View className="mt-8 items-center">
-            <Text className="text-center text-text-secondary">{error}</Text>
-            <View className="mt-4 min-w-[160px]">
-              <Button title={t('tryAgain')} variant="outline" onPress={load} />
-            </View>
-          </View>
+          <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
         ) : section.data.length === 0 ? (
-          <View className="mt-14 items-center">
-            <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.08)' }}>
-              <Ionicons name={section.icon} size={30} color="#16A34A" />
-            </View>
-            <Text className="mt-4 text-base font-semibold text-ink">{t(section.title)}</Text>
-            <Text className="mt-1 px-8 text-center text-sm text-text-secondary">{t(section.hint)}</Text>
-          </View>
+          <EmptyState icon={section.icon} tone="primary" title={t(section.title)} message={t(section.hint)} />
         ) : (
           <FlatList
             className="mt-4"
+            contentContainerStyle={{ paddingBottom: 24 }}
+            showsVerticalScrollIndicator={false}
             data={section.data}
             keyExtractor={(r) => r.id}
             renderItem={({ item }) => <RideCard ride={item} />}
@@ -130,69 +108,34 @@ export default function RideHistoryScreen() {
   );
 }
 
-function statusChipStyle(status: Ride['status']) {
-  // Status communicated by color AND text (never color alone —
-  // accessibility rule), with cancelled/completed getting neutral/positive
-  // treatments and everything else rendering as an active-state chip.
-  const isCancelled = status === 'cancelled';
-  const isCompleted = status === 'completed';
-  if (isCancelled) {
-    return { bg: 'rgba(220,38,38,0.08)', text: '#DC2626' };
-  }
-  if (isCompleted) {
-    return { bg: 'rgba(22,163,74,0.10)', text: '#15803D' };
-  }
-  return { bg: 'rgba(217,119,6,0.10)', text: '#D97706' };
-}
-
 function RideCard({ ride }: { ride: Ride }) {
   const { t } = useTranslation();
-  const chip = statusChipStyle(ride.status);
   const date = new Date(ride.completedAt ?? ride.createdAt ?? Date.now());
   const dateText = `${date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} · ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
 
   return (
-    <Pressable
-      className="mb-3 rounded-2xl border border-border bg-white p-4"
-      onPress={() => router.push({ pathname: '/(main)/rides/[rideId]', params: { rideId: ride.id } })}
-      accessibilityRole="button"
+    <Card
+      className="mb-3"
+      onPress={() => router.push({ pathname: '/(main)/rides/[rideId]', params: { rideId: ride.id } } as any)}
       accessibilityLabel={`${t(rideStatusKey(ride.status))} · ${ride.destination.address}`}
     >
       <View className="flex-row items-center justify-between">
-        <Text className="text-xs font-medium text-text-secondary">{dateText}</Text>
-        <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: chip.bg }}>
-          <Text className="text-[11px] font-semibold" style={{ color: chip.text }}>
-            {t(rideStatusKey(ride.status))}
-          </Text>
-        </View>
+        <Text variant="footnote" tone="muted">{dateText}</Text>
+        <RideStatusBadge status={ride.status} />
       </View>
 
-      {/* Route line: pickup dot above, red dot below — the two-stop pattern
-          riders recognize from every ride-hailing app. */}
       <View className="mt-3">
-        <View className="flex-row items-center">
-          <View className="h-2 w-2 rounded-full bg-primary" />
-          <Text numberOfLines={1} className="ml-2.5 flex-1 text-[13px] text-text-secondary">
-            {ride.pickup.address}
-          </Text>
-        </View>
-        <View className="ml-[3px] h-3 w-px" style={{ backgroundColor: '#E5E7EB', width: 1, height: 10 }} />
-        <View className="flex-row items-center">
-          <View className="h-2 w-2 rounded-full" style={{ backgroundColor: '#DC2626' }} />
-          <Text numberOfLines={1} className="ml-2.5 flex-1 text-[15px] font-semibold text-ink">
-            {ride.destination.address}
-          </Text>
-        </View>
+        <RouteTimeline pickup={ride.pickup.address} destination={ride.destination.address} />
       </View>
 
-      <View className="mt-3 flex-row items-center justify-between border-t border-border pt-3">
-        <Text className="text-xs text-text-secondary">
+      <View className="mt-3 flex-row items-center justify-between border-t border-divider pt-3">
+        <Text variant="footnote" tone="muted">
           {t(ride.rideType === 'shared' ? 'shareRide' : 'privateRide')}
         </Text>
-        <Text className="font-semibold text-primary">
+        <Text variant="headline" weight="bold">
           {formatFare(ride.finalFare ?? ride.estimatedFare)}
         </Text>
       </View>
-    </Pressable>
+    </Card>
   );
 }

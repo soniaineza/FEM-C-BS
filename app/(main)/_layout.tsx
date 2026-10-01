@@ -1,32 +1,12 @@
-import { useEffect, useState } from 'react';
+
 import { View } from 'react-native';
 import { DefaultTheme, Stack, ThemeProvider, usePathname } from 'expo-router';
 import { MapStage } from '../../components/map/MapStage';
 import { usePushRegistration } from '../../hooks/usePushRegistration';
-import { useLocationPermission } from '../../hooks/useLocationPermission';
-import { useTranslation } from '../../hooks/useTranslation';
 
 export default function MainLayout() {
   const pathname = usePathname();
   usePushRegistration(true);
-  const { ensurePermission, permissionStatus } = useLocationPermission();
-  const { t } = useTranslation();
-  const [isChecking, setIsChecking] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      // Only check location permission for passenger mode
-      // If already determined (granted/denied), skip the check
-      if (permissionStatus !== null) {
-        if (mounted) setIsChecking(false);
-        return;
-      }
-      await ensurePermission();
-      if (mounted) setIsChecking(false);
-    })();
-    return () => { mounted = false; };
-  }, [ensurePermission, permissionStatus]);
 
   // Render immediately, don't block on permission check. The shared ride
   // map lives behind the stack (mounted once, so it's warm and never

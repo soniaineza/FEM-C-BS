@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-const { green, neutral, palette, typeScale, fonts, radius } = require('./constants/tokens');
+const { green, orange, neutral, palette, typeScale, fonts, radius } = require('./constants/tokens');
 
 const fontSize = Object.fromEntries(
   Object.entries(typeScale).map(([name, [size, lineHeight]]) => [name, [`${size}px`, { lineHeight: `${lineHeight}px` }]])
@@ -31,12 +31,9 @@ module.exports = {
         'bg-light': palette.canvas,
         'gray-light': palette['surface-muted'],
         'primary-dark': palette['primary-hover'],
-        'primary-gradient-end': green[800],
+        'primary-gradient-end': orange[700],
+        orange,
         error: palette.danger,
-        // Orange brand primary from main's home-screen restyle.
-        primary: '#F97316',
-        'primary-dark': '#EA580C',
-        'primary-gradient-end': '#C2410C',
       },
       fontSize,
       borderRadius: {

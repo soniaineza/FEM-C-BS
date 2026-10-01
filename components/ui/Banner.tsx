@@ -8,7 +8,7 @@ type BannerTone = 'info' | 'success' | 'warning' | 'danger';
 
 const styles: Record<BannerTone, { bg: string; border: string; fg: string; icon: keyof typeof Ionicons.glyphMap }> = {
   info: { bg: Colors['info-soft'], border: '#B2DDFF', fg: Colors.info, icon: 'information-circle' },
-  success: { bg: Colors['success-soft'], border: '#BBF7D0', fg: Colors['primary-text'], icon: 'checkmark-circle' },
+  success: { bg: Colors['success-soft'], border: '#BBF7D0', fg: Colors.success, icon: 'checkmark-circle' },
   warning: { bg: Colors['warning-soft'], border: '#FEDF89', fg: Colors.warning, icon: 'warning' },
   danger: { bg: Colors['danger-soft'], border: Colors['danger-border'], fg: Colors.danger, icon: 'alert-circle' },
 };

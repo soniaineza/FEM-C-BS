@@ -568,7 +568,7 @@ route('POST', '/payments', 'passenger', (ctx) => {
 
   if (body.method === 'cash') {
     if (ride.paymentMethodId === 'cash' && previous) return { payment: paymentToJson(previous) };
-    if (!previous || previous.status !== 'failed') {
+    if (previous && previous.status !== 'failed') {
       throw new HttpError(409, 'Wait for the previous payment to fail before switching to cash.');
     }
     ride.paymentMethodId = 'cash';
