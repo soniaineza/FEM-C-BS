@@ -20,9 +20,9 @@ module.exports = {
       // (lib/core/constants/app_colors.dart, lib/core/theme/app_theme.dart)
       // so the RN screens match the app's existing visual identity.
       colors: {
-        primary: '#16A34A',
-        'primary-dark': '#15803D',
-        'primary-gradient-end': '#0F7A38',
+        primary: '#F97316',
+        'primary-dark': '#EA580C',
+        'primary-gradient-end': '#C2410C',
         ink: '#111111',
         'bg-light': '#F7F7F7',
         'gray-light': '#F5F5F5',

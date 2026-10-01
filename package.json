@@ -31,6 +31,7 @@
     "react-native-gesture-handler": "~2.32.0",
     "react-native-keyboard-controller": "1.21.9",
     "react-native-maps": "1.27.2",
+    "react-native-qrcode-svg": "^6.3.26",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
@@ -54,7 +55,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test:i18n": "node --test 'tests/jev/*.test.mjs'"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx 2>$null || echo 'No eslint config found'",
+    "test:i18n": "node --test 'tests/jev/*.test.mjs'",
+    "build": "expo export --platform web"
   },
   "private": true
 }

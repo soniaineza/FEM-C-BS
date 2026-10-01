@@ -50,10 +50,11 @@ export async function declineDriverRide(rideId: string): Promise<void> {
   await driverApiClient.post(`/drivers/rides/${rideId}/decline`);
 }
 
-export async function markDriverArrived(rideId: string): Promise<void> {
-  await driverApiClient.post<{ rideId: string; message: string }>(
+export async function markDriverArrived(rideId: string): Promise<{ pin: string }> {
+  const json = await driverApiClient.post<{ rideId: string; message: string; pin: string }>(
     `/drivers/rides/${rideId}/arrived`
   );
+  return { pin: json.pin };
 }
 
 export async function confirmDriverCashPayment(rideId: string): Promise<void> {

@@ -9,7 +9,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 export default function MainLayout() {
   const pathname = usePathname();
   usePushRegistration(true);
-  const { ensureInitialized, permissionStatus } = useLocationPermission();
+  const { ensurePermission, permissionStatus } = useLocationPermission();
   const { t } = useTranslation();
   const [isChecking, setIsChecking] = useState(true);
 
@@ -22,7 +22,7 @@ export default function MainLayout() {
         if (mounted) setIsChecking(false);
         return;
       }
-      await ensureInitialized();
+      await ensurePermission();
       if (mounted) setIsChecking(false);
     })();
     return () => { mounted = false; };

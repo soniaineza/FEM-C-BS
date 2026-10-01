@@ -85,6 +85,10 @@ export default function RootLayout() {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
 
+  useEffect(() => {
+    if (ready) ensurePermission();
+  }, [ready, ensurePermission]);
+
   // Handle Android hardware back button - navigate back in stack instead of exiting
   const handleBackPress = useCallback(() => {
     if (router.canGoBack()) {

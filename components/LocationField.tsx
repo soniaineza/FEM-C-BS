@@ -26,13 +26,13 @@ export const LocationField = memo(function LocationField({
 
   return (
     <Pressable
-      className={`flex-row items-center px-4 py-4 ${bordered ? 'rounded-xl border border-border bg-white' : ''}`}
+      className={`flex-row items-center px-3 py-3.5 sm:px-4 sm:py-4 ${bordered ? 'rounded-xl border border-border bg-white' : ''}`}
       onPress={onPress}
     >
-      <Ionicons name={isPickup ? 'ellipse' : 'location'} size={isPickup ? 16 : 20} color={isPickup ? '#16A34A' : '#DC2626'} />
+      <Ionicons name={isPickup ? 'ellipse' : 'location'} size={isPickup ? 16 : 20} color={isPickup ? '#FFFFFF' : '#DC2626'} />
       <Text
         numberOfLines={1}
-        className={`ml-3 flex-1 text-[15px] ${hasValue ? 'font-semibold text-ink' : 'font-medium text-ink/70'}`}
+        className={`ml-3 flex-1 text-[15px] ${hasValue ? 'font-semibold text-white' : 'font-medium text-white/70'}`}
       >
         {hasValue ? value!.address : placeholder}
       </Text>

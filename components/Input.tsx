@@ -8,6 +8,8 @@ interface InputProps extends TextInputProps {
   // Ionicons name, matching custom_text_field.dart's prefixIcon (e.g.
   // 'person-outline', 'call-outline', 'mail-outline', 'lock-closed-outline').
   prefixIcon?: keyof typeof Ionicons.glyphMap;
+  // Dark mode: use dark theme colors (for dark-bg screens like live-meter)
+  dark?: boolean;
 }
 
 // Mirrors app_theme.dart's inputDecorationTheme (filled white field,
@@ -19,6 +21,7 @@ export const Input = memo(function Input({
   error,
   prefixIcon,
   secureTextEntry,
+  dark = false,
   className,
   ...rest
 }: InputProps & { className?: string }) {
@@ -27,24 +30,25 @@ export const Input = memo(function Input({
 
   return (
     <View className="w-full">
-      {label ? <Text className="mb-1.5 text-sm font-medium text-ink">{label}</Text> : null}
+      {label ? <Text className={`mb-1.5 text-sm font-medium ${dark ? 'text-dark-text' : 'text-ink'}`}>{label}</Text> : null}
       <View className="relative w-full justify-center">
         {prefixIcon ? (
           <View className="absolute left-3.5 z-10">
-            <Ionicons name={prefixIcon} size={22} color="#6B7280" />
+            <Ionicons name={prefixIcon} size={22} color={dark ? '#93A3C8' : '#6B7280'} />
           </View>
         ) : null}
         <TextInput
-          className={`h-button w-full rounded border bg-white text-base text-ink ${
+          className={`h-button w-full rounded border text-base ${
+            dark
+              ? 'border-dark-border bg-dark-surface text-dark-text'
+              : 'border-border bg-white text-ink'
+          } ${
             prefixIcon ? 'pl-11' : 'px-4'
           } ${isPasswordField ? 'pr-11' : prefixIcon ? 'pr-4' : ''} ${
-            error ? 'border-error' : 'border-border'
+            error ? 'border-error' : dark ? 'border-dark-border' : 'border-border'
           } ${className ?? ''}`}
-          placeholderTextColor="#6B7280"
+          placeholderTextColor={dark ? '#5C6B8E' : '#6B7280'}
           secureTextEntry={isPasswordField && !revealed}
-          // The visible label doubles as the field's accessible name, so
-          // screen readers announce "Phone number, edit box" rather than
-          // just "edit box".
           accessibilityLabel={rest.accessibilityLabel ?? label ?? rest.placeholder}
           {...rest}
         />
@@ -56,7 +60,7 @@ export const Input = memo(function Input({
             accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
             hitSlop={8}
           >
-            <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
+            <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={20} color={dark ? '#93A3C8' : '#6B7280'} />
           </Pressable>
         ) : null}
       </View>

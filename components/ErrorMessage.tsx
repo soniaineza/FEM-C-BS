@@ -9,18 +9,26 @@ export const ErrorMessage = memo(function ErrorMessage({
   message,
   retryLabel,
   onRetry,
+  dark = false,
 }: {
   message: string;
   retryLabel?: string;
   onRetry?: () => void;
+  dark?: boolean;
 }) {
   return (
     <View
-      className="w-full flex-row items-start rounded-xl border px-3.5 py-3"
-      style={{ backgroundColor: 'rgba(220,38,38,0.06)', borderColor: 'rgba(220,38,38,0.3)' }}
+      className={`w-full flex-row items-start rounded-xl border px-3.5 py-3 ${
+        dark ? 'border-dark-border bg-dark-surface' : ''
+      }`}
+      style={
+        dark
+          ? undefined
+          : { backgroundColor: 'rgba(220,38,38,0.06)', borderColor: 'rgba(220,38,38,0.3)' }
+      }
     >
       <Ionicons name="alert-circle-outline" color="#DC2626" size={20} />
-      <Text className="ml-2.5 flex-1 text-[13.5px] leading-5 text-ink">{message}</Text>
+      <Text className={`ml-2.5 flex-1 text-[13.5px] leading-5 ${dark ? 'text-dark-text' : 'text-ink'}`}>{message}</Text>
       {retryLabel && onRetry ? (
         <Pressable onPress={onRetry}>
           <Text className="ml-2 font-semibold text-primary">{retryLabel}</Text>
