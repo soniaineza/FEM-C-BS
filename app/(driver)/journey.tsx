@@ -10,11 +10,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
+import { SlideToConfirm } from '../../components/ui/SlideToConfirm';
+import { Badge } from '../../components/ui';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { BackHeader } from '../../components/BackHeader';
 import { RideMap, RideMapMarker } from '../../components/RideMap';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useDriverRideDetails } from '../../hooks/useDriverRideDetails';
+import { useDriverActiveRide } from '../../hooks/useDriverActiveRide';
+import { useDriverLocationStore } from '../../stores/useDriverLocationStore';
 import { useLiveMeter } from '../../hooks/useLiveMeter';
 import { useTranslation } from '../../hooks/useTranslation';
 import { markDriverArrived, verifyDriverRidePin, completeDriverTrip, confirmDriverCashPayment, cancelDriverRide } from '../../services/driver-service';
@@ -58,6 +62,34 @@ export default function DriverJourneyScreen() {
     }).catch(() => setRoutePoints([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ride?.id]);
+
+  // The driver's own position (published by the layout's location reporting), so the map shows
+  // where the driver is as well as where the passenger is, and the road between them.
+  const fix = useDriverLocationStore((s) => s.fix);
+  const [approachPoints, setApproachPoints] = useState<RoutePoint[]>([]);
+  const approaching = ride?.status === 'driverArriving' || ride?.status === 'driverArrived';
+  // Re-route only after the driver has moved a few hundred metres (3 decimals ≈ 110 m).
+  const fixKey = fix ? `${fix.latitude.toFixed(3)},${fix.longitude.toFixed(3)}` : '';
+  useEffect(() => {
+    if (!ride || !approaching || !fix) {
+      setApproachPoints([]);
+      return;
+    }
+    let cancelled = false;
+    getRoute({
+      from: { address: '', latitude: fix.latitude, longitude: fix.longitude },
+      to: ride.pickup,
+    })
+      .then((route) => { if (!cancelled) setApproachPoints(route?.points ?? []); })
+      .catch(() => { if (!cancelled) setApproachPoints([]); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ride?.id, approaching, fixKey]);
+
+  // Other passengers in the same car (shared rides) and requests still waiting for an answer.
+  const { rides: myRides } = useDriverActiveRide(true);
+  const companions = myRides.filter((r) => r.id !== rideId && r.status !== 'driverAssigned');
+  const waitingOffers = myRides.filter((r) => r.status === 'driverAssigned' && r.id !== rideId);
 
   const meter = useLiveMeter(ride ? { rideType: ride.rideType } : null);
   const rideInTrip = !!ride && (ride.status === 'pinVerified' || ride.status === 'inProgress');
@@ -202,12 +234,17 @@ export default function DriverJourneyScreen() {
   const riderLive = awaitingArrival && ride.rider?.latitude != null && ride.rider?.longitude != null
     ? { latitude: ride.rider.latitude, longitude: ride.rider.longitude }
     : null;
-  const center = riderLive ?? { latitude: ride.pickup.latitude ?? MapDefaults.latitude, longitude: ride.pickup.longitude ?? MapDefaults.longitude };
+  const pickupPos = { latitude: ride.pickup.latitude!, longitude: ride.pickup.longitude! };
+  const center = riderLive ?? (fix && approaching ? { latitude: fix.latitude, longitude: fix.longitude } : pickupPos);
   const markers: RideMapMarker[] = [
-    { id: 'pickup', position: { latitude: ride.pickup.latitude!, longitude: ride.pickup.longitude! }, icon: 'pickup' },
+    { id: 'pickup', position: pickupPos, icon: 'pickup' },
     { id: 'dest', position: { latitude: ride.destination.latitude!, longitude: ride.destination.longitude! }, icon: 'destination' },
     ...(riderLive ? [{ id: 'rider', position: riderLive, icon: 'me' as const }] : []),
+    ...(fix ? [{ id: 'driver', position: { latitude: fix.latitude, longitude: fix.longitude }, icon: 'driver' as const }] : []),
   ];
+  // Heading to the passenger: draw the road from the driver to the pickup. Once the passenger is
+  // on board, draw the planned trip to the destination.
+  const mapRoute = approaching && approachPoints.length > 1 ? approachPoints : routePoints;
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-surface">
@@ -219,7 +256,7 @@ export default function DriverJourneyScreen() {
         <RideMap
           center={center}
           markers={markers}
-          routePolyline={routePoints}
+          routePolyline={mapRoute}
           retryLabel={t('tryAgain')}
           loadingLabel={t('mapLoading')}
           errorLabel={t('mapError')}
@@ -232,12 +269,37 @@ export default function DriverJourneyScreen() {
 
         <Card padded={false} className="mt-3 flex-row items-center justify-between p-4">
           <View className="flex-1 pr-2">
-            <Text className="text-body font-bold text-fg" numberOfLines={1}>{ride.rider?.name ?? t('driver')}</Text>
+            <View className="flex-row items-center gap-2">
+              <Text className="shrink text-body font-bold text-fg" numberOfLines={1}>{ride.rider?.name ?? t('driver')}</Text>
+              {ride.rideType === 'shared' ? <Badge tone="success" label={t('driverSharedRide')} /> : null}
+            </View>
             <Text className="mt-0.5 text-footnote text-fg-muted" numberOfLines={2}>
               {awaitingPin || inTrip ? ride.destination.address : ride.pickup.address}
             </Text>
           </View>
         </Card>
+
+        {waitingOffers.length > 0 ? (
+          <Pressable className="mt-3 rounded-2xl px-4 py-3" style={{ backgroundColor: Colors['primary-tint'] }} onPress={() => router.replace('/(driver)/(tabs)' as any)}>
+            <Text className="text-subhead font-semibold text-primary-text">{`${t('driverNewRideRequest')} · ${waitingOffers.length}`}</Text>
+          </Pressable>
+        ) : null}
+
+        {companions.length > 0 ? (
+          <View className="mt-3">
+            <Text className="text-caption text-fg-muted">{t('driverPassengersOnTrip')}</Text>
+            {companions.map((c) => (
+              <Pressable
+                key={c.id}
+                className="mt-2 flex-row items-center justify-between rounded-2xl border border-border px-4 py-3"
+                onPress={() => router.replace({ pathname: '/(driver)/journey', params: { rideId: c.id } } as any)}
+              >
+                <Text className="flex-1 text-subhead text-fg" numberOfLines={1}>{`${c.rider?.name ?? t('driverPassengerPickup')} → ${c.destination.address}`}</Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors['fg-muted']} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         {awaitingArrival ? (
           <View className="mt-5">
@@ -279,7 +341,13 @@ export default function DriverJourneyScreen() {
               <MeterStat label={t('driverMeterFare')} value={formatFare(Math.max(ride.estimatedFare, Math.round(meter.fare)))} />
             </Card>
             <View className="mt-3 gap-2">
-              <Button title={t('driverCompleteTrip')} onPress={handleComplete} loading={actionLoading} />
+              <Text className="mb-1 text-subhead font-semibold text-fg">{t('driverConfirmDropoffTitle')}</Text>
+              <SlideToConfirm
+                label={t('driverSlideConfirmDropoff')}
+                confirmedLabel={t('driverDropoffConfirmed')}
+                onConfirm={handleComplete}
+                disabled={actionLoading}
+              />
               <Button title={t('driverEbillingTitle')} variant="outline" icon="keypad-outline" onPress={() => router.push('/(driver)/ebill-dialpad' as any)} />
             </View>
           </View>

@@ -20,7 +20,8 @@ export const TIMING = {
   cashConfirmMs: 4_000, // simulated driver takes the cash
   offerDelayMs: 6_000, // driver goes online -> first simulated request
   offerGapMs: 12_000, // between simulated requests
-  offerExpireMs: 45_000, // an unanswered request lapses
+  offerExpireMs: 30 * 60_000, // an unanswered request waits for an online driver (cleared when they go offline)
+  maxPooledRiders: 3, // a shared trip can carry this many passengers at once
   ambientRadiusKm: 5,
   trailWindowMs: 8_000,
   trailStepMs: 500,

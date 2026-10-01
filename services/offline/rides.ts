@@ -196,7 +196,7 @@ function creditDriver(db: Db, ride: RideRec, payment: PaymentRec, now: number): 
     settledAt: iso(now),
   });
   driver.totalTrips += 1;
-  releaseDriver(driver, now);
+  releaseDriver(db, driver, now);
   notify(db, 'driver', driver.id, {
     title: 'Trip completed',
     body: `You earned ${formatRwf(net)} from ${ride.riderName ?? 'your rider'}.`,
@@ -220,8 +220,12 @@ function creditDriver(db: Db, ride: RideRec, payment: PaymentRec, now: number): 
 }
 
 /** Frees a driver after a trip / cancellation so the next simulated request can arrive. */
-export function releaseDriver(driver: DriverRec, now: number): void {
-  if (driver.status === 'busy') driver.status = 'active';
+export function releaseDriver(db: Db, driver: DriverRec, now: number): void {
+  // A driver pooling shared riders stays busy until the last passenger is done.
+  const carrying = db.rides.some(
+    (r) => r.driverId === driver.id && ['driverArriving', 'driverArrived', 'pinVerified', 'inProgress', 'paymentPending'].includes(r.status)
+  );
+  if (driver.status === 'busy' && !carrying) driver.status = 'active';
   driver.nextOfferAt = now + TIMING.offerGapMs;
 }
 

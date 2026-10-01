@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import { AppState } from 'react-native';
 
 import { reportDriverLocation } from '../services/driver-service';
+import { useDriverLocationStore } from '../stores/useDriverLocationStore';
 
 // Streams the driver's live GPS to the backend (POST /api/drivers/location)
 // while [enabled] — used whenever the driver is online (matches them to new
@@ -37,6 +38,7 @@ export function useDriverLocationReporting(enabled: boolean) {
       if (cancelled) return;
       const initialCoords = { latitude: initial.coords.latitude, longitude: initial.coords.longitude, heading: initial.coords.heading ?? undefined };
       setLastLocation(initialCoords);
+      useDriverLocationStore.getState().setFix(initialCoords);
       await reportDriverLocation(initialCoords);
       subscriptionRef.current = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 25 },
@@ -44,6 +46,7 @@ export function useDriverLocationReporting(enabled: boolean) {
           if (cancelled) return;
           const { latitude, longitude, heading } = position.coords;
           setLastLocation({ latitude, longitude });
+          useDriverLocationStore.getState().setFix({ latitude, longitude, heading });
           reportDriverLocation({ latitude, longitude, heading: heading ?? undefined }).catch(() => {
             // A single dropped GPS tick is not fatal — the next one retries.
           });
@@ -60,6 +63,7 @@ export function useDriverLocationReporting(enabled: boolean) {
         if (cancelled) return;
         const coords = { latitude: fix.coords.latitude, longitude: fix.coords.longitude, heading: fix.coords.heading ?? undefined };
         setLastLocation(coords);
+        useDriverLocationStore.getState().setFix(coords);
         await reportDriverLocation(coords);
       } catch { setError('Unable to report location.'); }
     }, 20_000);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text as RNText, ScrollView, Pressable, Modal } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,8 +20,9 @@ import { ApiError } from '../../../services/driver-api-client';
 import { Colors, Elevation } from '../../../constants/theme';
 import { Avatar, Badge, Banner, ListItem, ListSection, Text } from '../../../components/ui';
 import { RouteTimeline } from '../../../components/TripRouteCard';
-
-const OFFER_COUNTDOWN_SECONDS = 20;
+import { RideMap, RideMapMarker } from '../../../components/RideMap';
+import { useDriverLocationStore } from '../../../stores/useDriverLocationStore';
+import { getCurrentPlace, MapDefaults } from '../../../services/location-service';
 
 function greetingKey(): 'driverGoodMorning' | 'driverGoodAfternoon' | 'driverGoodEvening' {
   const hour = new Date().getHours();
@@ -41,7 +42,7 @@ function greetingKey(): 'driverGoodMorning' | 'driverGoodAfternoon' | 'driverGoo
 export default function DriverHomeScreen() {
   const isFocused = useIsFocused();
   const { t } = useTranslation();
-  const { contentStyle, isSmallPhone } = useResponsive();
+  const { contentStyle, isSmallPhone, mapHeight } = useResponsive();
   // Bottom sheets render inside a transparent full-screen Modal, which gets
   // no SafeArea automatically — the OfferOverlay pads its own bottom edge by
   // the device's system inset so Accept/Decline never sit behind the gesture
@@ -54,7 +55,24 @@ export default function DriverHomeScreen() {
   const [toggleError, setToggleError] = useState<string | undefined>();
   const isOnline = currentDriver?.status === 'active' || currentDriver?.status === 'busy';
 
-  const { rides, primaryRide } = useDriverActiveRide(!!currentDriver);
+  const { rides } = useDriverActiveRide(!!currentDriver);
+
+  // Where the driver is: the live fix while online (published by the location
+  // reporter), otherwise a one-off position so the map still opens on them.
+  const liveFix = useDriverLocationStore((s) => s.fix);
+  const [staticFix, setStaticFix] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [recenterToken, setRecenterToken] = useState(0);
+  useEffect(() => {
+    if (liveFix) return;
+    let alive = true;
+    getCurrentPlace()
+      .then((p) => alive && p.latitude != null && p.longitude != null && setStaticFix({ latitude: p.latitude, longitude: p.longitude }))
+      .catch(() => {}); // no permission / no GPS: the map opens on the city centre
+    return () => {
+      alive = false;
+    };
+  }, [liveFix]);
+  const here = liveFix ?? staticFix;
 
   const [summary, setSummary] = useState<DriverEarningsSummary | null>(null);
   useFocusEffect(
@@ -64,9 +82,23 @@ export default function DriverHomeScreen() {
     }, [refreshDriver])
   );
 
-  const offeredRide = primaryRide && primaryRide.status === 'driverAssigned' ? primaryRide : null;
-  const tripInProgress = primaryRide && primaryRide.status !== 'driverAssigned' ? primaryRide : null;
+  // Requests stay on screen until the driver answers them. A shared-ride driver can have a trip
+  // under way and more riders waiting, so offers and the current trip are tracked separately.
+  const offers = rides.filter((r) => r.status === 'driverAssigned');
+  const offeredRide = offers[0] ?? null;
+  const tripInProgress = rides.find((r) => r.status !== 'driverAssigned') ?? null;
   const activeRideCount = rides.filter((r) => r.status !== 'driverAssigned').length;
+
+  // The driver's car, plus the pickup and drop-off of the current request or trip.
+  const primaryRide = tripInProgress ?? offeredRide;
+  const mapMarkers: RideMapMarker[] = [];
+  if (here) mapMarkers.push({ id: 'me', position: here, icon: 'driver' });
+  if (primaryRide?.pickup.latitude != null && primaryRide.pickup.longitude != null) {
+    mapMarkers.push({ id: 'pickup', position: { latitude: primaryRide.pickup.latitude, longitude: primaryRide.pickup.longitude }, icon: 'pickup' });
+  }
+  if (primaryRide?.destination.latitude != null && primaryRide.destination.longitude != null) {
+    mapMarkers.push({ id: 'destination', position: { latitude: primaryRide.destination.latitude, longitude: primaryRide.destination.longitude }, icon: 'destination' });
+  }
 
   async function handleToggleOnline() {
     if (!currentDriver) return;
@@ -143,6 +175,29 @@ export default function DriverHomeScreen() {
           <StatColumn icon="wallet-outline" value={summary ? formatFare(summary.today.amount) : '—'} label={t('driverTodaysEarnings')} small={isSmallPhone} />
         </Card>
 
+        <View className="mt-3 overflow-hidden rounded-card" style={{ height: mapHeight }}>
+          <RideMap
+            center={here ?? MapDefaults}
+            zoom={15}
+            recenterToken={recenterToken}
+            markers={mapMarkers}
+            retryLabel={t('tryAgain')}
+            loadingLabel={t('mapLoading')}
+            errorLabel={t('mapError')}
+          />
+          {here ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('useCurrentLocation')}
+              onPress={() => setRecenterToken((n) => n + 1)}
+              className="absolute bottom-3 right-3 h-11 w-11 items-center justify-center rounded-full bg-surface"
+              style={Elevation[2]}
+            >
+              <Ionicons name="locate" size={20} color={Colors['primary-text']} />
+            </Pressable>
+          ) : null}
+        </View>
+
         {!currentDriver?.verified ? (
           <View className="mt-3">
             <Banner tone="warning" message={t('driverVerificationPendingBody')} />
@@ -183,12 +238,18 @@ export default function DriverHomeScreen() {
         </View>
       </ScrollView>
 
+      {/* Only while Home is on screen: during a trip the journey screen shows a banner instead, so
+          a stream of shared requests never blocks the trip controls. */}
       <OfferOverlay
-        rideId={offeredRide?.id ?? null}
+        rideId={isFocused ? offeredRide?.id ?? null : null}
         pickupAddress={offeredRide?.pickup.address}
         destinationAddress={offeredRide?.destination.address}
         fare={offeredRide ? formatFare(offeredRide.estimatedFare) : ''}
         distanceKm={offeredRide?.distanceKm}
+        shared={offeredRide?.rideType === 'shared'}
+        riderName={offeredRide?.rider?.name}
+        createdAt={offeredRide?.createdAt}
+        othersWaiting={Math.max(0, offers.length - 1)}
         bottomInset={insets.bottom}
         onAccept={handleAccept}
         onDecline={handleDecline}
@@ -226,17 +287,19 @@ function StatColumn({
   );
 }
 
-// The reference driver app's OfferOverlay: a full-screen prompt with a countdown badge and
-// Accept/Decline — auto-declines when the countdown reaches zero, matching
-// its OfferCountdownBadge behavior (client-side only; the backend has no
-// server-side offer-expiry timer of its own, see rideDriverOps.js's
-// declineRide()).
+// The reference driver app's OfferOverlay: a bottom sheet with Accept/Decline. A request is
+// never withdrawn by the app: it stays up for as long as the driver is online, until they accept
+// or decline it (a running "waiting" clock shows how long it has been open).
 function OfferOverlay({
   rideId,
   pickupAddress,
   destinationAddress,
   fare,
   distanceKm,
+  shared,
+  riderName,
+  createdAt,
+  othersWaiting,
   bottomInset,
   onAccept,
   onDecline,
@@ -246,36 +309,30 @@ function OfferOverlay({
   destinationAddress?: string;
   fare: string;
   distanceKm?: number;
+  shared?: boolean;
+  riderName?: string;
+  createdAt?: string;
+  othersWaiting: number;
   bottomInset: number;
   onAccept: () => void;
   onDecline: () => void;
 }) {
   const { t } = useTranslation();
-  const [seconds, setSeconds] = useState(OFFER_COUNTDOWN_SECONDS);
-  const declinedRef = useRef<string | null>(null);
+  const [waited, setWaited] = useState(0);
 
   useEffect(() => {
     if (!rideId) {
-      setSeconds(OFFER_COUNTDOWN_SECONDS);
+      setWaited(0);
       return;
     }
-    setSeconds(OFFER_COUNTDOWN_SECONDS);
-    const interval = setInterval(() => {
-      setSeconds((s) => {
-        if (s <= 1) {
-          clearInterval(interval);
-          if (declinedRef.current !== rideId) {
-            declinedRef.current = rideId;
-            onDecline();
-          }
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
+    const since = createdAt ? Date.parse(createdAt) : Date.now();
+    const tick = () => setWaited(Math.max(0, Math.floor((Date.now() - (Number.isFinite(since) ? since : Date.now())) / 1000)));
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rideId]);
+  }, [rideId, createdAt]);
+
+  const waitedLabel = `${Math.floor(waited / 60)}:${String(waited % 60).padStart(2, '0')}`;
 
   return (
     <Modal visible={!!rideId} transparent animationType="slide">
@@ -284,13 +341,11 @@ function OfferOverlay({
           <View className="mb-4 h-[5px] w-10 self-center rounded-full bg-border-strong" />
           <View className="flex-row items-center justify-between">
             <Text variant="title-2">{t('driverNewRideRequest')}</Text>
-            <View
-              className="h-12 w-12 items-center justify-center rounded-full"
-              style={{ borderWidth: 3, borderColor: seconds <= 5 ? Colors.danger : Colors.primary }}
-              accessibilityLabel={`${seconds}s`}
-            >
-              <Text variant="headline" weight="bold" tone={seconds <= 5 ? 'danger' : 'primary'}>{seconds}</Text>
-            </View>
+            <Badge tone={shared ? 'success' : 'neutral'} label={shared ? t('driverSharedRide') : t('driverPrivateRide')} />
+          </View>
+          <View className="mt-1 flex-row items-center justify-between">
+            <Text variant="footnote" tone="muted" numberOfLines={1} style={{ flex: 1 }}>{riderName ?? ''}</Text>
+            <Text variant="footnote" tone="muted">{t('driverRequestWaiting', { time: waitedLabel })}</Text>
           </View>
 
           <View className="mt-4 flex-row items-end justify-between">
@@ -301,6 +356,11 @@ function OfferOverlay({
           <View className="mt-4 rounded-2xl bg-surface-muted p-4">
             <RouteTimeline pickup={pickupAddress ?? ''} destination={destinationAddress ?? ''} />
           </View>
+
+          {shared ? <Text variant="footnote" tone="muted" style={{ marginTop: 10 }}>{t('driverSharedRideHint')}</Text> : null}
+          {othersWaiting > 0 ? (
+            <Text variant="footnote" tone="primary" style={{ marginTop: 6 }}>{t('driverMoreRequests', { count: othersWaiting })}</Text>
+          ) : null}
 
           <View className="mt-5 flex-row gap-3">
             <View className="flex-1">

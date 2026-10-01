@@ -81,7 +81,7 @@ export function rideToJson(r: RideRec, opts: { passengerView?: boolean } = {}) {
     scheduledFor: r.scheduledFor,
     appliedDiscount: r.appliedDiscount,
     poolGroupId: null,
-    isPooled: false,
+    isPooled: r.rideType === 'shared',
     createdAt: r.createdAt,
     acceptedAt: r.acceptedAt,
     arrivedAt: r.arrivedAt,

@@ -408,6 +408,38 @@ describe('a driver working a shift', () => {
     assert.equal((await call('GET', '/driver/rides', undefined, token)).rides.length, 1, 'a declined request leaves no history');
   });
 
+  it('keeps a request open for a long time, and keeps offering shared riders on a shared trip', async () => {
+    const { token } = await call('POST', '/drivers/login', { phone: '+250782222222', password: 'secret1' });
+    advance(sim.TIMING.offerGapMs + 500);
+    const first = (await call('GET', '/drivers/rides/active', undefined, token)).rides;
+    assert.equal(first.length, 1);
+    // Far beyond the old 45 s cut-off the same request is still waiting for the driver.
+    advance(5 * 60_000);
+    const later = (await call('GET', '/drivers/rides/active', undefined, token)).rides;
+    assert.deepEqual(later.map((r) => r.id), [first[0].id]);
+
+    // Decline until a shared (pooled) request comes up, accept it, and a second shared one follows.
+    let shared = later[0];
+    for (let i = 0; i < 40 && shared.rideType !== 'shared'; i++) {
+      await call('POST', `/drivers/rides/${shared.id}/decline`, {}, token);
+      advance(sim.TIMING.offerGapMs + 500);
+      shared = (await call('GET', '/drivers/rides/active', undefined, token)).rides[0];
+    }
+    assert.equal(shared.rideType, 'shared');
+    assert.equal(shared.isPooled, true);
+    assert.equal((await call('POST', `/drivers/rides/${shared.id}/accept`, {}, token)).status, 200);
+    advance(sim.TIMING.offerGapMs + 500);
+    const pooled = (await call('GET', '/drivers/rides/active', undefined, token)).rides;
+    assert.equal(pooled.length, 2, 'a second shared rider is offered while the first is on board');
+    const waiting = pooled.find((r) => r.status === 'driverAssigned');
+    assert.equal(waiting.rideType, 'shared');
+
+    // Declining the extra rider leaves the first trip untouched; cancelling it frees the driver.
+    assert.equal((await call('POST', `/drivers/rides/${waiting.id}/decline`, {}, token)).status, 200);
+    assert.equal((await call('POST', `/drivers/rides/${shared.id}/cancel`, { reason: 'test' }, token)).status, 200);
+    assert.equal((await call('GET', '/driver/me', undefined, token)).driver.status, 'active');
+  });
+
   it('lets a request lapse when unanswered and rejects other roles', async () => {
     const reg = await call('POST', '/drivers/login', { phone: '+250782222222', password: 'secret1' });
     const token = reg.token;

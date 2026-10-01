@@ -313,9 +313,11 @@ function discardOpenOffers(db: Db, driver: DriverRec): void {
   }
 }
 
-async function createOffer(db: Db, driver: DriverRec, now: number): Promise<RideRec> {
+async function createOffer(db: Db, driver: DriverRec, now: number, forceShared = false): Promise<RideRec> {
   const id = uid('ride', db);
   const rnd = seeded(`offer:${id}`);
+  // About one request in three is a shared (pooled) ride at the lower shared fare.
+  const rideType: 'private' | 'shared' = forceShared || rnd() < 0.34 ? 'shared' : 'private';
   const origin: LatLng =
     driver.latitude != null && driver.longitude != null ? { latitude: driver.latitude, longitude: driver.longitude } : KIGALI;
   const angle = rnd() * Math.PI * 2;
@@ -340,7 +342,7 @@ async function createOffer(db: Db, driver: DriverRec, now: number): Promise<Ride
   const vehicle = vehicleById(driver.vehicleId ?? 'fem_economy') ?? vehicleById('fem_economy')!;
   await ensureRoad(pickup, destination);
   const trip = summariseTrip(pickup, destination);
-  const fare = priceFor(vehicle, trip, 'private');
+  const fare = priceFor(vehicle, trip, rideType);
   const roll = rnd();
   const paymentMethodId = roll < 0.55 ? 'cash' : roll < 0.8 ? 'mtn_momo' : roll < 0.85 ? 'airtel_money' : 'wallet';
   const ride: RideRec = {
@@ -349,7 +351,7 @@ async function createOffer(db: Db, driver: DriverRec, now: number): Promise<Ride
     passengerId: null,
     driverId: driver.id,
     riderName: riderNameFor(id),
-    rideType: 'private',
+    rideType,
     note: null,
     pickup: { address: reversePlace(pickup), latitude: pickup.latitude, longitude: pickup.longitude },
     destination: { address: reversePlace(destination), latitude: destination.latitude, longitude: destination.longitude },
@@ -401,8 +403,18 @@ async function tickOffers(db: Db, driver: DriverRec, now: number): Promise<void>
       driver.nextOfferAt = now + TIMING.offerGapMs;
     }
   }
-  if (driver.status !== 'active' || activeRides(db, driver).length > 0 || now < driver.nextOfferAt) return;
-  await createOffer(db, driver, now);
+  if (driver.status !== 'active' && driver.status !== 'busy') return;
+  if (now < driver.nextOfferAt) return;
+  const active = activeRides(db, driver);
+  if (active.length === 0) {
+    if (driver.status === 'active') await createOffer(db, driver, now);
+    return;
+  }
+  // A driver carrying shared passengers keeps getting shared requests (one waiting at a time),
+  // up to the vehicle's limit, so they can pool several riders into one trip.
+  const allShared = active.every((r) => r.rideType === 'shared');
+  const waiting = active.some((r) => r.status === 'driverAssigned');
+  if (allShared && !waiting && active.length < TIMING.maxPooledRiders) await createOffer(db, driver, now, true);
 }
 
 // ------------------------------------------------------- driver ride actions
@@ -507,6 +519,6 @@ route('POST', '/drivers/rides/:id/cancel', 'driver', (ctx) => {
   ride.cancelledAt = iso(ctx.now);
   ride.cancelledBy = 'driver';
   ride.cancellationReason = typeof ctx.body.reason === 'string' ? ctx.body.reason : null;
-  releaseDriver(me(ctx), ctx.now);
+  releaseDriver(ctx.db, me(ctx), ctx.now);
   return { ride: withRider(ride) };
 });
