@@ -22,6 +22,7 @@ import { LiveMap } from './map/LiveMap';
 import { MapSheet } from './map/MapSheet';
 import type { MapScene } from './map/map-types';
 import { useTranslation } from '../hooks/useTranslation';
+import { useLocationPermission } from '../hooks/useLocationPermission';
 import { useDebouncedCallback } from '../hooks/useDebounce';
 import { useNearbyCars } from '../hooks/useNearbyCars';
 import * as locationService from '../services/location-service';
@@ -55,6 +56,7 @@ const PIN_ZOOM = 17;
  */
 export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerProps) {
   const { t } = useTranslation();
+  const { ensurePermission } = useLocationPermission();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
 
@@ -116,27 +118,30 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
   // Start at the rider's GPS position when nothing was chosen yet (pickup).
   const [locating, setLocating] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
-  const locate = useCallback(async () => {
+  // interactive: the rider tapped the locate button, so re-asking after an
+  // earlier "Not now" is wanted. The automatic call on open stays passive.
+  const locate = useCallback(async (interactive = false) => {
     setLocating(true);
     setGpsError(null);
     try {
-      const perm = await locationService.checkPermission();
-      if (perm !== 'granted') {
-        const req = await locationService.requestPermission();
-        if (req !== 'granted') {
-          setGpsError('Location permission was not granted.');
-          return;
-        }
+      // Shared, single-flighted flow — the raw check/request pair this used to
+      // run could open a second OS dialog on top of the app-start one.
+      if (!(await ensurePermission({ interactive }))) {
+        setGpsError(t('locationNotGranted'));
+        return;
       }
       const here = await locationService.getCurrentPlace();
+      if (here.latitude == null || here.longitude == null) return;
       skipNextLookup.current = false;
-      moveCamera({ latitude: here.latitude!, longitude: here.longitude! });
-    } catch (err) {
-      setGpsError(err instanceof Error ? err.message : null);
+      moveCamera({ latitude: here.latitude, longitude: here.longitude });
+    } catch {
+      // Was surfacing raw English Error messages from the service straight into
+      // the UI; these are rider-facing, so they come from the dictionary.
+      setGpsError(t('couldNotReadLocationSetManual'));
     } finally {
       setLocating(false);
     }
-  }, [moveCamera]);
+  }, [moveCamera, ensurePermission, t]);
   useEffect(() => {
     if (!start && mode === 'pickup') locate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -314,7 +319,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('useCurrentLocation')}
-          onPress={locate}
+          onPress={() => locate(true)}
           disabled={locating}
           style={[styles.roundButton, styles.locate, { bottom: sheetHeight + 12 }]}
         >

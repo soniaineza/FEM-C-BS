@@ -35,59 +35,139 @@ export async function requestPermission(): Promise<Location.PermissionStatus> {
   return status;
 }
 
-export async function getCurrentPlace(): Promise<Place> {
+// Why getCurrentPlace can fail matters to the caller: a missing permission is
+// recoverable by asking, a dead GPS fix is not, and only one of them should
+// ever send the user to Settings.
+export type LocationFailureReason = 'services-off' | 'permission' | 'no-fix';
+
+export class LocationUnavailableError extends Error {
+  readonly reason: LocationFailureReason;
+  constructor(reason: LocationFailureReason, message: string) {
+    super(message);
+    this.name = 'LocationUnavailableError';
+    this.reason = reason;
+  }
+}
+
+// A cached fix is only worth reusing if it was good; a 2 km-accurate cell-tower
+// read should not pin the pickup marker for five minutes.
+const GOOD_ACCURACY_M = 100;
+// Age limit for the instant seed. Long enough to be useful on a warm start,
+// short enough that it is still roughly where the rider is standing.
+const SEED_MAX_AGE_MS = 2 * 60 * 1000;
+
+export function clearCachedPlace(): void {
+  cachedPlace = null;
+  cachedAt = 0;
+}
+
+export async function getCurrentPlace(options?: { force?: boolean }): Promise<Place> {
   const now = Date.now();
-  if (cachedPlace && now - cachedAt < CACHE_TTL_MS) {
+  if (!options?.force && cachedPlace && now - cachedAt < CACHE_TTL_MS) {
     return cachedPlace;
   }
 
   const enabled = await isLocationServiceEnabled();
-  if (!enabled) throw new Error('Location services are turned off on this device.');
+  if (!enabled) {
+    throw new LocationUnavailableError(
+      'services-off',
+      'Location services are turned off on this device.'
+    );
+  }
 
   const { status } = await Location.getForegroundPermissionsAsync();
   if (status !== Location.PermissionStatus.GRANTED) {
-    throw new Error('Location permission was not granted.');
+    throw new LocationUnavailableError('permission', 'Location permission was not granted.');
   }
 
-  // Try high accuracy first, then fall back to balanced if it times out
-  let position: Location.LocationObject;
-  try {
-    position = await withTimeout(
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
-      5_000
+  const position = await acquirePosition();
+  if (!position) {
+    throw new LocationUnavailableError(
+      'no-fix',
+      "Couldn't get a GPS fix. Try again outdoors or with a clearer view of the sky, or enter your pickup location manually."
     );
+  }
+
+  return cachePlace(position);
+}
+
+// A fast, cheap, possibly-stale fix with no GPS wait, so the map can move off
+// the Kigali default immediately instead of sitting there for five seconds.
+// Returns null when the device has nothing recent enough.
+export async function getSeedPlace(): Promise<Place | null> {
+  try {
+    if (!(await isLocationServiceEnabled())) return null;
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== Location.PermissionStatus.GRANTED) return null;
+    const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: SEED_MAX_AGE_MS });
+    return lastKnown ? cachePlace(lastKnown) : null;
   } catch {
+    return null;
+  }
+}
+
+// Escalating attempts, each individually timed out because expo-location's
+// getCurrentPositionAsync has no timeout option of its own and will otherwise
+// wait indefinitely for a fix that may never arrive indoors.
+async function acquirePosition(): Promise<Location.LocationObject | null> {
+  const attempts: Array<() => Promise<Location.LocationObject>> = [
+    () =>
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        mayShowUserSettingsDialog: true,
+      }),
+    () =>
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        mayShowUserSettingsDialog: true,
+      }),
+    () =>
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Lowest,
+        mayShowUserSettingsDialog: false,
+      }),
+  ];
+
+  for (const attempt of attempts) {
     try {
-      position = await withTimeout(
-        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-        5_000
-      );
+      return await withTimeout(attempt(), 6_000);
     } catch {
-      // Last resort: last known position (fast, no GPS fix needed)
-      const lastKnown = await Location.getLastKnownPositionAsync();
-      if (lastKnown) {
-        position = lastKnown;
-      } else {
-        throw new Error(
-          "Couldn't get a GPS fix. Try again outdoors or with a clearer view of the sky, or enter your pickup location manually."
-        );
-      }
+      // try the next, cheaper accuracy
     }
   }
 
-  const { latitude, longitude } = position.coords;
-  const place: Place = { address: 'Current location', latitude, longitude, isCurrentLocation: true };
+  // Nothing fresh available: an old fix still beats stranding the rider on the
+  // city-centre default, so accept any age here.
+  try {
+    return await Location.getLastKnownPositionAsync();
+  } catch {
+    return null;
+  }
+}
 
+function cachePlace(position: Location.LocationObject): Place {
+  const { latitude, longitude, accuracy } = position.coords;
+  const place: Place = {
+    address: 'Current location',
+    latitude,
+    longitude,
+    isCurrentLocation: true,
+  };
+
+  // Only let a good fix own the cache window; a vague one is returned to the
+  // caller but re-read next time rather than held for the full TTL.
+  const isGoodFix = accuracy == null || accuracy <= GOOD_ACCURACY_M;
   cachedPlace = place;
-  cachedAt = now;
+  cachedAt = isGoodFix ? Date.now() : 0;
 
-  apiClient.get<{ address: string }>(
-    `/locations/reverse?lat=${latitude}&lng=${longitude}`
-  ).then((json) => {
-    if (cachedPlace && cachedPlace.latitude === latitude && cachedPlace.longitude === longitude) {
-      cachedPlace = { ...cachedPlace, address: json.address };
-    }
-  }).catch(() => {});
+  apiClient
+    .get<{ address: string }>(`/locations/reverse?lat=${latitude}&lng=${longitude}`)
+    .then((json) => {
+      if (cachedPlace && cachedPlace.latitude === latitude && cachedPlace.longitude === longitude) {
+        cachedPlace = { ...cachedPlace, address: json.address };
+      }
+    })
+    .catch(() => {});
 
   return place;
 }

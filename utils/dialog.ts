@@ -1,4 +1,4 @@
-import { Alert, Platform, type AlertButton } from 'react-native';
+import { Alert, Platform, type AlertButton, type AlertOptions } from 'react-native';
 import { create } from 'zustand';
 
 // Drop-in for Alert.alert that also works on web. react-native-web's
@@ -18,9 +18,20 @@ export const useDialogStore = create<{ dialog: DialogState | null; set: (d: Dial
   set: (dialog) => set({ dialog }),
 }));
 
-export function appAlert(title: string, message?: string, buttons?: AlertButton[]) {
+// `options` is forwarded to the native dialog only (react-native-web has no
+// equivalent). Callers awaiting a button press need `cancelable: false` there:
+// on Android an outside tap otherwise dismisses the dialog without invoking
+// any button, which would leave such a promise pending forever. On web
+// DialogHost already routes a backdrop dismiss to the cancel button, so the
+// same guarantee holds without the flag.
+export function appAlert(
+  title: string,
+  message?: string,
+  buttons?: AlertButton[],
+  options?: AlertOptions
+) {
   if (Platform.OS !== 'web') {
-    Alert.alert(title, message, buttons);
+    Alert.alert(title, message, buttons, options);
     return;
   }
   useDialogStore.getState().set({ title, message, buttons: buttons?.length ? buttons : [{ text: 'OK' }] });

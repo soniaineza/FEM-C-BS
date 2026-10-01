@@ -13,7 +13,8 @@ import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
 import { useNearbyCars } from '../../../hooks/useNearbyCars';
-import { getCurrentPlace, requestPermission, checkPermission, MapDefaults } from '../../../services/location-service';
+import { getCurrentPlace, getSeedPlace, MapDefaults } from '../../../services/location-service';
+import { useLocationPermission } from '../../../hooks/useLocationPermission';
 import { getSavedPlaces } from '../../../services/user-service';
 import { SavedPlace } from '../../../types/saved-place';
 import { placeHasCoordinates } from '../../../types/place';
@@ -37,10 +38,15 @@ export default function HomeScreen() {
   const setPickup = useRideWizardStore((s) => s.setPickup);
   const setRideType = useRideWizardStore((s) => s.setRideType);
 
+  const { ensurePermission } = useLocationPermission();
+
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [mapCenter, setMapCenter] = useState(MapDefaults);
   const [mapLocating, setMapLocating] = useState(false);
   const [recenterToken, setRecenterToken] = useState(0);
+  // Shown inline under the pickup field when location is unavailable, so the
+  // rider knows why it is empty instead of the failure passing silently.
+  const [locationHint, setLocationHint] = useState<string | null>(null);
 
   // Restores an active ride after app restart and blocks duplicate booking:
   // while a ride is live, Home shows a resume banner and the Find Ride flow
@@ -64,22 +70,49 @@ export default function HomeScreen() {
     }, [])
   );
 
-  useEffect(() => {
-    if (pickup) return;
-    (async () => {
-      const perm = await checkPermission();
-      if (perm !== 'granted') {
-        const req = await requestPermission();
-        if (req !== 'granted') return;
-      }
-      try {
-        const place = await getCurrentPlace();
+  // Fill the pickup field from the device location.
+  //
+  // Runs on every focus while pickup is still empty, not just once on mount, so
+  // granting the permission in Settings and coming back fills it in rather than
+  // leaving the rider on the Kigali default until a restart. ensurePermission()
+  // is shared and single-flighted, so this never races the app-start prompt
+  // raised by (main)/_layout.tsx.
+  useFocusEffect(
+    useCallback(() => {
+      if (pickup) return;
+      let cancelled = false;
+
+      const apply = (place: Awaited<ReturnType<typeof getCurrentPlace>>) => {
+        if (cancelled || place.latitude == null || place.longitude == null) return;
         setPickup(place);
-        setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 15 });
-      } catch {}
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+        setMapCenter({ latitude: place.latitude, longitude: place.longitude, zoom: 15 });
+      };
+
+      (async () => {
+        const granted = await ensurePermission();
+        if (cancelled || !granted) return;
+
+        // Move the map off the default straight away using the device's last
+        // known fix, then refine it once a real reading lands.
+        const seed = await getSeedPlace();
+        if (seed) apply(seed);
+
+        try {
+          apply(await getCurrentPlace());
+        } catch {
+          // Permission is granted but no fix arrived (indoors, GPS warming up).
+          // The seed above may already be showing; either way manual entry and
+          // dragging the map both still work, so this is not worth a dialog.
+          if (!cancelled && !seed) setLocationHint(t('couldNotReadLocationSetManual'));
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pickup, ensurePermission, t])
+  );
 
   useEffect(() => {
     if (pickup?.latitude != null && pickup?.longitude != null) {
@@ -98,12 +131,21 @@ export default function HomeScreen() {
 
   async function recenterMap() {
     setMapLocating(true);
+    setLocationHint(null);
     try {
-      const place = await getCurrentPlace();
-      setMapCenter({ latitude: place.latitude!, longitude: place.longitude!, zoom: 16 });
+      // An explicit tap is the one place it is right to re-ask: the rider just
+      // said they want their location, so a prior "Not now" deserves a retry.
+      if (!(await ensurePermission({ interactive: true }))) return;
+      // force: skip the cache — the rider tapped because the pin looks wrong.
+      const place = await getCurrentPlace({ force: true });
+      if (place.latitude == null || place.longitude == null) return;
+      setPickup(place);
+      setMapCenter({ latitude: place.latitude, longitude: place.longitude, zoom: 16 });
       setRecenterToken((n) => n + 1);
     } catch {
-      // Never block the booking flow on GPS — the map simply stays where it is.
+      // Never block the booking flow on GPS — the map stays where it is and the
+      // rider can drag it or type the address.
+      setLocationHint(t('couldNotReadLocationSetManual'));
     } finally {
       setMapLocating(false);
     }
@@ -190,6 +232,10 @@ export default function HomeScreen() {
           <View className="mx-4 h-px bg-white/25" />
           <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
         </View>
+
+        {locationHint && !pickup ? (
+          <Text className="mt-2 px-1 text-xs leading-4 text-white/80">{locationHint}</Text>
+        ) : null}
 
         {savedPlaces.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3" contentContainerClassName="gap-2.5">
