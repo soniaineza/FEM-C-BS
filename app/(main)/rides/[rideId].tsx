@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { Button } from '../../components/Button';
-import { BackHeader } from '../../components/BackHeader';
-import { useTranslation } from '../../hooks/useTranslation';
-import { getRideDetails } from '../../services/ride-service';
-import { Ride, formatFare, rideStatusKey } from '../../types/ride';
-import { ApiError } from '../../services/api-client';
+import { Button } from '../../../components/Button';
+import { BackHeader } from '../../../components/BackHeader';
+import { useTranslation } from '../../../hooks/useTranslation';
+import { getRideDetails } from '../../../services/ride-service';
+import { Ride, formatFare, rideStatusKey } from '../../../types/ride';
+import { ApiError } from '../../../services/api-client';
 
 // Ride details — network failures land on an explicit error card with a
 // retry button instead of an infinite spinner (cold-start requests used to

@@ -1,15 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native';
-import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
+import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 
-import { Button } from '../../components/Button';
-import { useTranslation } from '../../hooks/useTranslation';
-import { TranslationKey } from '../../locales';
-import { getRideHistory } from '../../services/ride-service';
-import { Ride, formatFare, rideStatusKey } from '../../types/ride';
-import { ApiError } from '../../services/api-client';
+import { Button } from '../../../components/Button';
+import { useTranslation } from '../../../hooks/useTranslation';
+import { TranslationKey } from '../../../locales';
+import { getRideHistory } from '../../../services/ride-service';
+import { Ride, formatFare, rideStatusKey } from '../../../types/ride';
+import { ApiError } from '../../../services/api-client';
 
 // My Rides — the ride history screen with Upcoming/Active/Completed tabs.
 // Network failures (server cold start, offline) land on an explicit error
