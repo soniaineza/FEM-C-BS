@@ -125,6 +125,11 @@ export interface RideSim {
 
 export interface RideRec {
   id: string;
+  /** Rider's phone for electronic billing, entered by the driver. */
+  ebillPhone?: string | null;
+  /** Set when the rider scanned the driver's pairing code. */
+  pairedAt?: string | null;
+  pairedTerminal?: string | null;
   /** 'passenger': booked by a passenger account, driver simulated.
    *  'demoRider': offered to a driver account, passenger simulated. */
   source: 'passenger' | 'demoRider';

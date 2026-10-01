@@ -776,5 +776,13 @@
   "tariffPerKmValue": "{amount} / km",
   "tariffWaitingLabel": "Igihe cyo gutegereza",
   "tariffWaitingValue": "Iminota {free} y'ubuntu, hanyuma {charge} kuri buri minota {block}",
-  "tariffOneRateNote": "Igiciro kimwe gikoreshwa ku bwoko bwose bw'imodoka."
+  "tariffOneRateNote": "Igiciro kimwe gikoreshwa ku bwoko bwose bw'imodoka.",
+  "scanDriverCode": "Sikana kode y'umushoferi",
+  "scanPairHint": "Erekeza kamera kuri kode iri kuri telefone y'umushoferi.",
+  "scanPairSuccess": "Wahujwe n'umushoferi wawe",
+  "scanPairInvalid": "Iyi si kode yo guhuza ya FEM C@BS.",
+  "scanPairFailed": "Guhuza uru rugendo ntibyakunze. Ongera ugerageze.",
+  "cameraPermissionBody": "Emera kamera kugira ngo usikane kode y'umushoferi wawe.",
+  "allowCamera": "Emera kamera",
+  "driverEbillSavedOnDevice": "yabitswe kuri iki gikoresho"
 }

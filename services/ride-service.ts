@@ -160,6 +160,11 @@ export async function cancelRide(rideId: string, reason?: string): Promise<Ride>
   return resolveRideFromBackendJson(json.ride, await ridesCatalogues());
 }
 
+/** Links the ride to the driver's device after scanning their pairing code. */
+export async function pairRide(rideId: string, terminalId: string, driverPhone?: string): Promise<void> {
+  await apiClient.post(`/rides/${rideId}/pair`, { terminalId, driverPhone });
+}
+
 export async function changeDestination(rideId: string, destination: Place): Promise<Ride> {
   const json = await apiClient.post<{ ride: any }>(`/rides/${rideId}/change-destination`, { destination });
   return resolveRideFromBackendJson(json.ride, await ridesCatalogues());

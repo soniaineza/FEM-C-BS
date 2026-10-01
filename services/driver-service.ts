@@ -82,6 +82,11 @@ export async function cancelDriverRide(rideId: string, reason?: string): Promise
   return resolveOne(json.ride);
 }
 
+/** Attaches the rider's e-billing phone number to the trip. */
+export async function setDriverRideEbillPhone(rideId: string, phone: string): Promise<void> {
+  await driverApiClient.post(`/drivers/rides/${rideId}/ebill`, { phone });
+}
+
 export async function getDriverRideHistory(): Promise<Ride[]> {
   const json = await driverApiClient.get<{ rides: any[] }>('/driver/rides');
   const catalogues = await ridesCatalogues();

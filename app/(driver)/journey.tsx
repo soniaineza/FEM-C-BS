@@ -348,7 +348,7 @@ export default function DriverJourneyScreen() {
                 onConfirm={handleComplete}
                 disabled={actionLoading}
               />
-              <Button title={t('driverEbillingTitle')} variant="outline" icon="keypad-outline" onPress={() => router.push('/(driver)/ebill-dialpad' as any)} />
+              <Button title={t('driverEbillingTitle')} variant="outline" icon="keypad-outline" onPress={() => router.push({ pathname: '/(driver)/ebill-dialpad', params: { rideId: ride.id } } as any)} />
             </View>
           </View>
         ) : null}

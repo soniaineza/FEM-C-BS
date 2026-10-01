@@ -4,7 +4,7 @@
 // curve otherwise; there is no surge.
 
 import { VEHICLES, type VehicleRec } from './db';
-import { tariffFare } from './tariff';
+import { tariffFare, waitingCharge } from './tariff';
 import { buildRoute, haversineKm, hasRoad, type LatLng, type Path } from './geo';
 
 const SHARED_FACTOR = 0.7;
@@ -96,3 +96,14 @@ export function vehicleById(id: string): VehicleRec | undefined {
 }
 
 export { haversineKm };
+
+/**
+ * What the trip finally costs: the quoted fare plus the waiting charge for the
+ * time the driver stood at the pickup before the trip started (free for the
+ * first 15 minutes — see tariff.ts).
+ */
+export function finalFareFor(ride: { estimatedFare: number; arrivedAt: string | null; startedAt: string | null }): number {
+  if (!ride.arrivedAt || !ride.startedAt) return ride.estimatedFare;
+  const waitedMinutes = Math.max(0, Date.parse(ride.startedAt) - Date.parse(ride.arrivedAt)) / 60_000;
+  return ride.estimatedFare + waitingCharge(waitedMinutes);
+}

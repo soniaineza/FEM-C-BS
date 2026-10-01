@@ -453,6 +453,39 @@ describe('a driver working a shift', () => {
     assert.equal((await call('GET', '/driver/me', undefined, passenger.token)).status, 401);
     assert.equal((await call('GET', '/auth/me', undefined, token)).status, 401);
   });
+
+  it('charges for waiting beyond the free 15 minutes and records the e-bill number', async () => {
+    const reg = await call('POST', '/drivers/register', { fullName: 'Wendy Waits', phone: '+250783333333', password: 'secret1', licenseNumber: 'RW456' });
+    const token = reg.token;
+    await call('PUT', '/driver/vehicle', { vehicleMake: 'Toyota', vehicleModel: 'Vitz', vehicleYear: 2019, vehicleColor: 'Blue', vehiclePlate: 'RAC 456 D' }, token);
+    await call('POST', '/drivers/location', KIGALI, token);
+    await call('PUT', '/driver/status', { status: 'active' }, token);
+    advance(sim.TIMING.offerDelayMs + 500);
+    const [offer] = (await call('GET', '/drivers/rides/active', undefined, token)).rides;
+    assert.ok(offer, 'a request arrives');
+    await call('POST', `/drivers/rides/${offer.id}/accept`, {}, token);
+    await call('POST', `/drivers/rides/${offer.id}/arrived`, {}, token);
+
+    assert.equal((await call('POST', `/drivers/rides/${offer.id}/ebill`, { phone: 'nope' }, token)).status, 400);
+    assert.equal((await call('POST', `/drivers/rides/${offer.id}/ebill`, { phone: '+250788123456' }, token)).ebillPhone, '+250788123456');
+
+    advance(40 * 60_000); // 40 min at the pickup: 25 chargeable -> two 15-minute blocks
+    await call('POST', `/drivers/rides/${offer.id}/verify-pin`, { pin: '1234' }, token);
+    const done = await call('POST', `/drivers/rides/${offer.id}/complete-trip`, {}, token);
+    assert.equal(done.ride.finalFare, done.ride.estimatedFare + 3000);
+    assert.equal(done.payment.amount, done.ride.finalFare);
+  });
+});
+
+describe('pairing a ride with the driver device', () => {
+  it('links the scanned terminal to an active ride', async () => {
+    const { token } = await newPassenger('paula');
+    const { res } = await book(token, 'cash');
+    assert.equal((await call('POST', `/rides/${res.ride.id}/pair`, {}, token)).status, 400);
+    const paired = await call('POST', `/rides/${res.ride.id}/pair`, { terminalId: 'T-123' }, token);
+    assert.equal(paired.paired, true);
+    assert.equal(paired.terminalId, 'T-123');
+  });
 });
 
 describe('persistence', () => {

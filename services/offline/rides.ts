@@ -20,7 +20,7 @@ import { HttpError, created, noContent, route, type Ctx } from './http';
 import { formatRwf, notify, parseLatLng, paymentToJson, rideToJson } from './common';
 import { SMS_BRAND, sendSms, smsEnabled } from './sms';
 import { buildRoute, seeded, type LatLng } from './geo';
-import { lockedFare, priceFor, quoteKey, rememberQuote, routeSource, summariseTrip, vehicleById } from './pricing';
+import { finalFareFor, lockedFare, priceFor, quoteKey, rememberQuote, routeSource, summariseTrip, vehicleById } from './pricing';
 import { ensureRoad } from './roads';
 import {
   ambientCars,
@@ -97,8 +97,8 @@ function enterStatus(db: Db, ride: RideRec, status: RideStatus, now: number): vo
     ride.startedAt = iso(tl.tStart);
     notifyOnce(db, ride, 'inProgress', 'Trip started', `On the way to ${ride.destination.address}.`, tl.tStart);
   } else if (status === 'paymentPending') {
-    ride.finalFare = ride.estimatedFare;
-    notifyOnce(db, ride, 'paymentPending', "You've arrived", `Pay ${formatRwf(ride.estimatedFare)} to finish your trip.`, tl.tEnd, 'payment');
+    ride.finalFare = finalFareFor(ride);
+    notifyOnce(db, ride, 'paymentPending', "You've arrived", `Pay ${formatRwf(ride.finalFare)} to finish your trip.`, tl.tEnd, 'payment');
   }
   ride.status = status;
 }
@@ -585,6 +585,16 @@ route('POST', '/payments', 'passenger', (ctx) => {
   const payment = newPayment(db, ride, ride.paymentMethodId, now);
   chargePayment(db, ride, payment, now);
   return created({ payment: paymentToJson(payment) });
+});
+
+route('POST', '/rides/:id/pair', 'passenger', (ctx) => {
+  const ride = ownRide(ctx, ctx.params.id);
+  if (isTerminal(ride.status)) throw new HttpError(400, 'Only an active ride can be paired.');
+  const terminal = String(ctx.body.terminalId ?? '').trim();
+  if (!terminal) throw new HttpError(400, 'terminalId is required.');
+  ride.pairedTerminal = terminal;
+  ride.pairedAt = iso(ctx.now);
+  return { paired: true, rideId: ride.id, terminalId: terminal };
 });
 
 route('GET', '/rides/:id/payment', 'passenger', (ctx) => {

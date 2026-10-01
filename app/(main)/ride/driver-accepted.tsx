@@ -191,6 +191,15 @@ export default function DriverAcceptedScreen() {
           </Pressable>
         </View>
 
+        <View className="mt-3">
+          <Button
+            title={t('scanDriverCode')}
+            variant="outline"
+            icon="qr-code-outline"
+            onPress={() => router.push({ pathname: '/(main)/ride/scan-pair', params: { rideId: ride.id } } as any)}
+          />
+        </View>
+
         {ride.pin ? (
           <Card tone="tint" padded={false} className="mt-3 flex-row items-center justify-between px-4 py-3">
             <View className="flex-1 pr-3">

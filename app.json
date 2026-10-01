@@ -39,6 +39,14 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "FEM C@BS uses the camera to scan your driver's pairing code.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

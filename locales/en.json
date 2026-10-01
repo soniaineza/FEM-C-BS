@@ -776,5 +776,13 @@
   "tariffPerKmValue": "{amount} / km",
   "tariffWaitingLabel": "Waiting time",
   "tariffWaitingValue": "{free} min free, then {charge} per {block} min",
-  "tariffOneRateNote": "One rate card applies to every vehicle class."
+  "tariffOneRateNote": "One rate card applies to every vehicle class.",
+  "scanDriverCode": "Scan driver's code",
+  "scanPairHint": "Point the camera at the code on your driver's phone.",
+  "scanPairSuccess": "Paired with your driver",
+  "scanPairInvalid": "That isn't a FEM C@BS pairing code.",
+  "scanPairFailed": "Couldn't pair this ride. Try again.",
+  "cameraPermissionBody": "Allow camera access to scan your driver's pairing code.",
+  "allowCamera": "Allow camera",
+  "driverEbillSavedOnDevice": "saved on this device"
 }

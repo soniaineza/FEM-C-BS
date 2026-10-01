@@ -8,6 +8,7 @@ import { Button } from '../../../../components/Button';
 import { Input } from '../../../../components/Input';
 import { ScreenHeader } from '../../../../components/ui/ScreenHeader';
 import { Chip } from '../../../../components/ui/Chip';
+import { Banner, LoadingState } from '../../../../components/ui';
 import { useTranslation } from '../../../../hooks/useTranslation';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import {
@@ -56,9 +57,13 @@ export default function DriverSupportScreen() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
 
   useEffect(() => {
-    getDriverSupportTickets().then(setTickets).catch(() => setError(t('requestFailed')));
+    getDriverSupportTickets()
+      .then(setTickets)
+      .catch(() => setError(t('requestFailed')))
+      .finally(() => setTicketsLoading(false));
   }, []);
 
   async function handleSend() {
@@ -111,7 +116,7 @@ export default function DriverSupportScreen() {
             <View className="mt-4 gap-3">
               <Input label={t('subject')} value={subject} onChangeText={setSubject} />
               <Input label={t('describeIssueHint')} value={message} onChangeText={setMessage} multiline numberOfLines={4} />
-              {error ? <Text className="text-subhead text-danger">{error}</Text> : null}
+              {error ? <Banner tone="danger" message={error} /> : null}
             </View>
 
             <View className="mt-4">
@@ -120,6 +125,7 @@ export default function DriverSupportScreen() {
           </View>
         )}
 
+        {ticketsLoading ? <LoadingState compact /> : null}
         {tickets.length > 0 ? (
           <>
             <Text className="mt-8 text-title-3 font-bold text-fg">{t('supportYourTickets')}</Text>

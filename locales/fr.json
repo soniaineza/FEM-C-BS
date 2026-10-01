@@ -776,5 +776,13 @@
   "tariffPerKmValue": "{amount} / km",
   "tariffWaitingLabel": "Temps d'attente",
   "tariffWaitingValue": "{free} min gratuites, puis {charge} par {block} min",
-  "tariffOneRateNote": "Une seule grille tarifaire s'applique à toutes les catégories de véhicule."
+  "tariffOneRateNote": "Une seule grille tarifaire s'applique à toutes les catégories de véhicule.",
+  "scanDriverCode": "Scanner le code du chauffeur",
+  "scanPairHint": "Pointez la caméra vers le code affiché sur le téléphone du chauffeur.",
+  "scanPairSuccess": "Associé à votre chauffeur",
+  "scanPairInvalid": "Ce n'est pas un code d'association FEM C@BS.",
+  "scanPairFailed": "Impossible d'associer cette course. Réessayez.",
+  "cameraPermissionBody": "Autorisez l'accès à la caméra pour scanner le code de votre chauffeur.",
+  "allowCamera": "Autoriser la caméra",
+  "driverEbillSavedOnDevice": "enregistré sur cet appareil"
 }

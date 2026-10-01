@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Pressable } from '../../components/ui/Pressable';
@@ -8,16 +9,20 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Colors } from '../../constants/theme';
 import { useTranslation } from '../../hooks/useTranslation';
+import { setDriverRideEbillPhone } from '../../services/driver-service';
 import { getEbillingPhone, saveEbillingPhone } from '../../utils/driver-device';
 import { validators } from '../../utils/validators';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
 
 // E-Bill entry: a dial pad that takes the rider's phone number for electronic
-// billing. The number is validated and stored on the device until a payment
-// processor / backend endpoint can carry it to the server.
+// billing. The number is validated, attached to the trip on the server
+// (rideId param), and kept on the device; if the server can't take it yet the
+// device copy still stands and the screen says so.
 export default function DriverEbillingDialpadScreen() {
   const { t } = useTranslation();
+  const { rideId } = useLocalSearchParams<{ rideId?: string }>();
+  const [linked, setLinked] = useState(false);
   const [phone, setPhone] = useState('');
   const [savedNumber, setSavedNumber] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
@@ -40,6 +45,16 @@ export default function DriverEbillingDialpadScreen() {
     setSaving(true);
     try {
       await saveEbillingPhone(normalized);
+      let onTrip = false;
+      if (rideId) {
+        try {
+          await setDriverRideEbillPhone(rideId, normalized);
+          onTrip = true;
+        } catch {
+          // Server has no e-bill endpoint (or is unreachable): the device copy stands.
+        }
+      }
+      setLinked(onTrip);
       setSavedNumber(normalized);
       setPhone('');
     } catch {
@@ -63,7 +78,7 @@ export default function DriverEbillingDialpadScreen() {
 
       {savedNumber ? (
         <View className="mt-3">
-          <Banner tone="success" message={`${savedNumber} — ${t('driverEbillingLinked')}`} />
+          <Banner tone="success" message={`${savedNumber} — ${linked ? t('driverEbillingLinked') : t('driverEbillSavedOnDevice')}`} />
         </View>
       ) : null}
       {error ? <View className="mt-3"><Banner tone="danger" message={error} /></View> : null}

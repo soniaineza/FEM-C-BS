@@ -7,7 +7,7 @@ import { hashPassword, iso, uid, type Db, type DriverRec, type RideRec, type Rid
 import { HttpError, created, makeToken, noContent, route, type Ctx } from './http';
 import { driverToJson, formatRwf, notificationToJson, notify, requireString, rideToJson, ticketToJson } from './common';
 import { offsetM, PLACES, reversePlace, seeded, haversineKm, KIGALI, type LatLng } from './geo';
-import { priceFor, summariseTrip, vehicleById } from './pricing';
+import { finalFareFor, priceFor, summariseTrip, vehicleById } from './pricing';
 import { ensureRoad } from './roads';
 import { TIMING, riderNameFor } from './sim';
 import { payForCompletedTrip, releaseDriver, settlePayment, latestPayment } from './rides';
@@ -491,13 +491,21 @@ route('POST', '/drivers/rides/:id/verify-pin', 'driver', (ctx) => {
 route('POST', '/drivers/rides/:id/complete-trip', 'driver', (ctx) => {
   const ride = ownActive(ctx);
   expect(ride, 'inProgress', 'Only an in-progress ride can be completed.');
-  ride.finalFare = ride.estimatedFare;
+  ride.finalFare = finalFareFor(ride);
   ride.status = 'paymentPending';
   const payment = payForCompletedTrip(ctx.db, ride, ctx.now);
   return {
     ride: withRider(ride),
     payment: { id: payment.id, amount: payment.amount, method: payment.method, status: payment.status, state: payment.state },
   };
+});
+
+route('POST', '/drivers/rides/:id/ebill', 'driver', (ctx) => {
+  const ride = ownActive(ctx);
+  const phone = String(ctx.body.phone ?? '').trim();
+  if (!/^\+?\d{9,13}$/.test(phone)) throw new HttpError(400, 'A valid phone number is required.');
+  ride.ebillPhone = phone;
+  return { rideId: ride.id, ebillPhone: phone };
 });
 
 route('POST', '/drivers/rides/:id/confirm-cash', 'driver', (ctx) => {
