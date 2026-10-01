@@ -2,6 +2,8 @@ import { useState, memo } from 'react';
 import { View, Text, TextInput, TextInputProps, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useTranslation } from '../hooks/useTranslation';
+
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
@@ -25,6 +27,7 @@ export const Input = memo(function Input({
   className,
   ...rest
 }: InputProps & { className?: string }) {
+  const { t } = useTranslation();
   const [revealed, setRevealed] = useState(false);
   const isPasswordField = Boolean(secureTextEntry);
 
@@ -57,7 +60,7 @@ export const Input = memo(function Input({
             className="absolute right-3.5 z-10"
             onPress={() => setRevealed((v) => !v)}
             accessibilityRole="button"
-            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            accessibilityLabel={revealed ? t('hidePassword') : t('showPassword')}
             hitSlop={8}
           >
             <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={20} color={dark ? '#93A3C8' : '#6B7280'} />

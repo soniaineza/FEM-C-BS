@@ -51,7 +51,7 @@ export default function RatingScreen() {
               accessibilityRole="radio"
               accessibilityState={{ checked: n === stars }}
               aria-checked={n === stars}
-              accessibilityLabel={`${n} ${n === 1 ? 'star' : 'stars'}`}
+              accessibilityLabel={t('starsA11y', { count: n })}
             >
               <Ionicons name={n <= stars ? 'star' : 'star-outline'} size={38} color={n <= stars ? '#16A34A' : '#E5E7EB'} />
             </Pressable>

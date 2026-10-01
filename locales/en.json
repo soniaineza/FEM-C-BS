@@ -726,6 +726,11 @@
   "driverMeterPrice": "Price",
   "driverSlideToStart": "Slide to start trip",
   "driverSlideToStartHint": "Drag the handle to the right to begin",
-  "driverPaymentSettledAuto": "Payment settled automatically.",
-  "invalidPhoneHint": "Enter a valid phone number"
+  "invalidPhoneHint": "Enter a valid phone number",
+  "earningStatusPending": "Pending",
+  "earningStatusSettled": "Settled",
+  "earningStatusFailed": "Failed",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+  "starsA11y": "{count} stars"
 }

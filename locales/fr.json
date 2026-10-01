@@ -554,7 +554,7 @@
   "driverCancelTripFailed": "Impossible d'annuler la course. Reessayez.",
   "driverTripComplete": "Course terminee !",
   "driverCollectCash": "Encaissez le paiement en especes du passager.",
-  "driverPaymentSettledAuto": "Le paiement a ete regle automatiquement.",
+  "driverPaymentSettledAuto": "Paiement réglé automatiquement.",
   "driverBackToCockpit": "Retour a l'accueil",
   "driverRideCancelledTitle": "Course annulee",
   "driverRiderCancelledBody": "Le passager a annule cette course.",
@@ -621,9 +621,6 @@
   "locationPermissionDeniedTitle": "Autorisation de localisation requise",
   "locationPermissionDeniedMessage": "FEM C@BS a besoin d'accès à votre position pour afficher votre point de départ et vous mettre en relation avec des chauffeurs proches. Veuillez l'activer dans les réglages.",
   "locationServicesOffMessage": "Veuillez activer les services de localisation dans les réglages de votre appareil pour utiliser la prise en charge automatique.",
-  "earningStatusPending": "En attente",
-  "earningStatusSettled": "Regle",
-  "earningStatusFailed": "Echoue",
   "welcomeTo": "Bienvenue sur FEM c@bs",
   "loginTagline": "Se deplacer au Rwanda en toute simplicite.",
   "loginPasswordHint": "Connexion en tant que {identifier}",
@@ -729,6 +726,11 @@
   "driverMeterPrice": "Prix",
   "driverSlideToStart": "Glisser pour démarrer",
   "driverSlideToStartHint": "Faites glisser la poignée vers la droite pour commencer",
-  "driverPaymentSettledAuto": "Paiement réglé automatiquement.",
-  "invalidPhoneHint": "Saisissez un numéro de téléphone valide"
+  "invalidPhoneHint": "Saisissez un numéro de téléphone valide",
+  "earningStatusPending": "En attente",
+  "earningStatusSettled": "Versé",
+  "earningStatusFailed": "Échec",
+  "showPassword": "Afficher le mot de passe",
+  "hidePassword": "Masquer le mot de passe",
+  "starsA11y": "{count} étoiles"
 }
