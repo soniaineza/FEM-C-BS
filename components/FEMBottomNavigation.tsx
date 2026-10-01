@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
+import { useResponsive } from '../hooks/useResponsive';
 import { FemColors } from '../constants/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -28,6 +29,7 @@ const ICONS: Record<string, { active: IconName; inactive: IconName }> = {
 //  - Touch targets stay >= 44pt (FemTouch.min) via minHeight.
 export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { spacing, typography, dimensions } = useResponsive();
 
   return (
     <View
