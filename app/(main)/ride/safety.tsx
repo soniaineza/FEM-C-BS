@@ -18,7 +18,7 @@ import { ApiError } from '../../../services/api-client';
 import { shareText } from '../../../utils/share';
 import { Colors } from '../../../constants/theme';
 
-// Safety screen — SOS now routes to the FEM C@BS call center: the tap
+// Safety screen — SOS now routes to the Kimu Transport call center: the tap
 // records the emergency server-side (auditable trail + control-room
 // notification) and then opens the OS dialer on the call-center number
 // served by GET /api/emergency/config. If the request itself fails (offline
@@ -48,7 +48,7 @@ export default function SafetyScreen() {
       const result = await triggerEmergency({ rideId });
       setSosResult(result);
       if (result.callCenterPhone) setCallCenterPhone(result.callCenterPhone);
-      // The actual call: open the dialer on the FEM C@BS call center.
+      // The actual call: open the dialer on the Kimu Transport call center.
       callPhoneNumber(result.callCenterPhone ?? callCenterPhone ?? '');
     } catch (err) {
       setSosError(err instanceof ApiError ? err.message : t('sosFailed'));

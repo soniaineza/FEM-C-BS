@@ -1,4 +1,4 @@
-# Render blueprint for the FEM C@BS API (https://render.com/docs/blueprint-spec).
+# Render blueprint for the Kimu Transport API (https://render.com/docs/blueprint-spec).
 #
 # `starter` is Render's smallest paid instance: unlike `free` it never sleeps,
 # so there is no ~24s cold start on the first request after idle.

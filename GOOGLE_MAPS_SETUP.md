@@ -1,4 +1,4 @@
-# Google Maps setup (FEM c@bs)
+# Google Maps setup (Kimu Transport)
 
 The app currently ships with **keyless maps** (Leaflet + OpenStreetMap tiles in
 `components/RideMap.native.tsx` / `RideMap.tsx`). `react-native-maps` is
@@ -8,7 +8,7 @@ ship one unrestricted key everywhere**.
 
 ## 1. Create the Google Cloud project
 
-1. Go to https://console.cloud.google.com/ and create a project (e.g. `femcabs-prod`).
+1. Go to https://console.cloud.google.com/ and create a project (e.g. `kimutransport-prod`).
 2. Enable **billing** on the project (required for Maps; free tier still applies).
 
 ## 2. Enable the APIs you actually use
@@ -73,5 +73,5 @@ not be committed either.
 | Reverse geocode | Backend proxy (`/api/locations/reverse`) | Optional: Geocoding API |
 | Routing | Backend proxy → OSRM (`/api/locations/route`) | Optional: Directions/Routes API |
 
-The map-in-a-frame UX (`FEMMapCard`) stays identical either way — only the
+The map-in-a-frame UX (`KimuMapCard`) stays identical either way — only the
 rendering component under it changes.

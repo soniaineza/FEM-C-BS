@@ -129,7 +129,7 @@ interface CarEntry {
 }
 
 class CarLayer implements maplibregl.CustomLayerInterface {
-  id = 'fem-cars';
+  id = 'kimu-cars';
   type = 'custom' as const;
   renderingMode = '3d' as const;
   cars = new Map<string, CarEntry>();
@@ -367,7 +367,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
 
 function markerElement(marker: MapMarker): HTMLElement {
   const el = document.createElement('div');
-  el.className = `fem-marker fem-${marker.kind}`;
+  el.className = `kimu-marker fem-${marker.kind}`;
   if (marker.kind === 'radar') {
     el.innerHTML = '<span></span><span></span><span></span><i></i>';
   } else if (marker.kind === 'me') {
@@ -377,7 +377,7 @@ function markerElement(marker: MapMarker): HTMLElement {
   }
   if (marker.label) {
     const label = document.createElement('div');
-    label.className = 'fem-label';
+    label.className = 'kimu-label';
     label.textContent = marker.label;
     el.appendChild(label);
   }
@@ -459,8 +459,8 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     mapRef.current = map;
     if (process.env.NODE_ENV !== 'production') {
       // Dev/test hook: lets end-to-end tests drive the camera and inspect cars.
-      const w = window as unknown as { __femMaps?: unknown[] };
-      (w.__femMaps ??= []).push({ map, cars: () => carsRef.current });
+      const w = window as unknown as { __kimuMaps?: unknown[] };
+      (w.__kimuMaps ??= []).push({ map, cars: () => carsRef.current });
     }
 
     map.on('load', () => {
@@ -471,7 +471,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
       const firstLabel = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id;
       if (map.getSource('openmaptiles')) map.addLayer(
         {
-          id: 'fem-buildings-3d',
+          id: 'kimu-buildings-3d',
           type: 'fill-extrusion',
           source: 'openmaptiles',
           'source-layer': 'building',
@@ -486,18 +486,18 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
         firstLabel
       );
       for (const id of ['secondary', 'primary']) {
-        map.addSource(`fem-route-${id}`, { type: 'geojson', data: EMPTY_FC as any });
+        map.addSource(`kimu-route-${id}`, { type: 'geojson', data: EMPTY_FC as any });
         map.addLayer({
-          id: `fem-route-${id}-casing`,
+          id: `kimu-route-${id}-casing`,
           type: 'line',
-          source: `fem-route-${id}`,
+          source: `kimu-route-${id}`,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 5, 17, 12] },
         });
         map.addLayer({
-          id: `fem-route-${id}-line`,
+          id: `kimu-route-${id}-line`,
           type: 'line',
-          source: `fem-route-${id}`,
+          source: `kimu-route-${id}`,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: {
             'line-color': id === 'primary' ? '#111111' : '#F97316',
@@ -647,7 +647,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     const map = mapRef.current!;
     for (const id of ['primary', 'secondary'] as const) {
       const route = routes.find((r) => (r.style ?? 'primary') === id);
-      const src = map.getSource(`fem-route-${id}`) as maplibregl.GeoJSONSource | undefined;
+      const src = map.getSource(`kimu-route-${id}`) as maplibregl.GeoJSONSource | undefined;
       if (!src) continue;
       if (!route || route.coordinates.length < 2) {
         src.setData(EMPTY_FC as any);
@@ -669,7 +669,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     if (!map || !cars || !loadedRef.current) return;
     for (const route of sceneRef.current.routes ?? []) {
       const id = route.style ?? 'primary';
-      const src = map.getSource(`fem-route-${id}`) as maplibregl.GeoJSONSource | undefined;
+      const src = map.getSource(`kimu-route-${id}`) as maplibregl.GeoJSONSource | undefined;
       if (!src || route.coordinates.length < 2) continue;
       let coords = route.coordinates;
       if (route.trimBehindCarId) {
@@ -757,21 +757,21 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
 const MARKER_CSS = `
 html, body, #root { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #eef0f2; }
 .maplibregl-ctrl-attrib { font: 10px/1.4 -apple-system, system-ui, sans-serif; }
-.fem-marker { position: relative; width: 0; height: 0; }
-.fem-marker > i { position: absolute; transform: translate(-50%, -50%); box-shadow: 0 2px 6px rgba(0,0,0,.35); }
-.fem-pickup > i { width: 16px; height: 16px; border-radius: 50%; background: #111; border: 4px solid #fff; box-sizing: content-box; }
-.fem-destination > i { width: 14px; height: 14px; background: #111; border: 4px solid #fff; box-sizing: content-box; }
-.fem-me > i { width: 14px; height: 14px; border-radius: 50%; background: #F97316; border: 3px solid #fff; }
-.fem-me > span { position: absolute; width: 44px; height: 44px; border-radius: 50%; transform: translate(-50%, -50%);
-  background: rgba(249,115,22,.18); animation: fem-breathe 2.4s ease-in-out infinite; }
-.fem-radar > i { width: 14px; height: 14px; border-radius: 50%; background: #111; border: 4px solid #fff; box-sizing: content-box; }
-.fem-radar > span { position: absolute; width: 220px; height: 220px; border-radius: 50%; transform: translate(-50%, -50%) scale(0);
-  background: radial-gradient(circle, rgba(249,115,22,0) 40%, rgba(249,115,22,.35) 100%); animation: fem-radar 2.7s ease-out infinite; }
-.fem-radar > span:nth-child(2) { animation-delay: .9s; }
-.fem-radar > span:nth-child(3) { animation-delay: 1.8s; }
-.fem-label { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); white-space: nowrap;
+.kimu-marker { position: relative; width: 0; height: 0; }
+.kimu-marker > i { position: absolute; transform: translate(-50%, -50%); box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.kimu-pickup > i { width: 16px; height: 16px; border-radius: 50%; background: #111; border: 4px solid #fff; box-sizing: content-box; }
+.kimu-destination > i { width: 14px; height: 14px; background: #111; border: 4px solid #fff; box-sizing: content-box; }
+.kimu-me > i { width: 14px; height: 14px; border-radius: 50%; background: #F97316; border: 3px solid #fff; }
+.kimu-me > span { position: absolute; width: 44px; height: 44px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: rgba(249,115,22,.18); animation: kimu-breathe 2.4s ease-in-out infinite; }
+.kimu-radar > i { width: 14px; height: 14px; border-radius: 50%; background: #111; border: 4px solid #fff; box-sizing: content-box; }
+.kimu-radar > span { position: absolute; width: 220px; height: 220px; border-radius: 50%; transform: translate(-50%, -50%) scale(0);
+  background: radial-gradient(circle, rgba(249,115,22,0) 40%, rgba(249,115,22,.35) 100%); animation: kimu-radar 2.7s ease-out infinite; }
+.kimu-radar > span:nth-child(2) { animation-delay: .9s; }
+.kimu-radar > span:nth-child(3) { animation-delay: 1.8s; }
+.kimu-label { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); white-space: nowrap;
   background: #111; color: #fff; font: 600 12px/1 -apple-system, system-ui, sans-serif; padding: 7px 10px; border-radius: 8px;
   box-shadow: 0 3px 10px rgba(0,0,0,.25); }
-@keyframes fem-radar { 0% { transform: translate(-50%,-50%) scale(.1); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(1); opacity: 0; } }
-@keyframes fem-breathe { 0%,100% { transform: translate(-50%,-50%) scale(.7); } 50% { transform: translate(-50%,-50%) scale(1); } }
+@keyframes kimu-radar { 0% { transform: translate(-50%,-50%) scale(.1); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(1); opacity: 0; } }
+@keyframes kimu-breathe { 0%,100% { transform: translate(-50%,-50%) scale(.7); } 50% { transform: translate(-50%,-50%) scale(1); } }
 `;

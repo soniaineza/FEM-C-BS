@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { RefreshControl, ScrollView, View, ViewStyle } from 'react-native';
 import { SafeAreaView, Edge } from 'react-native-safe-area-context';
 
-import { Colors, FemLayout } from '../../constants/theme';
+import { Colors, KimuLayout } from '../../constants/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 
 export interface ScreenProps {
@@ -31,7 +31,7 @@ export function Screen({
   children,
   scroll = true,
   background = 'canvas',
-  padding = FemLayout.screenPadding,
+  padding = KimuLayout.screenPadding,
   header,
   footer,
   edges = ['top', 'left', 'right', 'bottom'],
@@ -70,7 +70,7 @@ export function ScreenFooter({ children, background = Colors.surface }: { childr
   const { contentStyle } = useResponsive();
   return (
     <SafeAreaView edges={['bottom']} style={{ backgroundColor: background, borderTopWidth: 1, borderTopColor: Colors.divider }}>
-      <View style={[{ paddingHorizontal: FemLayout.screenPadding, paddingTop: 12, paddingBottom: 12, gap: 10 }, contentStyle]}>{children}</View>
+      <View style={[{ paddingHorizontal: KimuLayout.screenPadding, paddingTop: 12, paddingBottom: 12, gap: 10 }, contentStyle]}>{children}</View>
     </SafeAreaView>
   );
 }

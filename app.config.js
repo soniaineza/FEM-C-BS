@@ -23,7 +23,7 @@ module.exports = () => {
         infoPlist: {
           ...(appJson.expo.ios?.infoPlist || {}),
           NSLocationWhenInUseUsageDescription:
-            'FEM c@bs uses your location to find your pickup point and help your driver find you.',
+            'Kimu Transport uses your location to find your pickup point and help your driver find you.',
         },
       },
       android: {

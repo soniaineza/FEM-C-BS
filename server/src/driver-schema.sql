@@ -1,5 +1,5 @@
 -- ============================================================
--- FEM C@BS Driver-Side Database Extensions
+-- Kimu Transport Driver-Side Database Extensions
 -- ============================================================
 -- These tables extend the existing passenger schema with
 -- driver-specific features: documents, earnings, payouts,

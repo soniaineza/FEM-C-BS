@@ -1,9 +1,9 @@
 import { View, Text } from 'react-native';
 import { memo } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, FemGradients } from '../constants/theme';
+import { Colors, KimuGradients } from '../constants/theme';
 
-// Direct port of lib/widgets/brand_mark.dart — the FEM C@BS wordmark used on
+// Direct port of lib/widgets/brand_mark.dart — the Kimu Transport wordmark used on
 // the splash and welcome screens, with an optional gradient icon badge above
 // it (car icon in the Dart original; kept as a simple glyph here since we
 // have no vector icon set installed).
@@ -12,7 +12,7 @@ export const BrandMark = memo(function BrandMark({ fontSize = 28, withIcon = tru
     <View className="items-center">
       {withIcon ? (
         <LinearGradient
-          colors={[...FemGradients.hero]}
+          colors={[...KimuGradients.hero]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
@@ -34,11 +34,11 @@ export const BrandMark = memo(function BrandMark({ fontSize = 28, withIcon = tru
       ) : null}
       <View className="flex-row items-center">
         <Text style={{ fontSize, letterSpacing: -0.5 }} className="font-bold text-fg">
-          FEM
+          Kimu
         </Text>
         <View className="w-1.5" />
         <Text style={{ fontSize, letterSpacing: -0.5 }} className="font-bold text-primary-text">
-          C@BS
+          Transport
         </Text>
       </View>
     </View>

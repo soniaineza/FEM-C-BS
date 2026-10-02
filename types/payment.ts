@@ -9,7 +9,7 @@ export interface PaymentMethod {
 
 // lib/models/payment.dart's PaymentMethod.defaults, plus 'wallet' — the
 // backend's chargePayment() (server/src/services/payments.js) has a real
-// wallet debit path, so FEM Wallet is bookable as a ride payment method.
+// wallet debit path, so Kimu Wallet is bookable as a ride payment method.
 // 'card' is listed but the backend's PROVIDER_METHODS only routes
 // mtn_momo/airtel_money through Paypack — card charges would stay pending,
 // so it is filtered out by getBookablePaymentMethods() until a card
@@ -18,7 +18,7 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = [
   { id: 'cash', name: 'Cash', type: 'cash', detail: '' },
   { id: 'mtn_momo', name: 'MTN MoMo', type: 'mobileMoney', detail: '' },
   { id: 'airtel_money', name: 'Airtel Money', type: 'mobileMoney', detail: '' },
-  { id: 'wallet', name: 'FEM Wallet', type: 'wallet', detail: '' },
+  { id: 'wallet', name: 'Kimu Wallet', type: 'wallet', detail: '' },
   { id: 'card', name: 'Card', type: 'card', detail: '' },
 ];
 

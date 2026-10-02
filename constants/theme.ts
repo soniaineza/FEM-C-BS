@@ -18,7 +18,7 @@ export const Type = Object.fromEntries(
 ) as Record<TypeVariant, { fontSize: number; lineHeight: number }>;
 
 // Legacy names — existing screens import these; values now come from tokens.
-export const FemColors = {
+export const KimuColors = {
   primary: palette.primary,
   primaryBright: orange[400],
   primaryDark: palette['primary-hover'],
@@ -39,26 +39,26 @@ export const FemColors = {
   warning: palette.warning,
 } as const;
 
-export const FemGradients = {
+export const KimuGradients = {
   primary: [orange[400], orange[500], orange[600]],
   hero: [orange[500], orange[800]],
 } as const;
 
-export const FemShadows = {
+export const KimuShadows = {
   tile: elevation[1],
   card: elevation[2],
   sheet: elevation[3],
   button: elevation[2],
 } as const;
 
-export const FemRadius = {
+export const KimuRadius = {
   sm: radius.md,
   md: radius.lg,
   lg: radius.xl,
   xl: radius['2xl'],
 } as const;
 
-export const FemSpacing = {
+export const KimuSpacing = {
   screen: 20,
   screenMax: 24,
   button: 52,
@@ -66,7 +66,7 @@ export const FemSpacing = {
   radiusLg: 20,
 } as const;
 
-export const FemLayout = {
+export const KimuLayout = {
   screenPadding: 20,
   formMaxWidth: 440,
   contentMaxWidth: 680,
@@ -74,6 +74,6 @@ export const FemLayout = {
   formBottomPadding: 32,
 } as const;
 
-export const FemTouch = {
+export const KimuTouch = {
   min: 44,
 } as const;

@@ -1,4 +1,4 @@
-# FEM C@BS
+# Kimu Transport
 
 Passenger and driver apps (Expo / React Native) with a Node + PostgreSQL backend in `server/`.
 

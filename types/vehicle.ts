@@ -26,7 +26,7 @@ export function vehicleFromBackendJson(json: any): Vehicle {
 export const MOCK_VEHICLES: Vehicle[] = [
   {
     id: 'fem_economy',
-    name: 'FEM Economy',
+    name: 'Kimu Economy',
     description: 'Everyday rides at the best price.',
     capacity: 4,
     baseFare: 1800,
@@ -36,7 +36,7 @@ export const MOCK_VEHICLES: Vehicle[] = [
   },
   {
     id: 'fem_comfort',
-    name: 'FEM Comfort',
+    name: 'Kimu Comfort',
     description: 'Newer cars with extra legroom.',
     capacity: 4,
     baseFare: 1800,
@@ -46,7 +46,7 @@ export const MOCK_VEHICLES: Vehicle[] = [
   },
   {
     id: 'fem_xl',
-    name: 'FEM XL',
+    name: 'Kimu XL',
     description: 'Spacious vehicles for groups and luggage.',
     capacity: 6,
     baseFare: 1800,

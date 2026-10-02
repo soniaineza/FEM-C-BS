@@ -5,14 +5,14 @@ import { Colors, Fonts } from '../constants/theme';
 
 const OTP_LENGTH = 6;
 
-interface FEMOtpFieldProps {
+interface KimuOtpFieldProps {
   value: string;
   onChange: (code: string) => void;
   error?: boolean;
   disabled?: boolean;
 }
 
-export const FEMOtpField = memo(function FEMOtpField({ value, onChange, error, disabled }: FEMOtpFieldProps) {
+export const KimuOtpField = memo(function KimuOtpField({ value, onChange, error, disabled }: KimuOtpFieldProps) {
   const hiddenRef = useRef<TextInput>(null);
   const digits = value.replace(/[^0-9]/g, '').slice(0, OTP_LENGTH);
 
@@ -59,7 +59,7 @@ export const FEMOtpField = memo(function FEMOtpField({ value, onChange, error, d
   );
 });
 
-FEMOtpField.displayName = 'FEMOtpField';
+KimuOtpField.displayName = 'KimuOtpField';
 
 const styles = StyleSheet.create({
   hidden: {

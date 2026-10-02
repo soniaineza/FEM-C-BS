@@ -16,7 +16,7 @@ async function dispatchEmergency(id) {
   const passenger = await getPool().query('SELECT phone FROM passengers WHERE id=$1', [event.passenger_id]);
   const location = event.latitude != null && event.longitude != null
     ? `${event.latitude},${event.longitude}` : 'location unavailable';
-  const message = `FEM C@BS SOS ${event.reference}. Rider ${passenger.rows[0]?.phone || 'unknown'}, ride ${event.ride_id || 'none'}, location ${location}. Open the operator emergency queue now.`;
+  const message = `Kimu Transport SOS ${event.reference}. Rider ${passenger.rows[0]?.phone || 'unknown'}, ride ${event.ride_id || 'none'}, location ${location}. Open the operator emergency queue now.`;
   try {
     await sendSms(config.emergencyCallCenterPhone, message);
     await getPool().query(

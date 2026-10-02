@@ -9,7 +9,7 @@ const { pushNotification } = require('../services/notify');
 const { dispatchEmergency } = require('../services/emergencyDispatch');
 const { apiLimiter } = require('../middleware/rateLimit');
 
-// The FEM C@BS call center the app's SOS button reaches. Server-side config
+// The Kimu Transport call center the app's SOS button reaches. Server-side config
 // (EMERGENCY_CALL_CENTER_PHONE) so it can be rotated without an app release;
 // the client fetches it here and dials it with the OS dialer.
 // Production refuses to start without it (config.js); in development it may
@@ -33,7 +33,7 @@ router.get(
 
 // POST /api/emergency — passenger SOS. Records the event server-side so the
 // call center has an auditable trail, notifies the in-app control-room feed,
-// and the client dials the FEM C@BS call center with the OS dialer.
+// and the client dials the Kimu Transport call center with the OS dialer.
 router.post(
   '/',
   apiLimiter({ max: 5 }),

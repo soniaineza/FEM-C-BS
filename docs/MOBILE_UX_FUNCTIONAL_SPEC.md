@@ -41,7 +41,7 @@ This checklist covers the passenger and driver apps in this Expo Router project.
 
 ## Review priorities in this checkout
 
-1. Verify passenger and driver flows on a narrow Android device and inspect the bottom tab bar labels, which currently use a 10.5 dp font in `components/FEMBottomNavigation.tsx`.
+1. Verify passenger and driver flows on a narrow Android device and inspect the bottom tab bar labels, which currently use a 10.5 dp font in `components/KimuBottomNavigation.tsx`.
 2. Audit detail screens for a consistent title and back control; `components/BackHeader.tsx` supplies the control but its icon button still needs an accessibility label.
 3. Audit `Card` usage for information hierarchy, status text, and wrapping. In particular, the driver payout screen truncates amount and method to one line; its status is text, but the date and failure next step are absent.
 4. Verify loading, empty, error, and offline states across the request, tracking, trip, wallet, ratings, and payout routes. Route and static code inspection do not establish device behavior.

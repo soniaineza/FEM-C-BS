@@ -102,8 +102,8 @@ export async function signInPassenger(page: Page, p: Passenger) {
   await page.addInitScript(([token, id]) => {
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_passenger_id', id);
-    localStorage.setItem('fem_locale', 'en');
-    localStorage.setItem('fem_locale_chosen', '1');
+    localStorage.setItem('kimu_locale', 'en');
+    localStorage.setItem('kimu_locale_chosen', '1');
     localStorage.setItem('app_mode', 'passenger');
   }, [p.token, p.id]);
 }
@@ -113,8 +113,8 @@ export async function signInDriver(page: Page, driver: Driver) {
   await page.addInitScript(([token, id]) => {
     localStorage.setItem('driver_auth_token', token);
     localStorage.setItem('driver_auth_driver_id', id);
-    localStorage.setItem('fem_locale', 'en');
-    localStorage.setItem('fem_locale_chosen', '1');
+    localStorage.setItem('kimu_locale', 'en');
+    localStorage.setItem('kimu_locale_chosen', '1');
     localStorage.setItem('app_mode', 'driver');
   }, [driver.token, driver.id]);
 }
@@ -123,8 +123,8 @@ export async function signInDriver(page: Page, driver: Driver) {
 export async function freshVisitor(page: Page, { languageChosen = true, mode = 'passenger' } = {}) {
   await page.addInitScript(([chosen, m]) => {
     if (chosen === '1') {
-      localStorage.setItem('fem_locale', 'en');
-      localStorage.setItem('fem_locale_chosen', '1');
+      localStorage.setItem('kimu_locale', 'en');
+      localStorage.setItem('kimu_locale_chosen', '1');
     }
     localStorage.setItem('app_mode', m);
   }, [languageChosen ? '1' : '0', mode]);

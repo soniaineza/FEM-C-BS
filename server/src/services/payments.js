@@ -22,7 +22,7 @@ function bookablePaymentMethods() {
 
 async function createPaymentForRide(ride) {
   const amount = ride.final_fare != null ? ride.final_fare : ride.estimated_fare;
-  const reference = `FEM-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+  const reference = `KIMU-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
   const method = ride.payment_method;
 
   const { rows } = await getPool().query(

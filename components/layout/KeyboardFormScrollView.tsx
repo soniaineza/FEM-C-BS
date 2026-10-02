@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
-import { FemLayout } from '../../constants/theme';
+import { KimuLayout } from '../../constants/theme';
 
 type KeyboardFormScrollViewProps = {
   children: ReactNode;
@@ -17,8 +17,8 @@ export function KeyboardFormScrollView({
   children,
   centered = false,
   topPadding = 8,
-  bottomPadding = FemLayout.formBottomPadding,
-  horizontalPadding = FemLayout.formHorizontalPadding,
+  bottomPadding = KimuLayout.formBottomPadding,
+  horizontalPadding = KimuLayout.formHorizontalPadding,
 }: KeyboardFormScrollViewProps) {
   return (
     <KeyboardAwareScrollView
@@ -33,7 +33,7 @@ export function KeyboardFormScrollView({
         paddingBottom: bottomPadding,
       }}
     >
-      <View style={{ width: '100%', maxWidth: FemLayout.formMaxWidth, alignSelf: 'center' }}>
+      <View style={{ width: '100%', maxWidth: KimuLayout.formMaxWidth, alignSelf: 'center' }}>
         {children}
       </View>
     </KeyboardAwareScrollView>

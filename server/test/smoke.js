@@ -1,4 +1,4 @@
-/* End-to-end smoke test against the running FEM C@BS API. */
+/* End-to-end smoke test against the running Kimu Transport API. */
 const BASE = 'http://localhost:3000/api';
 let passed = 0, failed = 0;
 

@@ -6,7 +6,7 @@ import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholde
 import { Button } from '../../components/Button';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { BackHeader } from '../../components/BackHeader';
-import { FEMOtpField } from '../../components/FEMOtpField';
+import { KimuOtpField } from '../../components/KimuOtpField';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { ApiError } from '../../services/api-client';
@@ -90,7 +90,7 @@ export default function VerificationScreen() {
           ) : null}
 
           <View className="mt-7">
-            <FEMOtpField value={code} onChange={onChangeCode} error={Boolean(error)} disabled={loading} />
+            <KimuOtpField value={code} onChange={onChangeCode} error={Boolean(error)} disabled={loading} />
           </View>
 
           {error ? (

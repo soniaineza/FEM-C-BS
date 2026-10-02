@@ -62,7 +62,7 @@ test.describe('Booking a ride', () => {
     await tapButton(page, 'Find Ride');
     await expect(page.getByText('Choose a ride')).toBeVisible();
     await expect(page.getByText(/RWF/).first()).toBeVisible({ timeout: 30_000 });
-    await page.getByText('FEM Economy', { exact: true }).click();
+    await page.getByText('Kimu Economy', { exact: true }).click();
     await expect(page.getByText('Fare breakdown')).toBeVisible();
     await expect(page.getByText('Booking fee')).toBeVisible();
     await tapButton(page, /^Continue · /);

@@ -1,7 +1,7 @@
 import { View, Text, Image, Pressable, ScrollView } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FemGradients } from '../../constants/theme';
+import { KimuGradients } from '../../constants/theme';
 import { router, Redirect } from 'expo-router';
 
 import { Button } from '../../components/Button';
@@ -13,7 +13,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 
 // Direct port of lib/screens/auth/welcome_screen.dart's layout: a top hero
 // panel (gradient + two soft "blob" decorations + the car photo in a
-// circular frame + the FEM C@BS wordmark) over a bottom content panel
+// circular frame + the Kimu Transport wordmark) over a bottom content panel
 // (tagline, subtitle, CTA, login link). Carried over from Flutter 1:1 since
 // dropping it during the migration (an earlier, text-only pass) was flagged
 // as a real visual regression.
@@ -36,7 +36,7 @@ export default function WelcomeScreen() {
       <View className="px-5 pt-1" style={{ flexGrow: 6, minHeight: 260 }}>
         <View className="flex-1 overflow-hidden rounded-sheet">
           <LinearGradient
-            colors={[...FemGradients.hero]}
+            colors={[...KimuGradients.hero]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={{ flex: 1 }}
@@ -52,11 +52,11 @@ export default function WelcomeScreen() {
 
             <View className="absolute left-6 top-7 flex-row items-center">
               <Text className="text-title-1 font-bold text-white" style={{ letterSpacing: -0.5 }}>
-                FEM
+                Kimu
               </Text>
               <View className="w-1" />
               <Text className="text-title-1 font-bold text-white/85" style={{ letterSpacing: -0.5 }}>
-                C@BS
+                Transport
               </Text>
             </View>
 

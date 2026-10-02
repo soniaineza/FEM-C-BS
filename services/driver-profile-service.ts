@@ -153,7 +153,7 @@ export interface EmergencyResult {
   id: string;
   status: string;
   reference: string;
-  // The FEM C@BS call-center number the app dials with the OS dialer —
+  // The Kimu Transport call-center number the app dials with the OS dialer —
   // served by the backend (EMERGENCY_CALL_CENTER_PHONE in server/.env) so it
   // can be rotated without an app release.
   callCenterPhone?: string;

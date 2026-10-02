@@ -25,8 +25,8 @@ const ICONS: Record<string, { active: IconName; inactive: IconName }> = {
 //    iOS home indicator) is painted BY this bar via paddingBottom, so the
 //    white background runs flush to the screen edge while the icon row stays
 //    clear of the system area. Never position or offset this bar manually.
-//  - Touch targets stay >= 44pt (FemTouch.min) via minHeight.
-export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, descriptors, navigation }: BottomTabBarProps) {
+//  - Touch targets stay >= 44pt (KimuTouch.min) via minHeight.
+export const KimuBottomNavigation = memo(function KimuBottomNavigation({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -101,7 +101,7 @@ export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, de
   );
 });
 
-FEMBottomNavigation.displayName = 'FEMBottomNavigation';
+KimuBottomNavigation.displayName = 'KimuBottomNavigation';
 
 // Material 3 navigation bar: pill-shaped active indicator behind the icon,
 // label below; active label goes semibold ink, inactive stays subtle.

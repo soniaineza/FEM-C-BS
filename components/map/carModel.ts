@@ -27,7 +27,7 @@ const BODY_COLORS: Record<string, number> = {
   fem_comfort: 0x1f2937, // graphite
   fem_xl: 0x9ca3af, // silver
 };
-const ASSIGNED_COLOR = 0x16a34a; // FEM brand green
+const ASSIGNED_COLOR = 0x16a34a; // Kimu brand green
 
 interface Shared {
   body: THREE.BufferGeometry;

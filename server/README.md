@@ -1,6 +1,6 @@
-# FEM C@BS backend
+# Kimu Transport backend
 
-Node.js + Express + PostgreSQL REST API for the FEM C@BS passenger app.
+Node.js + Express + PostgreSQL REST API for the Kimu Transport passenger app.
 
 The current routes and schema use PostgreSQL. `MONGODB_URI` is reserved for a
 future migration and is not used by the current API; do not put a MongoDB URI
@@ -12,7 +12,7 @@ migrated deliberately.
 1. Have a PostgreSQL server running and create a database (or use an existing one).
 2. Copy `.env.example` to `.env` and set `DATABASE_URL`, e.g.:
    ```
-   DATABASE_URL=postgres://postgres:postgres@localhost:5432/femcabs
+   DATABASE_URL=postgres://postgres:postgres@localhost:5432/kimutransport
    ```
 3. Install dependencies and start:
    ```

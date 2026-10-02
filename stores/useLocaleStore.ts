@@ -3,8 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Locale } from '../locales';
 
-const STORAGE_KEY = 'fem_locale';
-const CHOSEN_KEY = 'fem_locale_chosen';
+const STORAGE_KEY = 'kimu_locale';
+const CHOSEN_KEY = 'kimu_locale_chosen';
 
 interface LocaleState {
   locale: Locale;

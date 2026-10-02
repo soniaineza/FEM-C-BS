@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Place } from '../types/place';
 
-// Pickup/destination row: filled green dot for pickup, filled red pin for
+// Pickup/destination row: filled green dot for pickup, filled orange pin for
 // destination, label text, chevron. `bordered` wraps the row in its own
 // card (used standalone); when false (default) it's meant to sit inside a
 // shared outer card with a divider between rows, matching the reference
@@ -29,14 +29,16 @@ export const LocationField = memo(function LocationField({
       className={`flex-row items-center px-3 py-3.5 sm:px-4 sm:py-4 ${bordered ? 'rounded-xl border border-border bg-white' : ''}`}
       onPress={onPress}
     >
-      <Ionicons name={isPickup ? 'ellipse' : 'location'} size={isPickup ? 16 : 20} color={isPickup ? '#FFFFFF' : '#DC2626'} />
+      <View className="w-5 items-center">
+        <Ionicons name={isPickup ? 'ellipse' : 'location'} size={isPickup ? 12 : 20} color={isPickup ? '#0E7C4A' : '#F97316'} />
+      </View>
       <Text
         numberOfLines={1}
-        className={`ml-3 flex-1 text-[15px] ${hasValue ? 'font-semibold text-white' : 'font-medium text-white/70'}`}
+        className={`ml-3 flex-1 text-[15px] ${hasValue ? 'font-semibold text-ink' : 'font-medium text-text-secondary'}`}
       >
         {hasValue ? value!.address : placeholder}
       </Text>
-      {onPress ? <Ionicons name="chevron-forward" size={20} color="#6B7280" /> : null}
+      {onPress ? <Ionicons name="chevron-forward" size={18} color="#9CA3AF" /> : null}
     </Pressable>
   );
 });

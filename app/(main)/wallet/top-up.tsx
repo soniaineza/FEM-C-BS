@@ -17,7 +17,7 @@ import { ApiError } from '../../../services/api-client';
 
 const QUICK_AMOUNTS = [1000, 2000, 5000, 10000, 20000];
 
-// Deposit money into the FEM Wallet: enter the mobile money number to charge
+// Deposit money into the Kimu Wallet: enter the mobile money number to charge
 // and the amount, same phone+amount shape as any other mobile-money top-up.
 // Goes through the real Paypack collect flow (services/wallet-service.ts);
 // when no processor is configured this honestly stays pending rather than

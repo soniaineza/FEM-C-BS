@@ -20,7 +20,7 @@ export interface EmergencyResult {
   id: string;
   status: string;
   reference: string;
-  // The FEM C@BS call-center number (EMERGENCY_CALL_CENTER_PHONE in the
+  // The Kimu Transport call-center number (EMERGENCY_CALL_CENTER_PHONE in the
   // server's .env) — the client dials it with the OS dialer right after the
   // event is recorded, so the call center hears from the rider directly.
   callCenterPhone?: string;
@@ -44,7 +44,7 @@ export async function triggerEmergency(params: {
   return json.emergency;
 }
 
-// Dials the FEM C@BS call center through the OS dialer (tel: works on
+// Dials the Kimu Transport call center through the OS dialer (tel: works on
 // Android/iOS and never requires CALL_PHONE permission — the user confirms
 // the call themselves, which is what you want on an SOS button).
 export function callPhoneNumber(phone: string): void {

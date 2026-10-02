@@ -144,7 +144,7 @@ export default function DriverHomeScreen() {
             <RNText className="text-title-1 font-bold text-primary-text">F</RNText>
           </View>
           <View className="ml-3 flex-1">
-            <RNText className="text-title-2 font-bold text-white">FEM C@BS</RNText>
+            <RNText className="text-title-2 font-bold text-white">Kimu Transport</RNText>
             <RNText className="text-caption font-medium tracking-wide text-white/85">{t('driverRoleLabel')}</RNText>
           </View>
           <Pressable

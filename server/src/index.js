@@ -95,7 +95,7 @@ async function main() {
   app.use(errorHandler);
 
   app.listen(config.port, () => {
-    console.log(`[server] FEM C@BS API listening on port ${config.port}`);
+    console.log(`[server] Kimu Transport API listening on port ${config.port}`);
   });
   startScheduler();
   if (config.demoFleet) {
