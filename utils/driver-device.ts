@@ -5,9 +5,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // These persist per install (AsyncStorage), not per driver, mirroring how the
 // physical YegoCabs terminal is bound to hardware rather than an account.
 
-const TERMINAL_KEY = 'fem_driver_terminal_id';
-const EBILL_KEY = 'fem_driver_ebill_phone';
-const CARD_KEY = 'fem_driver_card';
+const TERMINAL_KEY = 'kimu_driver_terminal_id';
+const EBILL_KEY = 'kimu_driver_ebill_phone';
+const CARD_KEY = 'kimu_driver_card';
 
 let terminalCache: string | null = null;
 

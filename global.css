@@ -4,7 +4,7 @@
 
 @import 'leaflet/dist/leaflet.css';
 
-.fem-map-marker {
+.kimu-map-marker {
   background: transparent !important;
   border: none !important;
 }

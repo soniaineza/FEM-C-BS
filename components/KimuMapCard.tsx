@@ -2,7 +2,7 @@ import { ReactNode, memo } from 'react';
 import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-interface FEMMapCardProps {
+interface KimuMapCardProps {
   children: ReactNode;
   // Constrained, responsive height so the map reads as a card/section and
   // never swallows the screen. Full-screen map pages pass a larger value.
@@ -19,14 +19,14 @@ interface FEMMapCardProps {
 // Reusable framed map container: rounded corners, clipping, subtle border +
 // shadow, padding-free responsive width, and an optional recenter control.
 // Wraps a RideMap child without owning any map logic itself.
-export const FEMMapCard = memo(function FEMMapCard({
+export const KimuMapCard = memo(function KimuMapCard({
   children,
   height = 160,
   className,
   onRecenter,
   recenterLabel = 'Recenter map',
   recenterDisabled = false,
-}: FEMMapCardProps) {
+}: KimuMapCardProps) {
   return (
     <View
       className={`w-full overflow-hidden rounded-2xl border border-border bg-gray-light ${className ?? ''}`}
@@ -65,4 +65,4 @@ export const FEMMapCard = memo(function FEMMapCard({
   );
 });
 
-FEMMapCard.displayName = 'FEMMapCard';
+KimuMapCard.displayName = 'KimuMapCard';

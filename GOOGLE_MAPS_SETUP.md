@@ -73,5 +73,5 @@ not be committed either.
 | Reverse geocode | Backend proxy (`/api/locations/reverse`) | Optional: Geocoding API |
 | Routing | Backend proxy → OSRM (`/api/locations/route`) | Optional: Directions/Routes API |
 
-The map-in-a-frame UX (`FEMMapCard`) stays identical either way — only the
+The map-in-a-frame UX (`KimuMapCard`) stays identical either way — only the
 rendering component under it changes.

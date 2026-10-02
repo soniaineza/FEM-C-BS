@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import MapEngine from './MapEngine';
 import type { MapScene } from './map-types';
-import { FemColors } from '../../constants/theme';
+import { KimuColors } from '../../constants/theme';
 
 export interface LiveMapProps {
   scene: MapScene;
@@ -83,16 +83,16 @@ export function LiveMap({
       />
       {!ready && !error ? (
         <View style={[styles.overlay, styles.center]} pointerEvents="none">
-          <ActivityIndicator color={FemColors.primary} />
+          <ActivityIndicator color={KimuColors.primary} />
           <Text style={styles.hint}>{loadingLabel}</Text>
         </View>
       ) : null}
       {error ? (
         <View style={[styles.overlay, styles.center, styles.padded]}>
-          <Ionicons name="map-outline" size={36} color={FemColors.muted} />
+          <Ionicons name="map-outline" size={36} color={KimuColors.muted} />
           <Text style={[styles.hint, styles.centerText]}>{errorLabel}</Text>
           <Pressable onPress={retry} hitSlop={8} style={styles.retry}>
-            <Ionicons name="refresh" size={16} color={FemColors.primary} />
+            <Ionicons name="refresh" size={16} color={KimuColors.primary} />
             <Text style={styles.retryText}>{retryLabel}</Text>
           </Pressable>
         </View>
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#eef0f2' },
   center: { alignItems: 'center', justifyContent: 'center' },
   padded: { paddingHorizontal: 24 },
-  hint: { marginTop: 8, fontSize: 12, color: FemColors.textSecondary },
+  hint: { marginTop: 8, fontSize: 12, color: KimuColors.textSecondary },
   centerText: { textAlign: 'center', fontSize: 14 },
   retry: {
     marginTop: 12,
@@ -115,9 +115,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: FemColors.primary,
+    borderColor: KimuColors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  retryText: { marginLeft: 6, fontSize: 14, fontWeight: '600', color: FemColors.primary },
+  retryText: { marginLeft: 6, fontSize: 14, fontWeight: '600', color: KimuColors.primary },
 });

@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 
-import { FEMBottomNavigation } from '../../../components/FEMBottomNavigation';
+import { KimuBottomNavigation } from '../../../components/KimuBottomNavigation';
 import { useTranslation } from '../../../hooks/useTranslation';
 
 export default function TabsLayout() {
@@ -12,7 +12,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarShowLabel: false,
       }}
-      tabBar={(props) => <FEMBottomNavigation {...props} />}
+      tabBar={(props) => <KimuBottomNavigation {...props} />}
     >
       <Tabs.Screen name="index" options={{ title: t('home') }} />
       <Tabs.Screen name="activity" options={{ title: t('myRides') }} />

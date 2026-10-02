@@ -28,7 +28,7 @@ import { useNearbyCars } from '../hooks/useNearbyCars';
 import * as locationService from '../services/location-service';
 import { getRecentPlaces, RecentPlace } from '../services/user-service';
 import { Place, placeHasCoordinates } from '../types/place';
-import { FemColors } from '../constants/theme';
+import { KimuColors } from '../constants/theme';
 
 interface PlacePickerProps {
   mode: 'pickup' | 'destination';
@@ -273,14 +273,14 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
       >
         <View style={styles.searchRow}>
           <Pressable accessibilityRole="button" accessibilityLabel={t('back')} onPress={() => goBack()} hitSlop={8} style={styles.roundButton}>
-            <Ionicons name="arrow-back" size={22} color={FemColors.ink} />
+            <Ionicons name="arrow-back" size={22} color={KimuColors.ink} />
           </Pressable>
           <View style={styles.searchBox}>
-            <Ionicons name="search" size={18} color={FemColors.textSecondary} />
+            <Ionicons name="search" size={18} color={KimuColors.textSecondary} />
             <TextInput
               style={styles.searchInput}
               placeholder={mode === 'pickup' ? t('searchOrTypeAddress') : t('searchDestination')}
-              placeholderTextColor={FemColors.textSecondary}
+              placeholderTextColor={KimuColors.textSecondary}
               value={query}
               onChangeText={(text) => {
                 setQuery(text);
@@ -290,10 +290,10 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
               returnKeyType="search"
               autoCorrect={false}
             />
-            {searching ? <ActivityIndicator size="small" color={FemColors.primary} /> : null}
+            {searching ? <ActivityIndicator size="small" color={KimuColors.primary} /> : null}
             {query ? (
               <Pressable hitSlop={8} onPress={() => { setQuery(''); setResults([]); }}>
-                <Ionicons name="close-circle" size={18} color={FemColors.muted} />
+                <Ionicons name="close-circle" size={18} color={KimuColors.muted} />
               </Pressable>
             ) : null}
           </View>
@@ -305,7 +305,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
             <ScrollView keyboardShouldPersistTaps="handled">
               {list.map((place, i) => (
                 <Pressable key={`${place.address}-${i}`} onPress={() => chooseResult(place)} style={styles.resultRow}>
-                  <Ionicons name={query.trim().length < 2 ? 'time-outline' : 'location-outline'} size={18} color={FemColors.textSecondary} />
+                  <Ionicons name={query.trim().length < 2 ? 'time-outline' : 'location-outline'} size={18} color={KimuColors.textSecondary} />
                   <Text numberOfLines={2} style={styles.resultText}>{place.address}</Text>
                 </Pressable>
               ))}
@@ -323,7 +323,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
           disabled={locating}
           style={[styles.roundButton, styles.locate, { bottom: sheetHeight + 12 }]}
         >
-          {locating ? <ActivityIndicator color={FemColors.primary} /> : <Ionicons name="locate" size={22} color={FemColors.primary} />}
+          {locating ? <ActivityIndicator color={KimuColors.primary} /> : <Ionicons name="locate" size={22} color={KimuColors.primary} />}
         </Pressable>
       ) : null}
 
@@ -386,31 +386,31 @@ const styles = StyleSheet.create({
     gap: 8,
     ...shadow,
   },
-  searchInput: { flex: 1, fontSize: 15, color: FemColors.ink, paddingVertical: 0, outlineWidth: 0 },
+  searchInput: { flex: 1, fontSize: 15, color: KimuColors.ink, paddingVertical: 0, outlineWidth: 0 },
   results: { marginTop: 8, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 6, ...shadow },
-  resultsTitle: { paddingHorizontal: 14, paddingVertical: 6, fontSize: 12, fontWeight: '600', color: FemColors.textSecondary },
+  resultsTitle: { paddingHorizontal: 14, paddingVertical: 6, fontSize: 12, fontWeight: '600', color: KimuColors.textSecondary },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
-  resultText: { flex: 1, fontSize: 14, color: FemColors.ink },
+  resultText: { flex: 1, fontSize: 14, color: KimuColors.ink },
   pinWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   pin: { alignItems: 'center' },
   pinHead: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: FemColors.ink,
+    backgroundColor: KimuColors.ink,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow,
   },
   pinHeadSquare: { borderRadius: 6 },
   pinDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#fff' },
-  pinStem: { width: 3, height: 16, backgroundColor: FemColors.ink, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
+  pinStem: { width: 3, height: 16, backgroundColor: KimuColors.ink, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
   pinShadow: { width: 12, height: 5, borderRadius: 6, backgroundColor: '#000', marginTop: 1 },
   locate: { position: 'absolute', right: 16 },
-  sheetTitle: { fontSize: 18, fontWeight: '700', color: FemColors.ink, marginBottom: 10 },
+  sheetTitle: { fontSize: 18, fontWeight: '700', color: KimuColors.ink, marginBottom: 10 },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  addressIcon: { width: 12, height: 12, borderRadius: 6, backgroundColor: FemColors.ink },
+  addressIcon: { width: 12, height: 12, borderRadius: 6, backgroundColor: KimuColors.ink },
   addressIconSquare: { borderRadius: 2 },
-  addressText: { flex: 1, fontSize: 15, fontWeight: '500', color: FemColors.ink },
-  error: { marginTop: 6, fontSize: 13, color: FemColors.error },
+  addressText: { flex: 1, fontSize: 15, fontWeight: '500', color: KimuColors.ink },
+  error: { marginTop: 6, fontSize: 13, color: KimuColors.error },
 });

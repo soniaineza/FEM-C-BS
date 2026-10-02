@@ -1,5 +1,5 @@
 // Central brand tokens. Screens should import these instead of scattering hex values.
-export const FemColors = {
+export const KimuColors = {
   primary: '#0E7C4A',
   primaryDark: '#0A5F39',
   primarySoft: 'rgba(14,124,74,0.08)',
@@ -21,7 +21,7 @@ export const FemColors = {
   warning: '#D97706',
 } as const;
 
-export const FemSpacing = {
+export const KimuSpacing = {
   screen: 20,
   screenMax: 24,
   button: 52,
@@ -29,6 +29,6 @@ export const FemSpacing = {
   radiusLg: 20,
 } as const;
 
-export const FemTouch = {
+export const KimuTouch = {
   min: 44,
 } as const;

@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { useResponsive } from '../hooks/useResponsive';
-import { FemColors } from '../constants/theme';
+import { KimuColors } from '../constants/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -26,8 +26,8 @@ const ICONS: Record<string, { active: IconName; inactive: IconName }> = {
 //    iOS home indicator) is painted BY this bar via paddingBottom, so the
 //    white background runs flush to the screen edge while the icon row stays
 //    clear of the system area. Never position or offset this bar manually.
-//  - Touch targets stay >= 44pt (FemTouch.min) via minHeight.
-export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, descriptors, navigation }: BottomTabBarProps) {
+//  - Touch targets stay >= 44pt (KimuTouch.min) via minHeight.
+export const KimuBottomNavigation = memo(function KimuBottomNavigation({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { spacing, typography, dimensions } = useResponsive();
 
@@ -82,14 +82,14 @@ export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, de
                 <Ionicons
                   name={focused ? icons.active : icons.inactive}
                   size={21}
-                  color={focused ? FemColors.primary : FemColors.textSecondary}
+                  color={focused ? KimuColors.primary : KimuColors.textSecondary}
                 />
               </View>
               <Text
                 numberOfLines={1}
                 style={[
                   styles.label,
-                  { color: focused ? FemColors.primary : FemColors.textSecondary },
+                  { color: focused ? KimuColors.primary : KimuColors.textSecondary },
                   focused ? styles.labelActive : null,
                 ]}
               >
@@ -103,13 +103,13 @@ export const FEMBottomNavigation = memo(function FEMBottomNavigation({ state, de
   );
 });
 
-FEMBottomNavigation.displayName = 'FEMBottomNavigation';
+KimuBottomNavigation.displayName = 'KimuBottomNavigation';
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: FemColors.white,
+    backgroundColor: KimuColors.white,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: FemColors.border,
+    borderTopColor: KimuColors.border,
     paddingTop: 6,
   },
   row: {
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconPillActive: {
-    backgroundColor: FemColors.primarySoft,
+    backgroundColor: KimuColors.primarySoft,
   },
   label: {
     fontSize: 10.5,

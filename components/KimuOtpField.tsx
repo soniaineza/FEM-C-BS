@@ -1,18 +1,18 @@
 import { useRef, memo } from 'react';
 import { View, TextInput, StyleSheet, Pressable } from 'react-native';
 
-import { FemColors } from '../constants/theme';
+import { KimuColors } from '../constants/theme';
 
 const OTP_LENGTH = 6;
 
-interface FEMOtpFieldProps {
+interface KimuOtpFieldProps {
   value: string;
   onChange: (code: string) => void;
   error?: boolean;
   disabled?: boolean;
 }
 
-export const FEMOtpField = memo(function FEMOtpField({ value, onChange, error, disabled }: FEMOtpFieldProps) {
+export const KimuOtpField = memo(function KimuOtpField({ value, onChange, error, disabled }: KimuOtpFieldProps) {
   const hiddenRef = useRef<TextInput>(null);
   const digits = value.replace(/[^0-9]/g, '').slice(0, OTP_LENGTH);
 
@@ -59,7 +59,7 @@ export const FEMOtpField = memo(function FEMOtpField({ value, onChange, error, d
   );
 });
 
-FEMOtpField.displayName = 'FEMOtpField';
+KimuOtpField.displayName = 'KimuOtpField';
 
 const styles = StyleSheet.create({
   hidden: {
@@ -80,25 +80,25 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: FemColors.border,
-    backgroundColor: FemColors.white,
+    borderColor: KimuColors.border,
+    backgroundColor: KimuColors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filled: {
-    borderColor: FemColors.primary,
+    borderColor: KimuColors.primary,
   },
   active: {
-    borderColor: FemColors.primary,
-    backgroundColor: FemColors.primarySoft,
+    borderColor: KimuColors.primary,
+    backgroundColor: KimuColors.primarySoft,
   },
   error: {
-    borderColor: FemColors.error,
+    borderColor: KimuColors.error,
   },
   digit: {
     fontSize: 22,
     fontFamily: 'Inter_600SemiBold',
-    color: FemColors.ink,
+    color: KimuColors.ink,
     textAlign: 'center',
     padding: 0,
   },

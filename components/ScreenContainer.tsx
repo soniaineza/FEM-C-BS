@@ -4,7 +4,7 @@ import { ScrollView, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useResponsive } from '../hooks/useResponsive';
-import { FemColors } from '../constants/theme';
+import { KimuColors } from '../constants/theme';
 
 interface ScreenContainerProps {
   children: ReactNode;
