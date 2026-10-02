@@ -4,7 +4,7 @@ import { Linking } from 'react-native';
 // (international format, digits only, no leading +) before shipping. Left
 // as an obvious placeholder rather than guessing a real contact number.
 export const SUPPORT_WHATSAPP_NUMBER = '250700000000';
-export const SUPPORT_EMAIL = 'support@femcabs.com';
+export const SUPPORT_EMAIL = 'support@kimutransport.com';
 
 /** Opens a WhatsApp chat with Kimu Transport support, prefilled with a starter message. */
 export function openWhatsAppSupport(message = "Hi Kimu Transport, I need help with..."): void {

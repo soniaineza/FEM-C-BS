@@ -7,7 +7,7 @@ if (!key) {
 }
 
 const state = {
-  product: 'FEM C@BS: a Rwanda ride-hailing app with separate rider and driver experiences in English, French, and Kinyarwanda.',
+  product: 'Kimu Transport: a Rwanda ride-hailing app with separate rider and driver experiences in English, French, and Kinyarwanda.',
   goal: 'World-class, clean, minimal mobile interface. Riders must see nearby drivers on the map immediately; booking and safety actions stay easy to find. Drivers need clear offers, status, earnings, and account actions.',
   constraints: 'Expo SDK 57, React Native, Android and web. Green brand accent on white/light neutral surfaces. Existing map-focused Home has a compact persistent booking panel. Inter and Poppins font packages are already installed.',
   issues: 'Some account screens need clear request failure and retry states. Saved places must use a geocoded result. Long translated labels and short-phone layouts matter.',

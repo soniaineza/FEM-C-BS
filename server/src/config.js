@@ -11,7 +11,7 @@ const config = {
   port: Number(process.env.PORT || 3000),
 
   // A running PostgreSQL instance the API connects to, e.g.
-  // postgres://user:password@localhost:5432/femcabs
+  // postgres://user:password@localhost:5432/kimutransport
   databaseUrl: process.env.DATABASE_URL || '',
 
   // Reserved for the MongoDB migration. The current API still uses the

@@ -43,7 +43,7 @@ export default function DriverHelpVideosScreen() {
 
         <Pressable
           className="mt-4 flex-row items-center rounded-2xl border border-primary bg-dark-surface px-4 py-3.5"
-          onPress={() => Linking.openURL('mailto:support@femcabs.com')}
+          onPress={() => Linking.openURL('mailto:support@kimutransport.com')}
         >
           <Ionicons name="chatbubble-ellipses-outline" size={20} color="#0E7C4A" />
           <Text className="ml-3 flex-1 text-[14.5px] font-semibold text-dark-text">{t('driverHelpSupport')}</Text>

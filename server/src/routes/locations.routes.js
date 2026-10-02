@@ -45,7 +45,7 @@ async function fallbackNominatim(q) {
   const res = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'FEMCabsApp/1.0 (mobile app; https://femcabs.rw)',
+      'User-Agent': 'KimuTransportApp/1.0 (mobile app; https://kimutransport.rw)',
     },
     signal: AbortSignal.timeout(8000),
   });
@@ -155,7 +155,7 @@ const reverseCache = new Map(); // "lat,lng" (4 dp) -> { address, at }
 async function nominatimReverse(lat, lng) {
   const url = `${config.nominatimReverseUrl}?format=jsonv2&zoom=18&addressdetails=1&lat=${lat}&lon=${lng}`;
   const res = await fetch(url, {
-    headers: { Accept: 'application/json', 'User-Agent': 'FEMCabsApp/1.0 (mobile app; https://femcabs.rw)' },
+    headers: { Accept: 'application/json', 'User-Agent': 'KimuTransportApp/1.0 (mobile app; https://kimutransport.rw)' },
     signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) return null;

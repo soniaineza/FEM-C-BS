@@ -1,4 +1,4 @@
-# FEM C@BS functionality completion plan
+# Kimu Transport functionality completion plan
 
 Updated: 2026-09-29. This is a work plan and acceptance checklist, not a claim that every screen has passed on a physical phone. Check a box only after the named behavior has been observed and its evidence recorded in a PR or release note.
 
