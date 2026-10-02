@@ -31,7 +31,7 @@ export default function DriverTripDetailScreen() {
         <View className="flex-1 px-6 pt-2">
           <BackHeader />
           {!error ? (
-            <ActivityIndicator className="mt-10" color="#16A34A" />
+            <ActivityIndicator className="mt-10" color="#0E7C4A" />
           ) : (
             <View className="mt-10 items-center">
               <Text className="text-center text-text-secondary">{error}</Text>

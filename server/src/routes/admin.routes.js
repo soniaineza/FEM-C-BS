@@ -175,7 +175,7 @@ router.post(
     await recordStatus(driver.id, driver.status, rows[0].status, 'verified by admin');
     await pushDriverNotification(driver.id, {
       title: 'You are verified',
-      body: 'Your FEM C@BS driver account is approved. Go online to start receiving rides.',
+      body: 'Your Kimu Transport driver account is approved. Go online to start receiving rides.',
       type: 'account',
     });
     res.json({ driver: driverToJson(rows[0]) });
@@ -242,7 +242,7 @@ router.post(
     await recordStatus(driver.id, driver.status, 'suspended', String(reason));
     await pushDriverNotification(driver.id, {
       title: 'Account suspended',
-      body: `Your driver account was suspended: ${reason}. Contact FEM C@BS support.`,
+      body: `Your driver account was suspended: ${reason}. Contact Kimu Transport support.`,
       type: 'account',
     });
     res.json({ driver: driverToJson(rows[0]) });

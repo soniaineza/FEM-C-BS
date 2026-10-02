@@ -53,8 +53,8 @@ export default function DriverPairTripScreen() {
 
           {(currentDriver?.fullName || currentDriver?.vehiclePlate) ? (
             <View className="mt-4 w-full flex-row items-center justify-center rounded-2xl border border-dark-border bg-dark-surface px-4 py-3">
-              <View className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.16)' }}>
-                <Ionicons name="person" size={16} color="#16A34A" />
+              <View className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.16)' }}>
+                <Ionicons name="person" size={16} color="#0E7C4A" />
               </View>
               <View className="ml-3 flex-1">
                 <Text className="text-[14px] font-bold text-dark-text" numberOfLines={1}>{currentDriver?.fullName}</Text>

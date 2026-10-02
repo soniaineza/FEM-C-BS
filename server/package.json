@@ -2,7 +2,7 @@
   "name": "fem-cabs-server",
   "version": "1.0.0",
   "private": true,
-  "description": "FEM C@BS ride-hailing backend (Node + Express + PostgreSQL)",
+  "description": "Kimu Transport ride-hailing backend (Node + Express + PostgreSQL)",
   "main": "src/index.js",
   "type": "commonjs",
   "scripts": {

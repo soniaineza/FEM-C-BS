@@ -56,7 +56,7 @@ export default function DriverEbillingDialpadScreen() {
 
         {savedNumber ? (
           <View className="mt-3 flex-row items-center rounded-xl border border-primary bg-dark-surface px-3.5 py-2.5">
-            <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+            <Ionicons name="checkmark-circle" size={18} color="#0E7C4A" />
             <Text className="ml-2 flex-1 text-[12.5px] text-dark-text">
               {savedNumber} — {t('driverEbillingLinked')}
             </Text>
@@ -84,7 +84,7 @@ export default function DriverEbillingDialpadScreen() {
             </Pressable>
             <Pressable
               className="h-16 flex-none items-center justify-center rounded-2xl px-10"
-              style={{ backgroundColor: '#16A34A' }}
+              style={{ backgroundColor: '#0E7C4A' }}
               onPress={confirm}
             >
               <Text className="text-lg font-bold text-white">{t('driverEbillingConfirm')}</Text>

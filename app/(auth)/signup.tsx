@@ -100,7 +100,7 @@ export default function SignupScreen() {
             <Ionicons
               name={acceptedTerms ? 'checkbox' : 'checkbox-outline'}
               size={22}
-              color={acceptedTerms ? '#16A34A' : '#6B7280'}
+              color={acceptedTerms ? '#0E7C4A' : '#6B7280'}
             />
             <Text className="ml-2.5 flex-1 text-sm leading-5 text-ink">{t('agreeTerms')}</Text>
           </Pressable>

@@ -54,7 +54,7 @@ export default function DriverWalletScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator className="mt-8" color="#16A34A" />
+        <ActivityIndicator className="mt-8" color="#0E7C4A" />
       ) : error ? (
         <View className="mt-8 gap-4 px-5">
           <Text className="text-center text-error">{error}</Text>
@@ -64,7 +64,7 @@ export default function DriverWalletScreen() {
         <ScrollView contentContainerClassName="px-5 pb-8">
           <View
             className="rounded-2xl bg-primary p-5"
-            style={{ shadowColor: '#16A34A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
+            style={{ shadowColor: '#0E7C4A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
           >
             <Text className="text-xs font-medium text-white/80">{t('driverPendingBalance')}</Text>
             <Text className="mt-1 text-3xl font-bold text-white">{formatFare(summary?.pendingBalance ?? 0)}</Text>

@@ -26,8 +26,8 @@ export default function DriverHelpVideosScreen() {
         <View className="flex-row items-center gap-3">
           {topics.map((topic) => (
             <View key={topic.key} className="flex-1 items-center rounded-2xl border border-dark-border bg-dark-surface py-5">
-              <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.16)' }}>
-                <Ionicons name={topic.icon} size={20} color="#16A34A" />
+              <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.16)' }}>
+                <Ionicons name={topic.icon} size={20} color="#0E7C4A" />
               </View>
               <Text className="mt-2.5 px-2 text-center text-[11px] font-semibold leading-3.5 text-dark-text">
                 {t(topic.key as any)}
@@ -45,7 +45,7 @@ export default function DriverHelpVideosScreen() {
           className="mt-4 flex-row items-center rounded-2xl border border-primary bg-dark-surface px-4 py-3.5"
           onPress={() => Linking.openURL('mailto:support@femcabs.com')}
         >
-          <Ionicons name="chatbubble-ellipses-outline" size={20} color="#16A34A" />
+          <Ionicons name="chatbubble-ellipses-outline" size={20} color="#0E7C4A" />
           <Text className="ml-3 flex-1 text-[14.5px] font-semibold text-dark-text">{t('driverHelpSupport')}</Text>
           <Ionicons name="chevron-forward" size={18} color="#5C6B8E" />
         </Pressable>

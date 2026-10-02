@@ -37,7 +37,7 @@ export default function DriverRatingsScreen() {
         <Text className="mt-2 text-xl text-ink font-display">{t('ratings')}</Text>
 
         {loading ? (
-          <ActivityIndicator className="mt-8" color="#16A34A" />
+          <ActivityIndicator className="mt-8" color="#0E7C4A" />
         ) : error ? (
           <View className="mt-8 gap-4">
             <Text className="text-center text-error">{error}</Text>
@@ -54,7 +54,7 @@ export default function DriverRatingsScreen() {
                   return (
                     <View key={stars} className="mb-1 flex-row items-center">
                       <Text className="w-4 text-xs text-text-secondary">{stars}</Text>
-                      <Ionicons name="star" size={11} color="#D97706" />
+                      <Ionicons name="star" size={11} color="#F97316" />
                       <View className="ml-2 h-1.5 flex-1 overflow-hidden rounded-full bg-gray-light">
                         <View className="h-1.5 rounded-full bg-warning" style={{ width: `${(count / total) * 100}%` }} />
                       </View>
@@ -74,7 +74,7 @@ export default function DriverRatingsScreen() {
                   <View className="flex-row items-center justify-between">
                     <Text className="text-[14.5px] font-semibold text-ink">{item.passengerName}</Text>
                     <View className="flex-row items-center">
-                      <Ionicons name="star" size={13} color="#D97706" />
+                      <Ionicons name="star" size={13} color="#F97316" />
                       <Text className="ml-1 text-[13px] text-ink">{item.rating}</Text>
                     </View>
                   </View>

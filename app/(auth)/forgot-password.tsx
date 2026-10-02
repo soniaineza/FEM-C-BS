@@ -87,7 +87,7 @@ export default function ForgotPasswordScreen() {
         {stage === 'confirm' && (
           <>
             <View className="items-center">
-              <Ionicons name="mail-open-outline" size={56} color="#16A34A" />
+              <Ionicons name="mail-open-outline" size={56} color="#0E7C4A" />
             </View>
             <Text className="mt-4 text-2xl text-ink font-display">{t('codeArrivalHint')}</Text>
             <Text className="mt-2 leading-relaxed text-text-secondary">{t('checkPhoneOrEmail')}</Text>
@@ -132,7 +132,7 @@ export default function ForgotPasswordScreen() {
         {stage === 'done' && (
           <>
             <View className="items-center pt-6">
-              <Ionicons name="checkmark-circle-outline" size={64} color="#16A34A" />
+              <Ionicons name="checkmark-circle-outline" size={64} color="#0E7C4A" />
             </View>
             <Text className="mt-5 text-center text-xl text-ink font-display">{t('passwordResetDone')}</Text>
             <View className="mt-7">

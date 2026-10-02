@@ -1,6 +1,6 @@
-# FEM C@BS backend
+# Kimu Transport backend
 
-Node.js + Express + PostgreSQL REST API for the FEM C@BS passenger app.
+Node.js + Express + PostgreSQL REST API for the Kimu Transport passenger app.
 
 The current routes and schema use PostgreSQL. `MONGODB_URI` is reserved for a
 future migration and is not used by the current API; do not put a MongoDB URI

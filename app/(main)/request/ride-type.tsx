@@ -31,8 +31,8 @@ function OptionCard({
       <View className="flex-row items-center justify-between">
         <Text className="text-base font-semibold text-ink">{title}</Text>
         {discount ? (
-          <View className="rounded bg-primary px-2 py-0.5">
-            <Text className="text-xs font-semibold text-white">-{discount}%</Text>
+          <View className="rounded-full bg-accent-soft px-2.5 py-0.5">
+            <Text className="text-xs font-semibold text-accent-dark">-{discount}%</Text>
           </View>
         ) : null}
       </View>

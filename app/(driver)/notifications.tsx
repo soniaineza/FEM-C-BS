@@ -61,7 +61,7 @@ export default function DriverNotificationsScreen() {
         {error && items.length > 0 ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
 
         {loading ? (
-          <ActivityIndicator className="mt-8" color="#16A34A" />
+          <ActivityIndicator className="mt-8" color="#0E7C4A" />
         ) : error && items.length === 0 ? (
           <View className="mt-8 gap-4">
             <Text className="text-center text-error">{error}</Text>
@@ -80,7 +80,7 @@ export default function DriverNotificationsScreen() {
             renderItem={({ item }) => (
               <Pressable className="border-b border-border py-3" onPress={() => handleOpen(item)}>
                 <View className="flex-row items-center gap-2">
-                  {!item.read ? <View className="h-2 w-2 rounded-full bg-primary" /> : null}
+                  {!item.read ? <View className="h-2 w-2 rounded-full bg-accent" /> : null}
                   <Text className="text-base font-medium text-ink">{item.title}</Text>
                 </View>
                 <Text className="mt-1 text-sm text-text-secondary">{item.body}</Text>

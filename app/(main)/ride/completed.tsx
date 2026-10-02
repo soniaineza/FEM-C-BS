@@ -34,7 +34,7 @@ export default function CompletedScreen() {
             <Button title={t('tryAgain')} variant="outline" onPress={load} />
             <Button title={t('backHome')} variant="text" onPress={() => router.replace('/(main)/(tabs)')} />
           </View>
-        ) : <ActivityIndicator color="#16A34A" />}
+        ) : <ActivityIndicator color="#0E7C4A" />}
       </SafeAreaViewPlaceholder>
     );
   }

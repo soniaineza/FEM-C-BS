@@ -33,7 +33,7 @@ export function FareBreakdownView({
       ))}
       {breakdown.surgeMultiplier > 1 ? (
         <View className="flex-row items-center py-0.5">
-          <Ionicons name="flash" size={13} color="#D97706" />
+          <Ionicons name="flash" size={13} color="#F97316" />
           <Text className="ml-1 text-[13px] text-warning">{t('surgeApplied', { multiplier: breakdown.surgeMultiplier.toFixed(1) })}</Text>
         </View>
       ) : null}

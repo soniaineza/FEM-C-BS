@@ -106,7 +106,7 @@ export function DriverSidebar({ visible, onClose }: { visible: boolean; onClose:
           <ScrollView showsVerticalScrollIndicator={false}>
             <View className="px-5 pb-5 pt-2">
               <View className="flex-row items-center rounded-2xl border border-dark-border bg-dark-surface p-4">
-                <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.16)' }}>
+                <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.16)' }}>
                   <Text className="text-lg font-bold text-primary">{initialsFor(currentDriver?.fullName ?? '')}</Text>
                 </View>
                 <View className="ml-3 flex-1">
@@ -147,7 +147,7 @@ export function DriverSidebar({ visible, onClose }: { visible: boolean; onClose:
               onPress={() => nav('/(driver)/wallet/payouts')}
             >
               <View className="flex-row items-center">
-                <Ionicons name="cash-outline" size={18} color="#16A34A" />
+                <Ionicons name="cash-outline" size={18} color="#0E7C4A" />
                 <Text className="ml-2.5 text-[13.5px] font-semibold text-dark-text">{t('driverPayouts')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#5C6B8E" />

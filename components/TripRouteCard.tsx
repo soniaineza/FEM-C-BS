@@ -22,12 +22,12 @@ export const TripRouteCard = memo(function TripRouteCard({
     <View className="flex-row items-center rounded-xl border border-border bg-white p-4">
       <View className="flex-1">
         <View className="flex-row items-start">
-          <Ionicons name="ellipse" size={10} color="#16A34A" style={{ marginTop: 5 }} />
+          <Ionicons name="ellipse" size={10} color="#0E7C4A" style={{ marginTop: 5 }} />
           <Text className="ml-2.5 flex-1 text-sm font-semibold leading-5 text-ink">{pickup.address}</Text>
         </View>
         <View className="ml-[4.5px] h-[18px] w-[1.6px] bg-border" />
         <View className="flex-row items-start">
-          <Ionicons name="location-outline" size={10} color="#111111" style={{ marginTop: 5 }} />
+          <Ionicons name="location" size={12} color="#F97316" style={{ marginTop: 4, marginLeft: -1 }} />
           <Text className="ml-2.5 flex-1 text-sm font-semibold leading-5 text-ink">{destination.address}</Text>
         </View>
       </View>

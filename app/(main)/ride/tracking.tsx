@@ -69,7 +69,7 @@ export default function TrackingScreen() {
   if (!ride) {
     return (
       <MapSheet collapsible={false}>
-        <ActivityIndicator className="my-6" color="#16A34A" />
+        <ActivityIndicator className="my-6" color="#0E7C4A" />
       </MapSheet>
     );
   }
@@ -126,7 +126,7 @@ export default function TrackingScreen() {
                 </View>
               )
             ) : (
-              <ActivityIndicator className="mt-3" color="#16A34A" />
+              <ActivityIndicator className="mt-3" color="#0E7C4A" />
             )}
             {paymentError ? <Text className="mt-2 text-error">{paymentError}</Text> : null}
           </View>

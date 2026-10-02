@@ -62,7 +62,7 @@ export default function DriverJourneyScreen() {
   if (!ride) {
     return (
       <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator color="#16A34A" />
+        <ActivityIndicator color="#0E7C4A" />
       </SafeAreaViewPlaceholder>
     );
   }
@@ -135,8 +135,8 @@ export default function DriverJourneyScreen() {
     return (
       <SafeAreaViewPlaceholder className="flex-1 bg-white">
         <View className="flex-1 items-center justify-center px-8">
-          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
-            <Ionicons name="checkmark" size={32} color="#16A34A" />
+          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
+            <Ionicons name="checkmark" size={32} color="#0E7C4A" />
           </View>
           <Text className="mt-4 text-xl text-ink font-display">{t('driverTripComplete')}</Text>
           <Text className="mt-1 text-3xl font-bold text-primary">{formatFare(fare)}</Text>

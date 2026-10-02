@@ -43,20 +43,20 @@ export const Button = memo(function Button({
     <View
       style={
         isPrimary && !isDisabled
-          ? { shadowColor: '#16A34A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }
+          ? { shadowColor: '#0E7C4A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }
           : undefined
       }
     >
       <Pressable accessibilityRole="button" accessibilityLabel={title} className={`${styles} ${className ?? ''}`} disabled={isDisabled} {...rest}>
         {loading ? (
-          <ActivityIndicator color={destructive ? '#DC2626' : variant === 'primary' ? '#fff' : '#16A34A'} />
+          <ActivityIndicator color={destructive ? '#DC2626' : variant === 'primary' ? '#fff' : '#0E7C4A'} />
         ) : (
           <>
             {icon ? (
               <Ionicons
                 name={icon}
                 size={20}
-                color={destructive ? '#DC2626' : variant === 'primary' ? '#fff' : '#16A34A'}
+                color={destructive ? '#DC2626' : variant === 'primary' ? '#fff' : '#0E7C4A'}
                 style={{ marginRight: 8 }}
               />
             ) : null}

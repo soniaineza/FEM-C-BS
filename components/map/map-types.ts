@@ -1,6 +1,3 @@
-// Data contract between the app and the map engine (MapEngine.tsx, a DOM
-// component). Everything here crosses an async bridge on native, so it must
-// stay plain serialisable data: no functions, Dates or class instances.
 
 export interface LngLat {
   latitude: number;

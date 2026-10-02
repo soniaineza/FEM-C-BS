@@ -1,9 +1,13 @@
 // Central brand tokens. Screens should import these instead of scattering hex values.
 export const FemColors = {
-  primary: '#16A34A',
-  primaryDark: '#15803D',
-  primarySoft: 'rgba(22,163,74,0.08)',
-  primaryTint: 'rgba(22,163,74,0.12)',
+  primary: '#0E7C4A',
+  primaryDark: '#0A5F39',
+  primarySoft: 'rgba(14,124,74,0.08)',
+  primaryTint: 'rgba(14,124,74,0.12)',
+  // Accent only: destination pins, ratings, badges, attention states.
+  accent: '#F97316',
+  accentDark: '#C2410C',
+  accentSoft: '#FFF3E8',
   white: '#FFFFFF',
   black: '#111111',
   ink: '#111111',
@@ -13,7 +17,7 @@ export const FemColors = {
   textSecondary: '#6B7280',
   muted: '#9CA3AF',
   error: '#DC2626',
-  success: '#16A34A',
+  success: '#0E7C4A',
   warning: '#D97706',
 } as const;
 

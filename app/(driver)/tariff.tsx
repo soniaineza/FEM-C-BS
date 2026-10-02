@@ -39,7 +39,7 @@ export default function DriverTariffScreen() {
 
         {vehicles === null && !error ? (
           <View className="items-center py-16">
-            <ActivityIndicator color="#16A34A" />
+            <ActivityIndicator color="#0E7C4A" />
           </View>
         ) : error ? (
           <View className="mt-4">
@@ -55,8 +55,8 @@ export default function DriverTariffScreen() {
                     <Text numberOfLines={2} className="mt-0.5 text-[12.5px] text-dark-sub">{vehicle.description}</Text>
                   ) : null}
                 </View>
-                <View className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.16)' }}>
-                  <Ionicons name="car-sport" size={17} color="#16A34A" />
+                <View className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.16)' }}>
+                  <Ionicons name="car-sport" size={17} color="#0E7C4A" />
                 </View>
               </View>
 

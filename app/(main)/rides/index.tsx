@@ -101,7 +101,7 @@ export default function RideHistoryScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator className="mt-8" color="#16A34A" />
+          <ActivityIndicator className="mt-8" color="#0E7C4A" />
         ) : error ? (
           <View className="mt-8 items-center">
             <Text className="text-center text-text-secondary">{error}</Text>
@@ -111,8 +111,8 @@ export default function RideHistoryScreen() {
           </View>
         ) : section.data.length === 0 ? (
           <View className="mt-14 items-center">
-            <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.08)' }}>
-              <Ionicons name={section.icon} size={30} color="#16A34A" />
+            <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.08)' }}>
+              <Ionicons name={section.icon} size={30} color="#0E7C4A" />
             </View>
             <Text className="mt-4 text-base font-semibold text-ink">{t(section.title)}</Text>
             <Text className="mt-1 px-8 text-center text-sm text-text-secondary">{t(section.hint)}</Text>
@@ -140,7 +140,7 @@ function statusChipStyle(status: Ride['status']) {
     return { bg: 'rgba(220,38,38,0.08)', text: '#DC2626' };
   }
   if (isCompleted) {
-    return { bg: 'rgba(22,163,74,0.10)', text: '#15803D' };
+    return { bg: 'rgba(14,124,74,0.10)', text: '#0A5F39' };
   }
   return { bg: 'rgba(217,119,6,0.10)', text: '#D97706' };
 }
@@ -167,7 +167,7 @@ function RideCard({ ride }: { ride: Ride }) {
         </View>
       </View>
 
-      {/* Route line: pickup dot above, red dot below — the two-stop pattern
+      {/* Route line: pickup dot above, orange dot below — the two-stop pattern
           riders recognize from every ride-hailing app. */}
       <View className="mt-3">
         <View className="flex-row items-center">
@@ -178,7 +178,7 @@ function RideCard({ ride }: { ride: Ride }) {
         </View>
         <View className="ml-[3px] h-3 w-px" style={{ backgroundColor: '#E5E7EB', width: 1, height: 10 }} />
         <View className="flex-row items-center">
-          <View className="h-2 w-2 rounded-full" style={{ backgroundColor: '#DC2626' }} />
+          <View className="h-2 w-2 rounded-full bg-accent" />
           <Text numberOfLines={1} className="ml-2.5 flex-1 text-[15px] font-semibold text-ink">
             {ride.destination.address}
           </Text>

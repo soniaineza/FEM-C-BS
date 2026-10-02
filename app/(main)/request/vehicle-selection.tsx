@@ -160,7 +160,7 @@ export default function VehicleSelectionScreen() {
         }
       >
         {loading ? (
-          <ActivityIndicator className="my-8" color="#16A34A" />
+          <ActivityIndicator className="my-8" color="#0E7C4A" />
         ) : loadError ? (
           <View className="my-4">
             <Text className="text-text-secondary">{loadError}</Text>
@@ -172,7 +172,7 @@ export default function VehicleSelectionScreen() {
           <View>
             {quote.surge.multiplier > 1 ? (
               <View className="mb-2 flex-row items-center rounded-xl bg-warning/10 px-3 py-2">
-                <Ionicons name="flash" size={16} color="#D97706" />
+                <Ionicons name="flash" size={16} color="#F97316" />
                 <Text className="ml-2 flex-1 text-xs text-warning">{t('surgeNotice')}</Text>
               </View>
             ) : null}

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FEM C@BS",
+    "name": "Kimu Transport",
     "slug": "fem-cabs-app",
     "version": "1.0.0",
     "scheme": "femcabs",
@@ -35,7 +35,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "FEM C@BS uses your location to show your pickup point on the map and match you with nearby drivers."
+          "locationWhenInUsePermission": "Kimu Transport uses your location to show your pickup point on the map and match you with nearby drivers."
         }
       ],
       [

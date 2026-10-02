@@ -18,7 +18,7 @@ export class ApiError extends Error {
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api';
 // Render's free tier sleeps the API after ~15 min idle; the first request
 // after that took a measured ~24s to cold-start (and failed at the old 20s
-// timeout with "We could not reach the FEM C@BS servers"). 45s covers a
+// timeout with "We could not reach the Kimu Transport servers"). 45s covers a
 // full cold boot plus a slow 3G round trip.
 const REQUEST_TIMEOUT_MS = 45_000;
 // One silent retry for idempotent GETs that fail at the transport level

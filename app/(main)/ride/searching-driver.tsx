@@ -94,9 +94,9 @@ export default function SearchingDriverScreen() {
       <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white px-6">
         <View
           className="h-20 w-20 items-center justify-center rounded-full"
-          style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}
+          style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}
         >
-          <Ionicons name="car-outline" size={36} color="#16A34A" />
+          <Ionicons name="car-outline" size={36} color="#0E7C4A" />
         </View>
         <Text className="mt-5 text-xl text-ink font-display">{t('searchTimedOutTitle')}</Text>
         <Text className="mt-2 text-center leading-relaxed text-text-secondary">{t('searchTimedOutBody')}</Text>
@@ -118,7 +118,7 @@ export default function SearchingDriverScreen() {
         collapsible={false}
         header={
           <View className="mb-1 flex-row items-center">
-            <ActivityIndicator color="#16A34A" />
+            <ActivityIndicator color="#0E7C4A" />
             <Text className="ml-3 text-lg font-bold text-ink">{t('findingDriver')}</Text>
           </View>
         }

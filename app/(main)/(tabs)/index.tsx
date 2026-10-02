@@ -173,19 +173,19 @@ export default function HomeScreen() {
         />
 
         <View className="absolute left-3 right-3 top-3 sm:left-4 sm:right-4 flex-row items-start justify-between gap-3" pointerEvents="box-none">
-          <View className="max-w-[75%] flex-1 rounded-2xl bg-primary px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm">
-            <Text className="text-sm sm:text-base font-bold text-white" numberOfLines={1}>{t('homeGreetingPrefix')} {firstName}</Text>
-            <Text className="mt-0.5 text-[11px] sm:text-xs font-medium text-white/80">
+          <View className="max-w-[75%] flex-1 rounded-2xl border border-border bg-white px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm">
+            <Text className="text-sm sm:text-base font-bold text-ink" numberOfLines={1}>{t('homeGreetingPrefix')} {firstName}</Text>
+            <Text className="mt-0.5 text-[11px] sm:text-xs font-medium text-primary">
               {nearbyCars.length === 1 ? t('oneDriverNearby') : t('multipleDriversNearby', { count: nearbyCars.length })}
             </Text>
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('profile')}
-            className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full bg-primary shadow-sm"
+            className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full border border-border bg-white shadow-sm"
             onPress={() => router.push('/(main)/(tabs)/profile')}
           >
-            <Ionicons name="person-outline" color="#FFFFFF" size={22} />
+            <Ionicons name="person-outline" color="#0E7C4A" size={22} />
           </Pressable>
         </View>
 
@@ -194,47 +194,47 @@ export default function HomeScreen() {
           accessibilityLabel={t('useCurrentLocation')}
           disabled={mapLocating}
           onPress={recenterMap}
-          className="absolute right-3 sm:right-4 h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-primary shadow-sm"
+          className="absolute right-3 sm:right-4 h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full border border-border bg-white shadow-sm"
           style={{ bottom: sheetMaxHeight + 14, opacity: mapLocating ? 0.5 : 1 }}
         >
-          {mapLocating ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="locate" size={22} color="#FFFFFF" />}
+          {mapLocating ? <ActivityIndicator color="#0E7C4A" /> : <Ionicons name="locate" size={22} color="#0E7C4A" />}
         </Pressable>
 
         <View
-          className="absolute bottom-0 left-0 right-0 overflow-hidden rounded-t-[28px] bg-primary"
+          className="absolute bottom-0 left-0 right-0 overflow-hidden rounded-t-[28px] bg-white"
           style={{ maxHeight: sheetMaxHeight, elevation: 12, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 18 }}
         >
-          <View className="items-center pt-2"><View className="h-1 w-10 rounded-full bg-white/40" /></View>
+          <View className="items-center pt-2"><View className="h-1 w-10 rounded-full bg-border" /></View>
           <ScrollView className="px-4 sm:px-5" contentContainerClassName="pb-2 pt-3" keyboardShouldPersistTaps="handled">
         {activeRide ? (
           <Pressable
-            className="mb-4 flex-row items-center rounded-2xl border border-white/30 bg-white/15 p-4"
+            className="mb-4 flex-row items-center rounded-2xl border border-accent/30 bg-accent-soft p-4"
             onPress={() => router.push({ pathname: '/(main)/ride/tracking', params: { rideId: activeRide.id } })}
           >
-            <View className="h-10 w-10 items-center justify-center rounded-full bg-white/20">
-              <Ionicons name="navigate" size={20} color="#FFFFFF" />
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+              <Ionicons name="navigate" size={20} color="#F97316" />
             </View>
             <View className="ml-3 flex-1">
-              <Text className="text-[15px] font-bold text-white">{t('activeRideTitle')}</Text>
-              <Text numberOfLines={1} className="text-[13px] text-white/80">{activeRide.destination.address}</Text>
+              <Text className="text-[15px] font-bold text-ink">{t('activeRideTitle')}</Text>
+              <Text numberOfLines={1} className="text-[13px] text-text-secondary">{activeRide.destination.address}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+            <Ionicons name="chevron-forward" size={20} color="#C2410C" />
           </Pressable>
         ) : null}
 
         <View className="flex-row items-center">
-          <Ionicons name="location-outline" size={20} color="#FFFFFF" />
-          <Text className="ml-2 text-[17px] text-white font-display">{t('whereGoing')}</Text>
+          <Ionicons name="location-outline" size={20} color="#0E7C4A" />
+          <Text className="ml-2 text-[17px] text-ink font-display">{t('whereGoing')}</Text>
         </View>
 
-        <View className="mt-3.5 rounded-2xl border border-white/30 bg-white/20 p-1">
+        <View className="mt-3.5 rounded-2xl border border-border bg-gray-light p-1">
           <LocationField isPickup value={pickup} placeholder={t('setPickup')} onPress={() => router.push('/(main)/request/pickup')} />
-          <View className="mx-4 h-px bg-white/25" />
+          <View className="mx-4 h-px bg-border" />
           <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
         </View>
 
         {locationHint && !pickup ? (
-          <Text className="mt-2 px-1 text-xs leading-4 text-white/80">{locationHint}</Text>
+          <Text className="mt-2 px-1 text-xs leading-4 text-text-secondary">{locationHint}</Text>
         ) : null}
 
         {savedPlaces.length > 0 ? (
@@ -242,7 +242,7 @@ export default function HomeScreen() {
             {savedPlaces.map((place) => (
               <Pressable
                 key={place.id}
-                className="flex-row items-center rounded-xl border border-white/25 bg-white/10 px-3.5 py-2.5"
+                className="flex-row items-center rounded-full border border-border bg-white px-3.5 py-2"
                 onPress={() => {
                   setPickup(place.place);
                   // Older saved places may have an address but no map point.
@@ -253,9 +253,9 @@ export default function HomeScreen() {
                 <Ionicons
                   name={place.type === 'home' ? 'home-outline' : place.type === 'work' ? 'business-outline' : 'star-outline'}
                   size={16}
-                  color="#FFFFFF"
+                  color="#0E7C4A"
                 />
-                <Text className="ml-2 text-[13px] font-semibold text-white">{place.name}</Text>
+                <Text className="ml-2 text-[13px] font-semibold text-ink">{place.name}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -275,19 +275,19 @@ export default function HomeScreen() {
             onPress={() => setRideType('shared')}
           />
         </View>
-        <Text className="mt-2 text-xs text-white/80">
+        <Text className="mt-2 text-xs text-text-secondary">
           {rideType === 'private' ? t('privateRideDescription') : t('shareRideDescription')}
         </Text>
 
           </ScrollView>
-          <View className="border-t border-white/20 bg-primary px-4 sm:px-5 pb-4 pt-3">
+          <View className="border-t border-border bg-white px-4 sm:px-5 pb-4 pt-3">
           <Button
             title={t('findRide')}
             icon="arrow-forward"
             onPress={findRide}
             disabled={!pickup || !destination || !canRequestRide}
           />
-          {checking ? <Text className="mt-2 text-center text-xs text-white/80">{t('checkingActiveRide')}</Text> : null}
+          {checking ? <Text className="mt-2 text-center text-xs text-text-secondary">{t('checkingActiveRide')}</Text> : null}
           </View>
         </View>
       </View>
@@ -314,14 +314,14 @@ function RideOptionCard({
       accessibilityLabel={title}
       className="min-h-11 sm:min-h-12 flex-1 flex-row items-center justify-center rounded-xl px-2 sm:px-3 py-2.5 sm:py-3"
       style={{
-        backgroundColor: selected ? '#FFFFFF' : 'rgba(255,255,255,0.12)',
+        backgroundColor: selected ? '#E9F4EE' : '#FFFFFF',
         borderWidth: 1,
-        borderColor: selected ? '#FFFFFF' : 'rgba(255,255,255,0.3)',
+        borderColor: selected ? '#0E7C4A' : '#E5E7EB',
       }}
       onPress={onPress}
     >
-      <Ionicons name={icon} size={19} color={selected ? '#F97316' : '#FFFFFF'} />
-      <Text className={`ml-2 text-sm font-semibold ${selected ? 'text-primary' : 'text-white'}`}>{title}</Text>
+      <Ionicons name={icon} size={19} color={selected ? '#0E7C4A' : '#6B7280'} />
+      <Text className={`ml-2 text-sm font-semibold ${selected ? 'text-primary' : 'text-ink'}`}>{title}</Text>
     </Pressable>
   );
 }

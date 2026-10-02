@@ -96,7 +96,7 @@ const config = {
   // Africa's Talking account username ('sandbox' for their test env).
   atUsername: process.env.AT_USERNAME || '',
   // Sender ID shown on the SMS. Most providers require it to be registered.
-  smsSenderName: process.env.SMS_SENDER_NAME || 'FEM CABS',
+  smsSenderName: process.env.SMS_SENDER_NAME || 'KIMU',
 
   // Shared secret for the operator-only /api/admin routes (driver KYC
   // review). Sent as the X-Admin-Key header. Unset disables those routes.
@@ -109,7 +109,7 @@ const config = {
   ridePinLength: Number(process.env.RIDE_PIN_LENGTH || 4),
   tripShareTtlHours: Number(process.env.TRIP_SHARE_TTL_HOURS || 24),
 
-  // The FEM C@BS call center the app's SOS button dials (server/src/routes/
+  // The Kimu Transport call center the app's SOS button dials (server/src/routes/
   // emergency.routes.js). Server-side so it can be rotated without an app
   // release. In production this MUST be set to the real call-center number.
   emergencyCallCenterPhone: process.env.EMERGENCY_CALL_CENTER_PHONE || '',

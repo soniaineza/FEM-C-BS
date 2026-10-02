@@ -274,7 +274,7 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Wallet top-ups: a passenger depositing money into their FEM Wallet via
+-- Wallet top-ups: a passenger depositing money into their Kimu Wallet via
 -- mobile money, mirroring the `payments` table's pending -> provider-charge
 -- -> settle shape (server/src/services/payments.js) so it goes through the
 -- same real Paypack collect/refresh flow and is never faked when the
@@ -416,10 +416,15 @@ CREATE INDEX IF NOT EXISTS idx_verification_lookup ON verification_codes(passeng
 
 -- Vehicle catalogue served by the backend (real data).
 INSERT INTO vehicles (id, name, description, capacity, base_fare, fare_per_km, eta_minutes) VALUES
-  ('fem_economy', 'FEM Economy', 'Everyday rides at the best price.', 4, 1200, 500, 5),
-  ('fem_comfort', 'FEM Comfort', 'Newer cars with extra legroom.', 4, 1800, 700, 6),
-  ('fem_xl', 'FEM XL', 'Spacious vehicles for groups and luggage.', 6, 2500, 900, 8)
+  ('fem_economy', 'Kimu Economy', 'Everyday rides at the best price.', 4, 1200, 500, 5),
+  ('fem_comfort', 'Kimu Comfort', 'Newer cars with extra legroom.', 4, 1800, 700, 6),
+  ('fem_xl', 'Kimu XL', 'Spacious vehicles for groups and luggage.', 6, 2500, 900, 8)
 ON CONFLICT (id) DO NOTHING;
+-- Brand rename: existing databases still hold the old default names.
+-- Only rows that were never edited by an operator are touched.
+UPDATE vehicles SET name = 'Kimu Economy' WHERE id = 'fem_economy' AND name = 'FEM Economy';
+UPDATE vehicles SET name = 'Kimu Comfort' WHERE id = 'fem_comfort' AND name = 'FEM Comfort';
+UPDATE vehicles SET name = 'Kimu XL' WHERE id = 'fem_xl' AND name = 'FEM XL';
 -- Upfront pricing (services/pricing.js): per-minute rate, minimum fare and
 -- booking fee per vehicle class. Seeded only where still unset so operator
 -- edits are never overwritten.

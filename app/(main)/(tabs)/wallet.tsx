@@ -37,7 +37,7 @@ export default function WalletScreen() {
 
         <View
           className="mt-4 rounded-2xl bg-primary p-5"
-          style={{ shadowColor: '#16A34A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
+          style={{ shadowColor: '#0E7C4A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
         >
           <Text className="text-sm font-medium text-white/85">{t('balance')}</Text>
           {loading ? (
@@ -90,7 +90,7 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
       <Ionicons
         name={isCredit ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'}
         size={28}
-        color={isCredit ? '#16A34A' : '#DC2626'}
+        color={isCredit ? '#0E7C4A' : '#DC2626'}
       />
       <View className="ml-3 flex-1">
         <Text className="text-[14px] font-semibold capitalize text-ink">{transaction.source.replace(/_/g, ' ')}</Text>

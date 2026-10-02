@@ -35,7 +35,7 @@ export default function RideDetailsScreen() {
   if (loading && !ride) {
     return (
       <SafeAreaViewPlaceholder className="flex-1 items-center justify-center bg-white" edges={['top', 'left', 'right']}>
-        <ActivityIndicator color="#16A34A" />
+        <ActivityIndicator color="#0E7C4A" />
       </SafeAreaViewPlaceholder>
     );
   }

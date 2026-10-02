@@ -109,10 +109,10 @@ export default function DriverHomeScreen() {
       <View className="bg-primary px-5 pb-8 pt-3">
         <View className="flex-row items-center">
           <View className="h-11 w-11 items-center justify-center rounded-xl bg-white">
-            <Text className="text-2xl font-bold text-primary">F</Text>
+            <Text className="text-2xl font-bold text-primary">K</Text>
           </View>
           <View className="ml-3 flex-1">
-            <Text className="text-xl font-bold text-white">FEM C@BS</Text>
+            <Text className="text-xl font-bold text-white">Kimu Transport</Text>
             <Text className="text-xs font-medium tracking-wide text-white/85">{t('driverRoleLabel')}</Text>
           </View>
           <Pressable
@@ -129,7 +129,7 @@ export default function DriverHomeScreen() {
           className="flex-row items-center rounded-2xl border border-border bg-white p-4"
           style={{ shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 }}
         >
-          <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
+          <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
             <Text className="text-lg font-bold text-primary">{initialsFor(currentDriver?.fullName ?? '')}</Text>
           </View>
           <View className="ml-3.5 flex-1">
@@ -137,7 +137,7 @@ export default function DriverHomeScreen() {
             <Text className="text-lg font-bold text-ink">{currentDriver?.fullName?.split(' ')[0] || t('driverRoleLabel')}</Text>
           </View>
           <View className={`flex-row items-center rounded-full px-3 py-1.5 ${isOnline ? 'bg-primary/10' : 'bg-gray-light'}`}>
-            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: isOnline ? '#16A34A' : '#9CA3AF' }} />
+            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: isOnline ? '#0E7C4A' : '#9CA3AF' }} />
             <Text className={`ml-1.5 text-xs font-semibold ${isOnline ? 'text-primary' : 'text-text-secondary'}`}>
               {isOnline ? t('driverOnline') : t('driverOffline')}
             </Text>
@@ -150,7 +150,7 @@ export default function DriverHomeScreen() {
         >
           <StatColumn icon="car-outline" value={String(activeRideCount)} label={t('driverActiveRides')} />
           <View className="h-10 w-px bg-border" />
-          <StatColumn icon="star" value={currentDriver?.rating != null ? currentDriver.rating.toFixed(1) : '5.0'} label={t('driverRatingLabel')} iconColor="#D97706" />
+          <StatColumn icon="star" value={currentDriver?.rating != null ? currentDriver.rating.toFixed(1) : '5.0'} label={t('driverRatingLabel')} iconColor="#F97316" />
           <View className="h-10 w-px bg-border" />
           <StatColumn icon="wallet-outline" value={summary ? formatFare(summary.today.amount) : '—'} label={t('driverTodaysEarnings')} />
         </View>
@@ -183,8 +183,8 @@ export default function DriverHomeScreen() {
             className="mt-3.5 flex-row items-center rounded-2xl border border-primary bg-white p-4"
             onPress={() => router.push({ pathname: '/(driver)/journey', params: { rideId: tripInProgress.id } } as any)}
           >
-            <View className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
-              <Ionicons name="navigate" size={20} color="#16A34A" />
+            <View className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
+              <Ionicons name="navigate" size={20} color="#0E7C4A" />
             </View>
             <View className="ml-3 flex-1">
               <Text className="text-[15px] font-bold text-ink">{t('driverTripInProgress')}</Text>
@@ -197,7 +197,7 @@ export default function DriverHomeScreen() {
         <View className="mt-3.5 gap-3">
           <Pressable className="flex-row items-center justify-between rounded-2xl border border-border bg-white p-4" onPress={() => router.push('/(driver)/wallet/payouts' as any)}>
             <View className="flex-row items-center">
-              <Ionicons name="cash-outline" size={20} color="#16A34A" />
+              <Ionicons name="cash-outline" size={20} color="#0E7C4A" />
               <Text className="ml-3 text-[14.5px] font-semibold text-ink">{t('driverPayouts')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#6B7280" />
@@ -223,7 +223,7 @@ function StatColumn({
   icon,
   value,
   label,
-  iconColor = '#16A34A',
+  iconColor = '#0E7C4A',
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   value: string;
@@ -306,18 +306,18 @@ function OfferOverlay({
         >
           <View className="flex-row items-center justify-between">
             <Text className="text-lg font-bold text-ink">{t('driverNewRideRequest')}</Text>
-            <View className="rounded-full bg-primary/10 px-3 py-1">
-              <Text className="font-bold text-primary">{seconds}s</Text>
+            <View className="rounded-full bg-accent-soft px-3 py-1">
+              <Text className="font-bold text-accent-dark">{seconds}s</Text>
             </View>
           </View>
 
           <View className="mt-4 gap-3">
             <View className="flex-row items-start">
-              <Ionicons name="ellipse" size={12} color="#16A34A" style={{ marginTop: 4 }} />
+              <Ionicons name="ellipse" size={12} color="#0E7C4A" style={{ marginTop: 4 }} />
               <Text className="ml-2.5 flex-1 text-[14.5px] text-ink">{pickupAddress}</Text>
             </View>
             <View className="flex-row items-start">
-              <Ionicons name="location" size={14} color="#DC2626" style={{ marginTop: 2 }} />
+              <Ionicons name="location" size={14} color="#F97316" style={{ marginTop: 2 }} />
               <Text className="ml-2 flex-1 text-[14.5px] text-ink">{destinationAddress}</Text>
             </View>
           </View>

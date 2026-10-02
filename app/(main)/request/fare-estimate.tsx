@@ -118,7 +118,7 @@ export default function FareEstimateScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator className="my-6" color="#16A34A" />
+          <ActivityIndicator className="my-6" color="#0E7C4A" />
         ) : loadError ? (
           <View className="rounded-2xl border border-error/40 bg-error/5 p-4">
             <Text className="text-sm text-error">{loadError}</Text>

@@ -62,7 +62,7 @@ export default function DriverTripsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator className="mt-8" color="#16A34A" />
+        <ActivityIndicator className="mt-8" color="#0E7C4A" />
       ) : error ? (
         <View className="mt-8 gap-4 px-5">
           <Text className="text-center text-error">{error}</Text>

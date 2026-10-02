@@ -36,7 +36,7 @@ export default function ProfileScreen() {
         <Text className="text-xl text-ink font-display">{t('profile')}</Text>
 
         <View className="mt-4 flex-row items-center rounded-2xl border border-border bg-white p-4">
-          <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
+          <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
             <Text className="text-xl font-bold text-primary">{initialsFor(currentUser?.fullName ?? '')}</Text>
           </View>
           <View className="ml-3.5 flex-1">

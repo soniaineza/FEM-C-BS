@@ -172,8 +172,8 @@ export default function DriverLiveMeterScreen() {
     return (
       <SafeAreaViewPlaceholder className="flex-1 bg-dark-bg">
         <View className="flex-1 items-center justify-center px-8">
-          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.16)' }}>
-            <Ionicons name="checkmark" size={32} color="#16A34A" />
+          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.16)' }}>
+            <Ionicons name="checkmark" size={32} color="#0E7C4A" />
           </View>
           <Text className="mt-4 text-xl font-bold text-dark-text">{t('driverTripComplete')}</Text>
           <Text className="mt-1 text-3xl font-bold text-primary">{formatFare(completion.fare)}</Text>
@@ -192,8 +192,8 @@ export default function DriverLiveMeterScreen() {
     return (
       <SafeAreaViewPlaceholder className="flex-1 bg-dark-bg">
         <View className="flex-1 items-center justify-center px-8">
-          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
-            <Ionicons name="speedometer-outline" size={30} color="#16A34A" />
+          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
+            <Ionicons name="speedometer-outline" size={30} color="#0E7C4A" />
           </View>
           <Text className="mt-4 text-xl font-bold text-dark-text">{t('driverTripEmptyTitle')}</Text>
           <Text className="mt-1 text-center text-sm text-dark-sub">{t('driverTripEmptyHint')}</Text>
@@ -303,8 +303,8 @@ export default function DriverLiveMeterScreen() {
         ) : (
           <View>
             <View className="flex-row items-center">
-              <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.16)' }}>
-                <Ionicons name="person" size={20} color="#16A34A" />
+              <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.16)' }}>
+                <Ionicons name="person" size={20} color="#0E7C4A" />
               </View>
               <View className="ml-3 flex-1">
                 <Text className="text-base font-bold text-dark-text">{currentRide.rider?.name ?? t('driver')}</Text>
@@ -379,7 +379,7 @@ export default function DriverLiveMeterScreen() {
 function MeterStat({ icon, value, label, iconSize, bodySize, captionSize }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string; iconSize: number; bodySize: number; captionSize: number }) {
   return (
     <View className="flex-1 items-center">
-      <Ionicons name={icon} size={iconSize} color="#16A34A" />
+      <Ionicons name={icon} size={iconSize} color="#0E7C4A" />
       <Text className="mt-1 font-bold text-dark-text" style={{ fontSize: bodySize }}>{value}</Text>
       <Text className="mt-0.5 text-dark-muted" style={{ fontSize: captionSize }}>{label}</Text>
     </View>
@@ -431,7 +431,7 @@ function SlideToStart({
     <View>
       <View
         className="h-14 w-full justify-center overflow-hidden rounded-full border border-primary"
-        style={{ backgroundColor: 'rgba(22,163,74,0.1)' }}
+        style={{ backgroundColor: 'rgba(14,124,74,0.1)' }}
         onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
         {...panResponder.panHandlers}
       >

@@ -582,7 +582,7 @@ router.post('/emergency', asyncHandler(async (req, res) => {
 
   await pushDriverNotification(req.driverId, {
     title: 'Emergency recorded',
-    body: 'We recorded your emergency and notified the FEM C@BS call center.',
+    body: 'We recorded your emergency and notified the Kimu Transport call center.',
     type: 'safety',
     rideId: rideId || null,
   });

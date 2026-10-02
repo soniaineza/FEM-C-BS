@@ -58,8 +58,8 @@ export default function LanguageScreen() {
                   className="flex-row items-center rounded-2xl px-4 py-4"
                   style={{
                     borderWidth: active ? 2 : 1,
-                    borderColor: active ? '#16A34A' : '#E5E7EB',
-                    backgroundColor: active ? 'rgba(22,163,74,0.06)' : '#fff',
+                    borderColor: active ? '#0E7C4A' : '#E5E7EB',
+                    backgroundColor: active ? 'rgba(14,124,74,0.06)' : '#fff',
                   }}
                 >
                   <Text style={{ fontSize: 26 }}>{flag}</Text>
@@ -69,7 +69,7 @@ export default function LanguageScreen() {
                   <Ionicons
                     name={active ? 'checkmark-circle' : 'ellipse-outline'}
                     size={24}
-                    color={active ? '#16A34A' : '#C7CCD1'}
+                    color={active ? '#0E7C4A' : '#C7CCD1'}
                   />
                 </Pressable>
               );

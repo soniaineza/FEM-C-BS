@@ -20,16 +20,22 @@ module.exports = {
       // (lib/core/constants/app_colors.dart, lib/core/theme/app_theme.dart)
       // so the RN screens match the app's existing visual identity.
       colors: {
-        primary: '#F97316',
-        'primary-dark': '#EA580C',
-        'primary-gradient-end': '#C2410C',
+        primary: '#0E7C4A',
+        'primary-dark': '#0A5F39',
+        'primary-gradient-end': '#084A2D',
+        'primary-soft': '#E9F4EE',
+        // Orange is the accent only: destination pins, ratings, badges and
+        // attention states. It never fills large surfaces or carries white text.
+        accent: '#F97316',
+        'accent-dark': '#C2410C',
+        'accent-soft': '#FFF3E8',
         ink: '#111111',
         'bg-light': '#F7F7F7',
         'gray-light': '#F5F5F5',
         border: '#E5E7EB',
         'text-secondary': '#6B7280',
         error: '#DC2626',
-        success: '#16A34A',
+        success: '#0E7C4A',
         warning: '#D97706',
       },
       borderRadius: {

@@ -58,7 +58,7 @@ export const FEMMapCard = memo(function FEMMapCard({
             opacity: recenterDisabled ? 0.5 : 1,
           }}
         >
-          <Ionicons name="locate" size={22} color="#16A34A" />
+          <Ionicons name="locate" size={22} color="#0E7C4A" />
         </Pressable>
       ) : null}
     </View>

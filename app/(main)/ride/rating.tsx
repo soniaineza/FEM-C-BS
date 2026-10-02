@@ -53,7 +53,7 @@ export default function RatingScreen() {
               aria-checked={n === stars}
               accessibilityLabel={t('starsA11y', { count: n })}
             >
-              <Ionicons name={n <= stars ? 'star' : 'star-outline'} size={38} color={n <= stars ? '#16A34A' : '#E5E7EB'} />
+              <Ionicons name={n <= stars ? 'star' : 'star-outline'} size={38} color={n <= stars ? '#F97316' : '#E5E7EB'} />
             </Pressable>
           ))}
         </View>

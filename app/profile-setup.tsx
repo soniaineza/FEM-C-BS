@@ -67,7 +67,7 @@ export default function ProfileSetupScreen() {
         <View className="mt-6 items-center">
           <View
             className="h-[88px] w-[88px] items-center justify-center rounded-full border-2 border-primary"
-            style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}
+            style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}
           >
             <Text className="text-3xl font-bold text-primary">{initialsFor(fullName)}</Text>
           </View>

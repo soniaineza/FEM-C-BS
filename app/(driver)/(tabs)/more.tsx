@@ -29,7 +29,7 @@ export default function DriverMoreScreen() {
         <Text className="text-xl text-ink font-display">{t('account')}</Text>
 
         <View className="mt-4 flex-row items-center rounded-2xl border border-border bg-white p-4">
-          <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}>
+          <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
             <Text className="text-xl font-bold text-primary">{initialsFor(currentDriver?.fullName ?? '')}</Text>
           </View>
           <View className="ml-3.5 flex-1">
@@ -38,7 +38,7 @@ export default function DriverMoreScreen() {
             <Text className="mt-0.5 text-[13.5px] text-text-secondary">
               {currentDriver?.rating != null ? (
                 <>
-                  <Ionicons name="star" size={13} color="#D97706" /> {currentDriver.rating.toFixed(1)}
+                  <Ionicons name="star" size={13} color="#F97316" /> {currentDriver.rating.toFixed(1)}
                 </>
               ) : (
                 t('driverNoRatingYet')

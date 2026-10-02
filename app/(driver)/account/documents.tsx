@@ -24,7 +24,7 @@ const DOC_TYPES: { id: DriverDocument['docType']; key: string }[] = [
 
 const STATUS_COLORS: Record<DriverDocument['status'], string> = {
   pending: '#D97706',
-  approved: '#16A34A',
+  approved: '#0E7C4A',
   rejected: '#DC2626',
   expired: '#DC2626',
 };
@@ -85,7 +85,7 @@ export default function DriverDocumentsScreen() {
         <Text className="mt-1 text-sm text-text-secondary">{t('driverDocumentsIntro')}</Text>
 
         {loading ? (
-          <ActivityIndicator className="mt-6" color="#16A34A" />
+          <ActivityIndicator className="mt-6" color="#0E7C4A" />
         ) : error ? (
           <View className="mt-6 gap-3">
             <ErrorMessage message={error} />

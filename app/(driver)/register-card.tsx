@@ -60,7 +60,7 @@ export default function DriverRegisterCardScreen() {
         {saved ? (
           <View className="mt-2 rounded-2xl border border-primary bg-dark-surface p-4">
             <View className="flex-row items-center">
-              <Ionicons name="card" size={20} color="#16A34A" />
+              <Ionicons name="card" size={20} color="#0E7C4A" />
               <Text className="ml-2.5 flex-1 text-[14.5px] text-dark-text">
                 •••• •••• •••• {saved.last4}
               </Text>

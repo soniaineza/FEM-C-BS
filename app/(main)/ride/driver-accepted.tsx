@@ -35,7 +35,7 @@ export default function DriverAcceptedScreen() {
     return (
       <MapSheet collapsible={false}>
         <View className="flex-row items-center py-4">
-          <ActivityIndicator color="#16A34A" />
+          <ActivityIndicator color="#0E7C4A" />
           <Text className="ml-3 text-text-secondary">{t('waitingDriver')}</Text>
         </View>
       </MapSheet>

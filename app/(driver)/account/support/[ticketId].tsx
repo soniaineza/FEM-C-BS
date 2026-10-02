@@ -63,7 +63,7 @@ export default function DriverTicketThreadScreen() {
       <SafeAreaViewPlaceholder className="flex-1 bg-white">
         <View className="flex-1 px-6 pt-2">
           <BackHeader />
-          {loading ? <ActivityIndicator className="mt-10" color="#16A34A" /> : (
+          {loading ? <ActivityIndicator className="mt-10" color="#0E7C4A" /> : (
             <View className="mt-10 gap-4">
               <Text className="text-center text-error">{error ?? t('requestFailed')}</Text>
               <Button title={t('tryAgain')} variant="outline" onPress={load} />

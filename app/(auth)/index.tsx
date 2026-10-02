@@ -1,92 +1,83 @@
-import { View, Text, Image, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, Redirect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { router, Redirect, useIsFocused } from 'expo-router';
 
-import { Button } from '../../components/Button';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAppModeStore } from '../../stores/useAppModeStore';
 import { useLocaleStore } from '../../stores/useLocaleStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 
-// Direct port of lib/screens/auth/welcome_screen.dart's layout: a top hero
-// panel (gradient + two soft "blob" decorations + the car photo in a
-// circular frame + the FEM C@BS wordmark) over a bottom content panel
-// (tagline, subtitle, CTA, login link). Carried over from Flutter 1:1 since
-// dropping it during the migration (an earlier, text-only pass) was flagged
-// as a real visual regression.
+// Rider welcome screen: one full-height green panel with the wordmark at the
+// top and the tagline plus the three entry actions (get started, log in,
+// sign up) grouped in the vertical centre. No photo and no bottom panel.
 export default function WelcomeScreen() {
   const { t } = useTranslation();
+  const isFocused = useIsFocused();
   const setMode = useAppModeStore((s) => s.setMode);
   const hasChosenLanguage = useLocaleStore((s) => s.hasChosenLanguage);
   const pendingPassenger = useAuthStore((s) => s.pendingPassenger);
 
-  // Language must be chosen before login on first launch.
+  // The language chooser is the first screen a new user sees.
   if (!hasChosenLanguage) return <Redirect href="/(auth)/language" />;
   if (pendingPassenger) return <Redirect href="/(auth)/verification" />;
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="px-6 pt-3" style={{ flex: 6 }}>
-        <View className="flex-1 overflow-hidden rounded-[28px]">
-          <LinearGradient
-            colors={['#16A34A', '#0F7A38']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ flex: 1 }}
-          >
-            <View
-              className="absolute rounded-full bg-white/10"
-              style={{ width: 120, height: 120, top: -30, right: -30 }}
-            />
-            <View
-              className="absolute rounded-full bg-white/[0.08]"
-              style={{ width: 140, height: 140, bottom: -40, left: -20 }}
-            />
+    <LinearGradient colors={['#0E7C4A', '#084A2D']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
+      {isFocused ? <StatusBar style="light" /> : null}
+      <View className="absolute rounded-full bg-white/10" style={{ width: 220, height: 220, top: -70, right: -70 }} />
+      <View className="absolute rounded-full bg-white/[0.06]" style={{ width: 280, height: 280, bottom: -110, left: -90 }} />
 
-            <View className="absolute left-6 top-7 flex-row items-center">
-              <Text className="text-2xl font-bold text-white" style={{ letterSpacing: -0.5 }}>
-                FEM
-              </Text>
-              <View className="w-1" />
-              <Text className="text-2xl font-bold text-white/85" style={{ letterSpacing: -0.5 }}>
-                C@BS
-              </Text>
+      <SafeAreaViewPlaceholder className="flex-1">
+        <View className="px-6 pt-5">
+          <Text className="text-2xl font-bold text-white" style={{ letterSpacing: -0.5 }}>
+            Kimu <Text className="text-white/80">Transport</Text>
+          </Text>
+          <View className="mt-2 h-[3px] w-9 rounded-full bg-accent" />
+        </View>
+
+        <View className="flex-1 justify-center px-6">
+          <View className="w-full max-w-[440px] self-center">
+            <Text className="text-center text-[32px] leading-tight text-white font-display">{t('tagline')}</Text>
+            <Text className="mt-3 text-center text-base leading-relaxed text-white/80">{t('safeReliableRides')}</Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('getStarted')}
+              className="mt-9 h-button w-full items-center justify-center rounded bg-white"
+              onPress={() => router.push('/(auth)/signup')}
+            >
+              <Text className="text-base font-semibold text-primary">{t('getStarted')}</Text>
+            </Pressable>
+
+            <View className="mt-3 flex-row gap-3">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('login')}
+                className="h-button flex-1 items-center justify-center rounded border border-white/60"
+                onPress={() => router.push('/(auth)/login')}
+              >
+                <Text className="text-base font-semibold text-white">{t('login')}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('signUp')}
+                className="h-button flex-1 items-center justify-center rounded border border-white/60"
+                onPress={() => router.push('/(auth)/signup')}
+              >
+                <Text className="text-base font-semibold text-white">{t('signUp')}</Text>
+              </Pressable>
             </View>
-
-            <View className="flex-1 items-center justify-center">
-              <View className="h-[150px] w-[150px] overflow-hidden rounded-full">
-                <Image
-                  source={require('../../assets/car_image.png')}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="cover"
-                />
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
-      </View>
-
-      <View className="justify-center px-6 flex-5">
-        <Text className="text-center text-2xl leading-tight text-ink font-display">{t('tagline')}</Text>
-        <Text className="mt-2.5 text-center leading-relaxed text-text-secondary">{t('safeReliableRides')}</Text>
-
-        <View className="mt-7">
-          <Button title={t('getStarted')} onPress={() => router.push('/(auth)/signup')} />
+          </View>
         </View>
 
-        <View className="mt-4 flex-row justify-center">
-          <Text className="text-text-secondary">{t('existingAccount')}</Text>
-          <Pressable onPress={() => router.push('/(auth)/login')}>
-            <Text className="font-bold text-primary">{t('login')}</Text>
-          </Pressable>
-        </View>
-        <Pressable className="mt-6" onPress={() => setMode('driver')}>
-          <Text className="text-center text-sm text-text-secondary">
-            {t('passengerSwitchToDriverHint')} <Text className="font-semibold text-primary">{t('switchToDriverApp')}</Text>
+        <Pressable className="px-6 pb-6 pt-3" onPress={() => setMode('driver')}>
+          <Text className="text-center text-sm text-white/75">
+            {t('passengerSwitchToDriverHint')} <Text className="font-semibold text-white">{t('switchToDriverApp')}</Text>
           </Text>
         </Pressable>
-      </View>
-    </SafeAreaViewPlaceholder>
+      </SafeAreaViewPlaceholder>
+    </LinearGradient>
   );
 }

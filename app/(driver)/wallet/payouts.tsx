@@ -12,7 +12,7 @@ import { formatFare } from '../../../types/ride';
 const STATUS_COLORS: Record<DriverPayout['status'], string> = {
   pending: '#D97706',
   processing: '#D97706',
-  completed: '#16A34A',
+  completed: '#0E7C4A',
   failed: '#DC2626',
   reversed: '#DC2626',
 };
@@ -49,7 +49,7 @@ export default function DriverPayoutsScreen() {
         <Text className="mt-2 text-xl text-ink font-display">{t('driverPayouts')}</Text>
 
         {loading ? (
-          <ActivityIndicator className="mt-8" color="#16A34A" />
+          <ActivityIndicator className="mt-8" color="#0E7C4A" />
         ) : error ? (
           <View className="mt-8 gap-4">
             <Text className="text-center text-error">{error}</Text>
