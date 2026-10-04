@@ -150,6 +150,8 @@ export interface Ride {
   appliedDiscount?: number;
   isPooled: boolean;
   seats: number;
+  /** Set when unconfirmed cash was handed to an operator; the rider is free to go. */
+  cashDisputedAt?: string;
   cancellationReason?: string;
   cancelledBy?: string;
 }
@@ -218,6 +220,7 @@ export function rideFromBackendJson(
     appliedDiscount: json.appliedDiscount ?? undefined,
     isPooled: Boolean(json.isPooled),
     seats: json.seats ?? 1,
+    cashDisputedAt: json.cashDisputedAt ?? undefined,
     cancellationReason: json.cancellationReason ?? undefined,
     cancelledBy: json.cancelledBy ?? undefined,
   };

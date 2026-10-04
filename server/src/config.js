@@ -146,6 +146,11 @@ const config = {
   // A mobile-money prompt nobody answers is treated as failed after this
   // long, so the rider can retry or pay cash instead of waiting forever.
   paymentExpirySeconds: Number(process.env.PAYMENT_EXPIRY_SECONDS || 180),
+  // How long a driver has to confirm they were paid in cash before the ride
+  // is handed to an operator and the rider and driver are both freed.
+  cashConfirmTimeoutSeconds: Number(process.env.CASH_CONFIRM_TIMEOUT_SECONDS || 900),
+  // How often the background sweeps run.
+  schedulerIntervalMs: Number(process.env.SCHEDULER_INTERVAL_MS || 30000),
 
   // Demo fleet (services/demoFleet.js): simulated drivers driving real
   // Kigali roads and serving rides end to end. Refused in production.

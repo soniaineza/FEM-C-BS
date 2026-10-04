@@ -7,6 +7,7 @@ const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { signToken } = require('../utils/jwt');
 const { issueCode, verifyCode } = require('../utils/otp');
 const { sendOtp } = require('../services/otpSender');
+const { closePassengerAccount } = require('../services/accountClosure');
 
 /** Sends an OTP, turning a provider failure into a retryable 502. */
 async function deliverOtp(passenger, params) {
@@ -318,7 +319,8 @@ router.delete(
   '/account',
   requireSession,
   asyncHandler(async (req, res) => {
-    await getPool().query('DELETE FROM passengers WHERE id = $1', [req.passengerId]);
+    // Closes the account without deleting it: money and trip records stay.
+    await closePassengerAccount(req.passengerId);
     res.status(204).end();
   })
 );

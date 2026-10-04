@@ -255,6 +255,12 @@ active.post('/rides/:id/confirm-cash', asyncHandler(async (req, res) => {
   );
   if (!rows[0]) throw new ApiError(404, 'Cash payment awaiting this driver was not found.');
   const payment = await confirmCashPayment(rows[0]);
+  // A late confirmation closes the operator's case for this ride.
+  await getPool().query(
+    `UPDATE payment_exceptions SET status='resolved', resolution='driver_confirmed', resolved_at=now()
+      WHERE payment_id = $1 AND status = 'open' AND reason = 'cash_unconfirmed'`,
+    [payment.id]
+  );
   res.json({ payment: { id: payment.id, status: payment.status } });
 }));
 

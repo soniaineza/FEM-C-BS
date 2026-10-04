@@ -110,6 +110,8 @@ async function createRide(passengerId, body) {
     `SELECT id FROM rides
       WHERE passenger_id = $1
         AND status NOT IN ('completed', 'cancelled')
+        -- a cash fare awaiting an operator's decision does not hold the rider
+        AND cash_disputed_at IS NULL
       LIMIT 1`,
     [passengerId]
   );

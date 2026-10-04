@@ -132,6 +132,7 @@ router.get(
     const { rows } = await getPool().query(
       `SELECT * FROM rides
         WHERE passenger_id = $1 AND status NOT IN ('completed','cancelled')
+          AND cash_disputed_at IS NULL
         ORDER BY created_at DESC LIMIT 1`,
       [req.passengerId]
     );

@@ -143,6 +143,13 @@ CREATE INDEX IF NOT EXISTS idx_rides_pool_group ON rides (pool_group_id)
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS seats INTEGER NOT NULL DEFAULT 1;
 -- Mobile-money number to charge when it is not the rider's account phone.
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS payment_phone TEXT;
+-- Set when the driver did not confirm a cash fare in time: the ride is with
+-- an operator (payment_exceptions) and no longer blocks the rider or driver.
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS cash_disputed_at TIMESTAMPTZ;
+-- A closed account keeps its row (rides, payments and wallet history hang
+-- off it) with the personal details removed.
+ALTER TABLE passengers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS ride_status_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

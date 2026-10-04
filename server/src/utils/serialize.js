@@ -134,6 +134,7 @@ function rideToJson(row, { passengerView = false } = {}) {
     poolGroupId: row.pool_group_id || null,
     isPooled: !!row.pool_group_id,
     seats: row.seats || 1,
+    cashDisputedAt: row.cash_disputed_at || null,
     createdAt: row.created_at,
     acceptedAt: row.accepted_at,
     arrivedAt: row.arrived_at,

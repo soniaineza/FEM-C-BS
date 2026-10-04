@@ -770,5 +770,6 @@
   "driverRecentFares": "Amafaranga y'ingendo ziheruka",
   "driverCashToRemit": "Amafaranga yo mu ntoki ugomba kohereza Kimu",
   "driverCashToRemitHint": "Aya ni amafaranga wakiriye mu ntoki ku bagenzi. Yohereze Kimu ukoresheje mobile money. Iyo arenze {limit}, ntushobora gutangira gukora utarayohereza.",
-  "driverSendCash": "Ohereza amafaranga kuri Kimu"
+  "driverSendCash": "Ohereza amafaranga kuri Kimu",
+  "cashUnderReview": "Umushoferi wawe ntaremeza ko yakiriye amafaranga mu ntoki. Itsinda ryacu ririmo kubisuzuma. Ushobora gukomeza gukoresha Kimu."
 }

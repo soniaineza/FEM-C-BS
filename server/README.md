@@ -119,6 +119,36 @@ number to refund; resolving it as `refunded` closes it. Drivers are released
 at the end of a wallet or mobile-money trip; a cash trip holds them until they
 confirm the cash.
 
+**Unconfirmed cash.** If a driver does not confirm a cash fare within
+`CASH_CONFIRM_TIMEOUT_SECONDS` (default 15 minutes) the ride is handed to an
+operator as a `cash_unconfirmed` payment exception and both rider and driver
+are freed. Nothing is marked paid. The driver can still confirm later, which
+closes the case; otherwise an operator decides:
+
+```
+curl -H "$H" "$API/payment-exceptions"
+curl -H "$H" -X POST "$API/payment-exceptions/<id>/resolve"      -H 'Content-Type: application/json'      -d '{"resolution":"cash_received","reference":"call-log-id"}'
+     # or "cash_not_received": the ride ends cancelled, no money is recorded
+```
+
+**Closing accounts.** `DELETE /api/auth/account` and
+`DELETE /api/driver/account` never delete the row: personal details are
+removed, sign-in and existing sessions stop working, and the phone number is
+freed, while rides, payments, receipts, wallet history, earnings and cash
+records stay. A rider with an unfinished or unpaid ride, and a driver with an
+open ride, a payout in progress or cash still owed to Kimu, is refused.
+
+**Operator checks** (read-only):
+
+```
+curl -H "$H" "$API/paypack/status"     # do the Paypack credentials still sign in?
+curl -H "$H" "$API/audit/test-data"    # records that look like development/test data
+```
+
+**Browser origins.** The web app is served by this server and the mobile apps
+are not browsers, so `CORS_ORIGINS` can be left empty. On a hosted database
+`*` is ignored; list exact origins only if another website must call the API.
+
 **SOS.** `EMERGENCY_CALL_CENTER_PHONE` is the number the SOS button dials.
 The API also sends a reference-bearing SMS alert to that number. Operators
 must monitor `GET /api/admin/emergencies`, call the rider, and resolve the

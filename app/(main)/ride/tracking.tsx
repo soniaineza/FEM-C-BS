@@ -137,7 +137,12 @@ export default function TrackingScreen() {
                 <Text className="mt-2 text-primary">{t('depositReceived')}</Text>
               ) : payment.method === 'cash' ? (
                 <View className="mt-3">
-                  <Text className="text-sm text-text-secondary">{t('cashAwaitingDriver')}</Text>
+                  <Text className="text-sm text-text-secondary">{t(ride.cashDisputedAt ? 'cashUnderReview' : 'cashAwaitingDriver')}</Text>
+                  {ride.cashDisputedAt ? (
+                    <View className="mt-3">
+                      <Button title={t('backHome')} onPress={() => router.replace('/(main)/(tabs)')} />
+                    </View>
+                  ) : null}
                 </View>
               ) : (
                 <View className="mt-3">

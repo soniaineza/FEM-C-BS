@@ -9,9 +9,10 @@ const { reconcilePendingPayments } = require('./payments');
 const { reconcilePendingTopups } = require('./walletTopups');
 const { reconcileDriverMoney } = require('./driverBalance');
 const { LOCATION_MAX_AGE_SECONDS } = require('./driverKyc');
+const { pushDriverNotification } = require('./driverNotify');
 
 let timer = null;
-const RUN_EVERY_MS = 30 * 1000;
+const RUN_EVERY_MS = config.schedulerIntervalMs;
 
 /** Rides stuck in searchingDriver longer than this are auto-cancelled so the
  * passenger is freed to book again instead of staring at a spinner forever.
@@ -122,10 +123,60 @@ async function sweepStaleOnlineDrivers() {
   );
 }
 
+/**
+ * A cash fare the driver has not confirmed within CASH_CONFIRM_TIMEOUT_SECONDS
+ * would otherwise hold both people forever: the rider cannot book again and
+ * the driver stays busy. The ride is handed to an operator instead (a
+ * 'cash_unconfirmed' payment exception) and both are freed. Nothing is
+ * marked paid: the payment stays pending until the driver confirms after
+ * all, or an operator records whether the cash was received.
+ */
+async function sweepUnconfirmedCash() {
+  const { rows } = await getPool().query(
+    `SELECT r.id, r.driver_id, r.passenger_id, p.id AS payment_id
+       FROM rides r
+       JOIN LATERAL (SELECT * FROM payments WHERE ride_id = r.id ORDER BY created_at DESC LIMIT 1) p ON TRUE
+      WHERE r.status = 'paymentPending' AND r.payment_method = 'cash' AND r.cash_disputed_at IS NULL
+        AND p.method = 'cash' AND p.status = 'pending'
+        AND p.created_at < now() - ($1 || ' seconds')::interval
+      LIMIT 50`,
+    [String(config.cashConfirmTimeoutSeconds)]
+  );
+  for (const ride of rows) {
+    const claimed = await getPool().query(
+      `UPDATE rides SET cash_disputed_at = now()
+        WHERE id = $1 AND status = 'paymentPending' AND cash_disputed_at IS NULL RETURNING id`,
+      [ride.id]
+    );
+    if (!claimed.rows[0]) continue;
+    await getPool().query(
+      `INSERT INTO payment_exceptions (payment_id, ride_id, reason)
+       VALUES ($1, $2, 'cash_unconfirmed') ON CONFLICT (payment_id) DO NOTHING`,
+      [ride.payment_id, ride.id]
+    );
+    if (ride.driver_id) {
+      await driverMatcher.releaseDriver(ride.driver_id);
+      await pushDriverNotification(ride.driver_id, {
+        title: 'Confirm the cash payment',
+        body: 'You have not confirmed the cash for your last trip. Confirm it now, or our team will contact you.',
+        type: 'payment',
+        rideId: ride.id,
+      });
+    }
+    await pushNotification(ride.passenger_id, {
+      title: 'Cash payment under review',
+      body: 'Your driver has not confirmed the cash payment yet. You can keep using Kimu while our team checks it.',
+      type: 'payment',
+      rideId: ride.id,
+    });
+    console.warn(`[scheduler] cash for ride ${ride.id} was not confirmed in time; sent to operators`);
+  }
+}
+
 function startScheduler() {
   if (timer) return;
   timer = setInterval(() => {
-    Promise.all([sweepDueScheduledRides(), sweepStaleAssignments(), sweepExpiredSearches(), sweepStaleOnlineDrivers(), retryEmergencies(), reconcilePendingPayments(), reconcilePendingTopups(), reconcileDriverMoney()]).catch((err) =>
+    Promise.all([sweepDueScheduledRides(), sweepStaleAssignments(), sweepExpiredSearches(), sweepStaleOnlineDrivers(), retryEmergencies(), reconcilePendingPayments(), reconcilePendingTopups(), reconcileDriverMoney(), sweepUnconfirmedCash()]).catch((err) =>
       console.error('[scheduler] sweep failed:', err)
     );
   }, RUN_EVERY_MS);

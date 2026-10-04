@@ -37,9 +37,17 @@ async function main() {
   // address; trust its X-Forwarded-For so req.ip is the real client and the
   // rate limiters do not lump every user into one bucket.
   app.set('trust proxy', 1);
+  // Which other websites may call the API from a browser. The web app is
+  // served by this same server and the mobile apps are not browsers, so
+  // neither needs an entry. "*" (any website) is honoured only on a local
+  // database; on a hosted one only origins listed explicitly are allowed.
+  const anyOrigin = corsOrigins.includes('*') && config.localDatabase;
+  if (corsOrigins.includes('*') && !config.localDatabase) {
+    console.warn('[security] CORS_ORIGINS="*" is ignored on a hosted database. List exact origins, or leave it empty.');
+  }
   app.use(
     cors({
-      origin: corsOrigins.includes('*') ? true : corsOrigins,
+      origin: anyOrigin ? true : corsOrigins.filter((o) => o && o !== '*'),
     })
   );
 

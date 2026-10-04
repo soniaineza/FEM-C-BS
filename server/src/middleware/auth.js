@@ -27,9 +27,10 @@ function requireSession(req, _res, next) {
 function requireAuth(req, res, next) {
   requireSession(req, res, (err) => {
     if (err) return next(err);
-    getPool().query('SELECT verified_at FROM passengers WHERE id=$1', [req.passengerId])
+    getPool().query('SELECT verified_at, deleted_at FROM passengers WHERE id=$1', [req.passengerId])
       .then(({ rows }) => {
-        if (!rows[0]) return next(new ApiError(401, 'Account not found.'));
+        // A closed account's token stops working at once.
+        if (!rows[0] || rows[0].deleted_at) return next(new ApiError(401, 'Account not found.'));
         if (!rows[0].verified_at) return next(new ApiError(403, 'Verify your phone to continue.'));
         next();
       })

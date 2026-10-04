@@ -677,8 +677,13 @@ async function onlineDriver(phone) {
 }
 
 /** Keeps every driver's location fresh (matching ignores stale drivers). */
+let onlyDriver = null; // when set, every other driver is kept offline
 async function pingDrivers() {
   for (const d of world.drivers) {
+    if (onlyDriver && d !== onlyDriver) {
+      await api('PUT', '/driver/status', { status: 'offline' }, d.token);
+      continue;
+    }
     await api('POST', '/drivers/location', { latitude: -1.9441, longitude: 30.0619 }, d.token);
     await api('PUT', '/driver/status', { status: 'active' }, d.token);
   }
@@ -952,7 +957,149 @@ async function scenarios() {
     }
   }
 
+  // ----- cash the driver never confirms -----
+  const waitFor = async (fn, ms = 25000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { if (await fn()) return true; await sleep(500); }
+    return false;
+  };
+  const disputed = async (rideId) => (await q('SELECT cash_disputed_at FROM rides WHERE id = $1', [rideId]))[0].cash_disputed_at != null;
+  const bookAndCancel = async () => {
+    const r = await api('POST', '/rides', {
+      pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+      destination: { address: 'Nyamirambo', latitude: -1.9586, longitude: 30.0205 },
+      vehicleId: 'fem_economy', paymentMethodId: 'cash',
+    }, p.token);
+    if (r.status === 201) await api('POST', `/rides/${r.data.ride.id}/cancel`, { reason: 'scenario' }, p.token);
+    return r.status;
+  };
+  /** A cash trip whose driver stays silent until the timeout hands it to an operator. */
+  const unconfirmedCashTrip = async () => {
+    const t0 = await tripToPayment(p, 'cash');
+    const [pay] = await paymentsOf(t0.rideId);
+    await q(`UPDATE payments SET created_at = now() - interval '30 minutes' WHERE id = $1`, [pay.id]);
+    const swept = await waitFor(() => disputed(t0.rideId));
+    const [exception] = await q('SELECT * FROM payment_exceptions WHERE payment_id = $1', [pay.id]);
+    return { ...t0, pay, swept, exception };
+  };
+
+  const k0 = await tripToPayment(p, 'cash');
+  expect('rider with an unconfirmed cash fare cannot book yet', await bookAndCancel() === 409);
+  await api('POST', `/drivers/rides/${k0.rideId}/confirm-cash`, null, k0.d.token);
+
+  const k = await unconfirmedCashTrip();
+  expect('unconfirmed cash is handed to an operator after the timeout',
+    k.swept && k.exception?.reason === 'cash_unconfirmed' && k.exception?.status === 'open', JSON.stringify(k.exception));
+  expect('the timeout does not mark the fare as paid',
+    await rideStatus(k.rideId) === 'paymentPending' && (await paymentsOf(k.rideId))[0].status === 'pending' &&
+      (await q('SELECT 1 FROM driver_earnings WHERE ride_id = $1', [k.rideId])).length === 0);
+  expect('the timeout frees the driver', await driverStatus(k.d) === 'active', `driver=${await driverStatus(k.d)}`);
+  const current = await api('GET', '/rides/current', null, p.token);
+  expect('the rider is no longer held on the unpaid ride', current.data.ride === null, JSON.stringify(current.data.ride)?.slice(0, 80));
+  expect('the rider can book again after the timeout', await bookAndCancel() === 201);
+  const late = await api('POST', `/drivers/rides/${k.rideId}/confirm-cash`, null, k.d.token);
+  const [kExc] = await q('SELECT * FROM payment_exceptions WHERE id = $1', [k.exception.id]);
+  expect('a late driver confirmation settles the ride and closes the case',
+    late.status === 200 && await rideStatus(k.rideId) === 'completed' && kExc.status === 'resolved' && kExc.resolution === 'driver_confirmed' &&
+      (await q('SELECT 1 FROM driver_earnings WHERE ride_id = $1', [k.rideId])).length === 1,
+    `status=${late.status} exception=${kExc.status}/${kExc.resolution}`);
+  const dupConfirm = await api('POST', `/drivers/rides/${k.rideId}/confirm-cash`, null, k.d.token);
+  expect('a duplicate cash confirmation changes nothing',
+    dupConfirm.status === 404 && (await q('SELECT 1 FROM driver_earnings WHERE ride_id = $1', [k.rideId])).length === 1 &&
+      (await q('SELECT 1 FROM receipts WHERE ride_id = $1', [k.rideId])).length === 1, `status=${dupConfirm.status}`);
+
+  const m = await unconfirmedCashTrip();
+  const wrongKind = await admin('POST', `/payment-exceptions/${m.exception.id}/resolve`, { resolution: 'refunded', reference: 'x' });
+  expect('a cash case cannot be closed as a refund', wrongKind.status === 400, `status=${wrongKind.status}`);
+  const notReceived = await admin('POST', `/payment-exceptions/${m.exception.id}/resolve`, { resolution: 'cash_not_received', reference: 'call-log-1' });
+  expect('operator "cash not received" ends the ride unpaid with no money recorded',
+    notReceived.status === 200 && await rideStatus(m.rideId) === 'cancelled' && (await paymentsOf(m.rideId))[0].status === 'failed' &&
+      (await q('SELECT 1 FROM driver_earnings WHERE ride_id = $1', [m.rideId])).length === 0 &&
+      (await q('SELECT 1 FROM receipts WHERE ride_id = $1', [m.rideId])).length === 0,
+    `status=${notReceived.status} ride=${await rideStatus(m.rideId)}`);
+  const afterResolved = await api('POST', `/drivers/rides/${m.rideId}/confirm-cash`, null, m.d.token);
+  const resolveTwice = await admin('POST', `/payment-exceptions/${m.exception.id}/resolve`, { resolution: 'cash_received', reference: 'x' });
+  expect('an already-resolved cash ride cannot be confirmed or resolved again',
+    afterResolved.status === 404 && resolveTwice.status === 404 && await rideStatus(m.rideId) === 'cancelled',
+    `confirm=${afterResolved.status} resolve=${resolveTwice.status}`);
+
+  const n = await unconfirmedCashTrip();
+  const received = await admin('POST', `/payment-exceptions/${n.exception.id}/resolve`, { resolution: 'cash_received', reference: 'call-log-2' });
+  expect('operator "cash received" settles the ride once',
+    received.status === 200 && await rideStatus(n.rideId) === 'completed' && (await paymentsOf(n.rideId))[0].status === 'succeeded' &&
+      (await q('SELECT 1 FROM driver_earnings WHERE ride_id = $1', [n.rideId])).length === 1,
+    `status=${received.status} ride=${await rideStatus(n.rideId)}`);
+  const confirmAfter = await api('POST', `/drivers/rides/${n.rideId}/confirm-cash`, null, n.d.token);
+  expect('driver confirmation after the operator settled it changes nothing',
+    confirmAfter.status === 404 && (await q('SELECT 1 FROM driver_earnings WHERE ride_id = $1', [n.rideId])).length === 1, `status=${confirmAfter.status}`);
+
   await checkInvariants('scenarios');
+
+  // ----- closing an account keeps every money record -----
+  const count = async (sql, id) => Number((await q(sql, [id]))[0].n);
+  const riderRecords = async () => ({
+    rides: await count('SELECT count(*) AS n FROM rides WHERE passenger_id = $1', p.id),
+    payments: await count('SELECT count(*) AS n FROM payments WHERE passenger_id = $1', p.id),
+    receipts: await count('SELECT count(*) AS n FROM receipts WHERE passenger_id = $1', p.id),
+    walletTx: await count('SELECT count(*) AS n FROM wallet_transactions WHERE passenger_id = $1', p.id),
+    topups: await count('SELECT count(*) AS n FROM wallet_topups WHERE passenger_id = $1', p.id),
+    wallet: await walletOf(p),
+  });
+  const [{ email: riderEmail }] = await q('SELECT email FROM passengers WHERE id = $1', [p.id]);
+  const openRide = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'Nyamirambo', latitude: -1.9586, longitude: 30.0205 },
+    vehicleId: 'fem_economy', paymentMethodId: 'cash',
+  }, p.token);
+  const refused = await api('DELETE', '/auth/account', null, p.token);
+  expect('an account with an unfinished ride cannot be closed', refused.status === 409, `status=${refused.status}`);
+  await api('POST', `/rides/${openRide.data.ride.id}/cancel`, { reason: 'scenario' }, p.token);
+  const recordsBefore = await riderRecords();
+  const closed = await api('DELETE', '/auth/account', null, p.token);
+  const recordsAfter = await riderRecords();
+  expect('closing a rider account keeps rides, payments, receipts and wallet history',
+    closed.status === 204 && recordsBefore.rides > 0 && recordsBefore.payments > 0 && recordsBefore.walletTx > 0 &&
+      JSON.stringify(recordsBefore) === JSON.stringify(recordsAfter),
+    `status=${closed.status} before=${JSON.stringify(recordsBefore)} after=${JSON.stringify(recordsAfter)}`);
+  const [gone] = await q('SELECT full_name, phone, email, deleted_at FROM passengers WHERE id = $1', [p.id]);
+  expect('personal details are removed from the closed rider account',
+    gone.deleted_at && gone.phone !== p.phone && gone.email !== riderEmail && gone.full_name === 'Deleted rider', JSON.stringify(gone));
+  expect('a closed rider account cannot be used or signed into',
+    (await api('GET', '/wallet', null, p.token)).status === 401 &&
+      (await api('POST', '/auth/login', { identifier: riderEmail, password: 'secret123' })).status === 401);
+  const again = await api('POST', '/auth/signup', { fullName: 'Back Again', phone: p.phone, email: riderEmail, password: 'secret123' });
+  expect('the phone number and email can register a new account', again.status === 201, `status=${again.status} ${JSON.stringify(again.data).slice(0, 120)}`);
+
+  // A driver whose only trip was paid in cash, so they hold money for Kimu.
+  await newPassenger();
+  const lastRider = world.passengers[world.passengers.length - 1];
+  const sd = await onlineDriver('+250788900009');
+  onlyDriver = sd;
+  const cashTrip = await tripToPayment(lastRider, 'cash');
+  await api('POST', `/drivers/rides/${cashTrip.rideId}/confirm-cash`, null, sd.token);
+  onlyDriver = null;
+  const driverRecords = async () => ({
+    earnings: await count('SELECT count(*) AS n FROM driver_earnings WHERE driver_id = $1', sd.id),
+    rides: await count('SELECT count(*) AS n FROM rides WHERE driver_id = $1', sd.id),
+    settlements: await count('SELECT count(*) AS n FROM driver_settlements WHERE driver_id = $1', sd.id),
+  });
+  await api('PUT', '/driver/status', { status: 'offline' }, sd.token);
+  const owing = await balanceOf(sd);
+  const refusedDriver = await api('DELETE', '/driver/account', null, sd.token);
+  expect('a driver still holding cash for Kimu cannot close the account', owing.owed > 0 && refusedDriver.status === 409,
+    `owed=${owing.owed} status=${refusedDriver.status}`);
+  await admin('POST', `/drivers/${sd.id}/settlements`, { amount: owing.owed, reference: 'handover', recordedBy: 'invariants' });
+  const driverBefore = await driverRecords();
+  const closedDriver = await api('DELETE', '/driver/account', null, sd.token);
+  const driverAfter = await driverRecords();
+  expect('closing a driver account keeps earnings, rides and cash records',
+    closedDriver.status === 204 && driverBefore.earnings > 0 && JSON.stringify(driverBefore) === JSON.stringify(driverAfter),
+    `status=${closedDriver.status} before=${JSON.stringify(driverBefore)} after=${JSON.stringify(driverAfter)}`);
+  expect('a closed driver account cannot be used or signed into',
+    (await api('GET', '/driver/me', null, sd.token)).status === 401 &&
+      (await api('POST', '/drivers/login', { phone: sd.phone, password: 'secret123' })).status === 401);
+  expect('past rides no longer expose the closed driver\'s phone',
+    (await count('SELECT count(*) AS n FROM rides WHERE driver_id = $1 AND driver_phone IS NOT NULL', sd.id)) === 0);
   console.log(`  scenarios: ${scenarioChecks} checks`);
 }
 
@@ -999,6 +1146,8 @@ async function main() {
     DRIVER_MAX_COMMISSION_DEBT: '100000000',
     // The earnings arithmetic is checked with a driver share in place.
     DRIVER_COMMISSION_RATE: String(COMMISSION),
+    // Short sweep interval so the cash-timeout scenarios do not wait long.
+    SCHEDULER_INTERVAL_MS: '3000',
     // Windows needs these for DNS/sockets in the child process.
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
   };

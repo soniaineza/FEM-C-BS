@@ -8,6 +8,10 @@ const { driverToJson } = require('../utils/serialize');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
 const { transition } = require('../services/paymentState');
+const { SEED_DRIVER_PHONES } = require('../services/seedAccounts');
+const { confirmCashPayment } = require('../services/payments');
+const { transitionRide } = require('../services/rideStateMachine');
+const paypack = require('../services/paypackClient');
 const {
   getDriverBalance,
   approvePayout,
@@ -87,8 +91,33 @@ router.get('/payment-exceptions', asyncHandler(async (_req, res) => {
 
 router.post('/payment-exceptions/:id/resolve', asyncHandler(async (req, res) => {
   const { resolution, reference } = req.body || {};
-  if (!['refunded', 'no_refund_due'].includes(resolution) || !String(reference || '').trim()) {
-    throw new ApiError(400, 'resolution and external reference are required.');
+  const { rows: found } = await getPool().query(
+    `SELECT * FROM payment_exceptions WHERE id = $1 AND status = 'open'`, [req.params.id]
+  );
+  if (!found[0]) throw new ApiError(404, 'Open payment exception not found.');
+  // A cash fare the driver never confirmed is decided either way; money the
+  // provider collected that could not be applied is refunded or not.
+  const cashCase = found[0].reason === 'cash_unconfirmed';
+  const allowed = cashCase ? ['cash_received', 'cash_not_received'] : ['refunded', 'no_refund_due'];
+  if (!allowed.includes(resolution) || !String(reference || '').trim()) {
+    throw new ApiError(400, `resolution (${allowed.join(' | ')}) and a reference are required.`);
+  }
+  if (cashCase) {
+    const { rows: pay } = await getPool().query('SELECT * FROM payments WHERE id = $1', [found[0].payment_id]);
+    if (resolution === 'cash_received') {
+      // Settles exactly as the driver's own confirmation would: the ride
+      // completes and the driver now holds that cash for Kimu.
+      await confirmCashPayment(pay[0]);
+    } else {
+      // No money is recorded: the attempt is closed unpaid and the ride ends
+      // as cancelled, with no earnings and no cash owed by the driver.
+      await transition(getPool(), 'payments', pay[0].id, 'failed', { failureReason: 'CASH_NOT_RECEIVED' });
+      await getPool().query(
+        `UPDATE rides SET cancellation_reason = 'Cash fare not received', cancelled_by = 'operator' WHERE id = $1`,
+        [found[0].ride_id]
+      );
+      await transitionRide(found[0].ride_id, 'cancelled', { changedBy: 'admin', reason: 'cash_not_received' });
+    }
   }
   const { rows } = await getPool().query(
     `UPDATE payment_exceptions SET status='resolved', resolution=$2,
@@ -307,6 +336,84 @@ router.post('/drivers/:id/settlements', asyncHandler(async (req, res) => {
   const driver = await loadDriver(req.params.id);
   const settlement = await recordOperatorSettlement(driver.id, req.body || {});
   res.status(201).json({ settlement: settlementToJson(settlement), balance: await getDriverBalance(driver.id) });
+}));
+
+// GET /api/admin/paypack/status — proves the configured Paypack credentials
+// still work (after rotating the secret, for example). Read-only: it signs in
+// and reads the account; no transaction is created.
+router.get('/paypack/status', asyncHandler(async (_req, res) => {
+  if (!paypack.isConfigured()) return res.json({ configured: false, authenticated: false });
+  try {
+    const balances = await paypack.getBalances();
+    res.json({
+      configured: true,
+      authenticated: true,
+      webhookSecretSet: Boolean(config.paypackWebhookSecret),
+      demoPayments: config.demoPayments,
+      balances,
+    });
+  } catch (err) {
+    console.error('[admin] Paypack status check failed:', err.message);
+    res.json({ configured: true, authenticated: false, webhookSecretSet: Boolean(config.paypackWebhookSecret) });
+  }
+}));
+
+// GET /api/admin/audit/test-data — read-only inventory of records that look
+// like development or test data, for an operator to review before anything
+// is cleaned up. Nothing is changed.
+router.get('/audit/test-data', asyncHandler(async (_req, res) => {
+  const q = async (sql, params) => (await getPool().query(sql, params)).rows;
+  const seedWhere = `(d.phone = ANY($1) OR (d.phone LIKE '+25078999____' AND d.license_number ~ '^DL-1[0-9]{3}$'))`;
+  res.json({
+    seededDrivers: await q(
+      `SELECT d.id, d.full_name, d.phone, d.status, d.verified, d.password_hash IS NOT NULL AS can_sign_in, d.created_at,
+              (SELECT count(*)::int FROM rides r WHERE r.driver_id = d.id) AS rides
+         FROM drivers d WHERE ${seedWhere} ORDER BY d.phone`, [SEED_DRIVER_PHONES]),
+    ridesWithSeededDrivers: await q(
+      `SELECT r.id, r.status, r.payment_method, r.estimated_fare, r.created_at, d.phone AS driver_phone,
+              p.id AS passenger_id, p.full_name AS passenger_name, p.phone AS passenger_phone
+         FROM rides r JOIN drivers d ON d.id = r.driver_id JOIN passengers p ON p.id = r.passenger_id
+        WHERE ${seedWhere} ORDER BY r.created_at`, [SEED_DRIVER_PHONES]),
+    // A wallet whose balance differs from the sum of its transactions was
+    // changed outside the ledger — the old seed script did exactly that.
+    walletsNotMatchingLedger: await q(
+      `SELECT w.passenger_id, p.full_name, p.phone, p.created_at AS passenger_created_at, w.balance,
+              COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE -t.amount END), 0) AS ledger
+         FROM wallets w JOIN passengers p ON p.id = w.passenger_id
+         LEFT JOIN wallet_transactions t ON t.passenger_id = w.passenger_id
+        GROUP BY w.passenger_id, p.full_name, p.phone, p.created_at, w.balance
+       HAVING abs(w.balance - COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE -t.amount END), 0)) > 0.005`),
+    likelyTestPassengers: await q(
+      `SELECT p.id, p.full_name, p.phone, p.email, p.created_at,
+              (SELECT count(*)::int FROM rides r WHERE r.passenger_id = p.id) AS rides,
+              (SELECT balance FROM wallets w WHERE w.passenger_id = p.id) AS wallet_balance
+         FROM passengers p
+        WHERE p.email ILIKE '%@example.com' OR p.full_name ILIKE '%test%' OR p.full_name ILIKE '%rider%'
+        ORDER BY p.created_at`),
+    likelyTestDrivers: await q(
+      `SELECT d.id, d.full_name, d.phone, d.status, d.verified, d.license_number, d.created_at,
+              (SELECT count(*)::int FROM rides r WHERE r.driver_id = d.id) AS rides
+         FROM drivers d
+        WHERE d.full_name ILIKE '%test%' OR d.license_number ILIKE 'TEST%' OR d.full_name ILIKE '%driver%'
+        ORDER BY d.created_at`),
+    promotions: await q('SELECT id, code, title, active, uses_count, max_uses, created_at FROM promotions ORDER BY created_at'),
+    openRidesOlderThanADay: await q(
+      `SELECT id, status, payment_method, created_at FROM rides
+        WHERE status NOT IN ('completed', 'cancelled') AND created_at < now() - interval '1 day' ORDER BY created_at`),
+    pendingPaymentsOlderThanADay: await q(
+      `SELECT id, ride_id, method, amount, created_at FROM payments
+        WHERE status = 'pending' AND created_at < now() - interval '1 day' ORDER BY created_at`),
+    openPaymentExceptions: await q(`SELECT id, reason, payment_id, topup_id, ride_id, created_at FROM payment_exceptions WHERE status = 'open'`),
+    totals: (await q(
+      `SELECT (SELECT count(*)::int FROM passengers) AS passengers,
+              (SELECT count(*)::int FROM passengers WHERE deleted_at IS NOT NULL) AS closed_passengers,
+              (SELECT count(*)::int FROM drivers) AS drivers,
+              (SELECT count(*)::int FROM drivers WHERE status IN ('active', 'busy')) AS drivers_online,
+              (SELECT count(*)::int FROM rides) AS rides,
+              (SELECT count(*)::int FROM payments) AS payments,
+              (SELECT count(*)::int FROM wallet_topups) AS wallet_topups,
+              (SELECT count(*)::int FROM driver_locations WHERE recorded_at < now() - interval '1 day') AS driver_locations_older_than_a_day`))[0],
+  });
 }));
 
 module.exports = router;

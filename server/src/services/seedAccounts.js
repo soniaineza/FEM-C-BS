@@ -1,23 +1,27 @@
 const { getPool } = require('../db');
 const { config } = require('../config');
 
-// Driver accounts created by development tooling. They are useful on a
-// developer's own database and must never be usable on a real one:
+// Records created by development tooling. They are useful on a developer's
+// own database and must never be usable on a real one:
 //  - scripts/seed-dev-drivers.js creates three drivers on fixed phone numbers
-//    (their password used to be a published default)
+//    (their password used to be a published default) and a sample promotion
 //  - the simulated fleet (services/demoFleet.js) creates drivers on
 //    +25078999NNNN with licence numbers DL-1NNN
 const SEED_DRIVER_PHONES = ['+250780000001', '+250780000002', '+250780000003'];
 const FLEET_PHONE_PATTERN = '+25078999____';
 const FLEET_LICENSE_REGEX = '^DL-1[0-9]{3}$';
+// Identified by its code and exact title, so a promotion an operator later
+// creates under the same code but their own title is left alone.
+const SEED_PROMOTION = { code: 'WELCOME30', title: 'Welcome 30% off' };
 
 /**
  * On a real (non-local) database, permanently closes every development
- * driver account: no password (so nobody can sign in), unverified and
- * suspended (so it is never shown to riders or offered a ride), and no push
- * devices. Rows and their ride history are kept for the record — nothing is
- * deleted. Runs at every startup and is a no-op once done, so an account
- * re-created by mistake is closed again on the next boot.
+ * driver account — no password (so nobody can sign in), unverified and
+ * suspended (so it is never shown to riders or offered a ride), no push
+ * devices — and switches off the sample promotion. Rows and their ride
+ * history are kept for the record: nothing is deleted. Runs at every startup
+ * and is a no-op once done, so anything re-created by mistake is closed
+ * again on the next boot.
  */
 async function retireSeedAccounts() {
   if (config.localDatabase) return;
@@ -30,11 +34,19 @@ async function retireSeedAccounts() {
       RETURNING id, phone`,
     [SEED_DRIVER_PHONES, FLEET_PHONE_PATTERN, FLEET_LICENSE_REGEX]
   );
-  if (!rows.length) return;
-  await getPool().query('DELETE FROM driver_device_tokens WHERE driver_id = ANY($1)', [
-    rows.map((r) => r.id),
-  ]);
-  console.warn(`[security] closed ${rows.length} development driver account(s): ${rows.map((r) => r.phone).join(', ')}`);
+  if (rows.length) {
+    await getPool().query('DELETE FROM driver_device_tokens WHERE driver_id = ANY($1)', [
+      rows.map((r) => r.id),
+    ]);
+    console.warn(`[security] closed ${rows.length} development driver account(s): ${rows.map((r) => r.phone).join(', ')}`);
+  }
+
+  const promo = await getPool().query(
+    `UPDATE promotions SET active = FALSE
+      WHERE code = $1 AND title = $2 AND active = TRUE RETURNING code`,
+    [SEED_PROMOTION.code, SEED_PROMOTION.title]
+  );
+  if (promo.rows.length) console.warn(`[security] switched off the development promotion ${SEED_PROMOTION.code}`);
 }
 
 module.exports = { retireSeedAccounts, SEED_DRIVER_PHONES };

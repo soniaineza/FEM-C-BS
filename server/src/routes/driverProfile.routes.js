@@ -11,6 +11,7 @@ const { signDriverToken } = require('../utils/jwt');
 const { apiLimiter } = require('../middleware/rateLimit');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
+const { closeDriverAccount } = require('../services/accountClosure');
 const {
   getDriverBalance,
   quotePayout,
@@ -661,7 +662,8 @@ router.post('/device-token', asyncHandler(async (req, res) => {
 
 // DELETE /api/driver/account
 router.delete('/account', asyncHandler(async (req, res) => {
-  await getPool().query('DELETE FROM drivers WHERE id = $1', [req.driverId]);
+  // Closes the account without deleting it: earnings, cash and trip records stay.
+  await closeDriverAccount(req.driverId);
   res.status(204).end();
 }));
 
