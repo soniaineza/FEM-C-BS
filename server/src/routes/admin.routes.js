@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { getPool } = require('../db');
 const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
+const { apiLimiter } = require('../middleware/rateLimit');
 const { driverToJson } = require('../utils/serialize');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
@@ -25,6 +26,10 @@ const {
 // ADMIN_API_KEY shared secret in the X-Admin-Key header; disabled entirely
 // when ADMIN_API_KEY is unset. See server/README.md for curl examples.
 const router = express.Router();
+
+// Wrong keys are limited per address so the operator key cannot be guessed
+// by brute force; correct requests are never counted.
+router.use(apiLimiter({ max: 20, skipSuccessfulRequests: true, keyGenerator: (req) => `admin:${req.ip}` }));
 
 router.use((req, _res, next) => {
   if (!config.adminApiKey) return next(new ApiError(404, 'Not found.'));

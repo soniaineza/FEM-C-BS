@@ -175,7 +175,14 @@ async function quoteTrip(pickup, destination, rideType = 'private', seats = 1) {
   const trip = routeSummary(route);
   pruneQuotes();
   const expiresAt = Date.now() + QUOTE_TTL_MS;
-  const options = vehicles.map((vehicle) => {
+  // A driver who has not registered a vehicle class counts as the cheapest
+  // class (as in matching), so their ETA is shown there too.
+  const etaFor = (vehicle, index) => {
+    const own = etas[vehicle.id];
+    if (index !== 0 || etas.any == null) return own ?? null;
+    return own == null ? etas.any : Math.min(own, etas.any);
+  };
+  const options = vehicles.map((vehicle, index) => {
     const fare = priceFor(vehicle, trip, rideType, surge.multiplier, seats);
     const quoteId = crypto.randomBytes(9).toString('base64url');
     quotes.set(quoteId, {
@@ -190,7 +197,7 @@ async function quoteTrip(pickup, destination, rideType = 'private', seats = 1) {
       name: vehicle.name,
       description: vehicle.description,
       capacity: vehicle.capacity,
-      pickupEtaMinutes: etas[vehicle.id] ?? null,
+      pickupEtaMinutes: etaFor(vehicle, index),
       fare,
     };
   });

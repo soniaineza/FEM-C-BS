@@ -1296,6 +1296,10 @@ async function main() {
     // Short sweep interval so the cash-timeout scenarios do not wait long.
     SCHEDULER_INTERVAL_MS: '3000',
     MAPS_REVERSE_LIMIT: '5',
+    // The test's own fake providers, whatever the developer's .env selects.
+    MAP_ROUTING_PROVIDER: 'osrm',
+    MAP_GEOCODING_PROVIDER: 'photon',
+    OTP_MODE: 'sms',
     // Windows needs these for DNS/sockets in the child process.
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
   };

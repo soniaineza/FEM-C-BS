@@ -94,6 +94,20 @@ async function main() {
   // server/src -> server -> repo root, two levels up (not three — the
   // previous `build/web` path here was off by one and pointed above the
   // repo root; verified against the actual directory layout).
+  // The operator's page: approve drivers, resolve payment cases, handle SOS.
+  // It holds no secret — every action it takes needs the operator key, which
+  // the operator types in and which is checked by /api/admin as usual.
+  app.get('/operator', (_req, res) => {
+    res.set({
+      'Cache-Control': 'no-store',
+      'X-Frame-Options': 'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+      'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'",
+    });
+    res.sendFile(path.join(__dirname, '..', 'public', 'operator.html'));
+  });
+
   const webBuildPath = path.join(__dirname, '..', '..', 'dist');
   app.use(express.static(webBuildPath));
 

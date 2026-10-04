@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Kimu Operator</title>
+<style>
+  :root {
+    --bg: #f5f6f7; --card: #ffffff; --ink: #111827; --muted: #5b6472; --line: #e2e5e9;
+    --primary: #0e7c4a; --primary-ink: #ffffff; --danger: #b42318; --warn: #b54708; --warn-bg: #fff4e5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111418; --card: #1b2026; --ink: #f1f3f5; --muted: #a3acb8; --line: #2c333c;
+      --primary: #35b27a; --primary-ink: #06130c; --danger: #ff8a7a; --warn: #ffb866; --warn-bg: #33250f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 12px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 16px; margin: 0 0 4px; }
+  p { margin: 4px 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  button { font: inherit; min-height: 44px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); font-weight: 600; }
+  button.danger { border-color: var(--danger); color: var(--danger); }
+  button[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+  input { font: inherit; width: 100%; min-height: 44px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .docs { list-style: none; padding: 0; margin: 8px 0 0; }
+  .docs li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .tag { font-size: 12px; font-weight: 600; }
+  .tag.ok { color: var(--primary); } .tag.wait { color: var(--warn); } .tag.bad { color: var(--danger); }
+  .notice { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+  .error { color: var(--danger); margin-top: 8px; font-size: 14px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Kimu Operator</h1>
+    <button id="signout" hidden>Sign out</button>
+  </header>
+
+  <section id="login" class="card">
+    <h2>Sign in</h2>
+    <p class="muted">Enter the operator key (ADMIN_API_KEY from the server settings). It is kept only in this browser tab and is forgotten when you close it.</p>
+    <label for="key">Operator key</label>
+    <input id="key" type="password" autocomplete="off">
+    <label for="who">Your name (recorded on every decision you make)</label>
+    <input id="who" type="text" autocomplete="name">
+    <div class="row"><button id="enter" class="primary">Continue</button></div>
+    <p id="loginError" class="error" role="alert"></p>
+  </section>
+
+  <section id="app" hidden>
+    <nav aria-label="Sections">
+      <button data-tab="drivers" aria-pressed="true">Drivers to approve</button>
+      <button data-tab="cases" aria-pressed="false">Payment cases</button>
+      <button data-tab="sos" aria-pressed="false">Emergencies</button>
+      <button id="reload">Refresh</button>
+    </nav>
+    <p id="status" class="muted" role="status"></p>
+    <div id="list"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var API = '/api/admin';
+  var REQUIRED = ['license', 'national_id', 'vehicle_registration', 'insurance'];
+  var DOC_NAMES = { license: 'Driving licence', national_id: 'National ID', vehicle_registration: 'Vehicle registration', insurance: 'Insurance', profile_photo: 'Profile photo', vehicle_photo: 'Vehicle photo', other: 'Other' };
+  var tab = 'drivers';
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Everything shown comes from riders and drivers, so it is only ever put
+  // on the page as text, never as HTML.
+  function el(tag, text, cls) {
+    var node = document.createElement(tag);
+    if (text != null) node.textContent = text;
+    if (cls) node.className = cls;
+    return node;
+  }
+  function button(text, cls, onClick) {
+    var b = el('button', text, cls);
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  function key() { return sessionStorage.getItem('kimuOperatorKey') || ''; }
+  function who() { return sessionStorage.getItem('kimuOperatorName') || ''; }
+
+  function call(method, path, body) {
+    return fetch(API + path, {
+      method: method,
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key() },
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+        return data;
+      });
+    });
+  }
+  function money(n) { return 'RWF ' + Math.round(Number(n) || 0).toLocaleString(); }
+  function when(v) { return v ? new Date(v).toLocaleString() : ''; }
+  function setStatus(text) { $('status').textContent = text; }
+
+  // Runs one decision: disables the button, shows what happened, reloads.
+  function act(btn, work) {
+    btn.disabled = true;
+    Promise.resolve().then(work).then(function () { load(); }).catch(function (err) {
+      btn.disabled = false;
+      setStatus('Not done: ' + err.message);
+    });
+  }
+  function ask(question) { var v = window.prompt(question); return v == null ? null : v.trim(); }
+
+  // ---- drivers ----
+  function renderDrivers(data) {
+    var list = $('list');
+    if (!data.drivers.length) { list.appendChild(el('p', 'No drivers are waiting for approval.', 'muted')); return; }
+    data.drivers.forEach(function (d) {
+      var card = el('div', null, 'card');
+      card.appendChild(el('h2', d.fullName || 'Driver'));
+      card.appendChild(el('p', (d.phone || '') + ' · registered ' + when(d.createdAt), 'muted'));
+      var latest = {};
+      (d.documents || []).forEach(function (doc) { if (!latest[doc.docType]) latest[doc.docType] = doc; });
+      var missing = REQUIRED.filter(function (t) { return !latest[t]; });
+      var ul = el('ul', null, 'docs');
+      REQUIRED.forEach(function (type) {
+        var doc = latest[type];
+        var li = el('li');
+        li.appendChild(el('span', DOC_NAMES[type] + (doc && doc.fileName ? ' — ' + doc.fileName : '')));
+        var state = !doc ? ['not submitted', 'wait'] : doc.status === 'approved' ? ['approved', 'ok'] : doc.status === 'rejected' ? ['rejected', 'bad'] : ['to check', 'wait'];
+        li.appendChild(el('span', state[0], 'tag ' + state[1]));
+        ul.appendChild(li);
+      });
+      card.appendChild(ul);
+      if (missing.length) {
+        card.appendChild(el('p', 'Waiting for the driver to submit in the app: ' + missing.map(function (t) { return DOC_NAMES[t]; }).join(', ') + '.', 'muted'));
+      }
+      var row = el('div', null, 'row');
+      var approve = button('I checked the originals — approve driver', 'primary', function () {
+        var evidence = ask('Where is this inspection recorded? (for example: office log 12 Oct, page 3)');
+        if (!evidence) return;
+        act(approve, function () {
+          return REQUIRED.reduce(function (chain, type) {
+            return chain.then(function () {
+              if (latest[type].status === 'approved') return null;
+              return call('POST', '/documents/' + latest[type].id + '/review', { status: 'approved', reviewer: who(), method: 'in_person', evidenceReference: evidence });
+            });
+          }, Promise.resolve()).then(function () { return call('POST', '/drivers/' + d.id + '/verify'); });
+        });
+      });
+      approve.disabled = missing.length > 0;
+      row.appendChild(approve);
+      REQUIRED.forEach(function (type) {
+        var doc = latest[type];
+        if (!doc || doc.status !== 'pending') return;
+        var reject = button('Reject ' + DOC_NAMES[type].toLowerCase(), 'danger', function () {
+          var reason = ask('Why is it rejected? The driver will see this.');
+          if (!reason) return;
+          act(reject, function () { return call('POST', '/documents/' + doc.id + '/review', { status: 'rejected', reason: reason, reviewer: who() }); });
+        });
+        row.appendChild(reject);
+      });
+      card.appendChild(row);
+      list.appendChild(card);
+    });
+  }
+
+  // ---- payment cases ----
+  var CASES = {
+    cash_unconfirmed: { title: 'Cash not confirmed by the driver', help: 'The driver did not confirm the cash fare in time. Call the driver and the rider, then record what happened.', options: [['Cash was received', 'cash_received', 'primary'], ['Cash was NOT received', 'cash_not_received', 'danger']] },
+    refund: { title: 'Money to send back', help: 'Paypack collected this money but it could not be applied to a ride or wallet. Send it back to the number shown, then record the transfer.', options: [['Refund sent', 'refunded', 'primary'], ['No refund is due', 'no_refund_due', '']] },
+  };
+  function renderCases(data) {
+    var list = $('list');
+    if (!data.exceptions.length) { list.appendChild(el('p', 'No open payment cases.', 'muted')); return; }
+    data.exceptions.forEach(function (x) {
+      var kind = x.reason === 'cash_unconfirmed' ? CASES.cash_unconfirmed : CASES.refund;
+      var card = el('div', null, 'card');
+      card.appendChild(el('h2', kind.title));
+      card.appendChild(el('p', money(x.amount) + ' · ' + (x.method || '') + (x.phone ? ' · ' + x.phone : '') + ' · opened ' + when(x.created_at), 'muted'));
+      card.appendChild(el('p', kind.help));
+      card.appendChild(el('p', 'Reason recorded: ' + x.reason + (x.ride_id ? ' · ride ' + x.ride_id : ''), 'muted'));
+      var row = el('div', null, 'row');
+      kind.options.forEach(function (opt) {
+        var b = button(opt[0], opt[2], function () {
+          var reference = ask('Reference for this decision (transfer ID, call log, receipt number):');
+          if (!reference) return;
+          act(b, function () { return call('POST', '/payment-exceptions/' + x.id + '/resolve', { resolution: opt[1], reference: reference + ' — ' + who() }); });
+        });
+        row.appendChild(b);
+      });
+      card.appendChild(row);
+      list.appendChild(card);
+    });
+  }
+
+  // ---- emergencies ----
+  function renderSos(data) {
+    var list = $('list');
+    if (!data.emergencies.length) { list.appendChild(el('p', 'No open emergencies.', 'muted')); return; }
+    data.emergencies.forEach(function (e) {
+      var card = el('div', null, 'card');
+      card.appendChild(el('h2', 'SOS ' + (e.reference || '')));
+      card.appendChild(el('p', 'Rider ' + (e.passenger_phone || 'unknown') + ' · ' + when(e.created_at), 'muted'));
+      if (e.latitude != null && e.longitude != null) card.appendChild(el('p', 'Location: ' + e.latitude + ', ' + e.longitude + (e.address ? ' (' + e.address + ')' : '')));
+      if (e.details) card.appendChild(el('p', e.details));
+      var row = el('div', null, 'row');
+      var done = button('Handled — close', 'primary', function () {
+        if (!window.confirm('Close this emergency? Only do this after you have spoken to the rider.')) return;
+        act(done, function () { return call('POST', '/emergencies/' + e.id + '/resolve'); });
+      });
+      row.appendChild(done);
+      card.appendChild(row);
+      list.appendChild(card);
+    });
+  }
+
+  var TABS = {
+    drivers: { path: '/drivers?verified=false', render: renderDrivers },
+    cases: { path: '/payment-exceptions', render: renderCases },
+    sos: { path: '/emergencies', render: renderSos },
+  };
+
+  function load() {
+    $('list').textContent = '';
+    setStatus('Loading…');
+    return call('GET', TABS[tab].path).then(function (data) {
+      setStatus('Updated ' + new Date().toLocaleTimeString());
+      TABS[tab].render(data);
+    }).catch(function (err) { setStatus('Could not load: ' + err.message); throw err; });
+  }
+
+  function show(signedIn) {
+    $('login').hidden = signedIn;
+    $('app').hidden = !signedIn;
+    $('signout').hidden = !signedIn;
+  }
+
+  $('enter').addEventListener('click', function () {
+    var k = $('key').value.trim();
+    var name = $('who').value.trim();
+    $('loginError').textContent = '';
+    if (!k || !name) { $('loginError').textContent = 'Enter the operator key and your name.'; return; }
+    sessionStorage.setItem('kimuOperatorKey', k);
+    sessionStorage.setItem('kimuOperatorName', name);
+    show(true);
+    load().catch(function () {
+      sessionStorage.removeItem('kimuOperatorKey');
+      show(false);
+      $('loginError').textContent = 'That key was not accepted.';
+    });
+  });
+  $('signout').addEventListener('click', function () { sessionStorage.clear(); $('key').value = ''; show(false); });
+  $('reload').addEventListener('click', function () { load().catch(function () {}); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
+    b.addEventListener('click', function () {
+      tab = b.getAttribute('data-tab');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      load().catch(function () {});
+    });
+  });
+
+  if (key()) { show(true); load().catch(function () { show(false); }); }
+})();
+</script>
+</body>
+</html>

@@ -32,7 +32,7 @@ test.describe('Passenger authentication', () => {
     await page.getByText('Sign up', { exact: true }).last().click();
 
     await expect(page.getByText('Verify your account')).toBeVisible();
-    const hint = await page.getByText(/Demo OTP code: \d+/).textContent();
+    const hint = await page.getByText(/Your code is \d+/).textContent();
     const code = hint!.match(/(\d{4,8})/)![1];
     // Tap the digit boxes and type, like a rider. A wrong code is refused.
     const boxes = page.getByRole('textbox');
@@ -82,7 +82,7 @@ test.describe('Passenger authentication', () => {
     await page.getByText('Forgot password?').click();
     await page.getByLabel('Email or phone number').fill(p.phone);
     await page.getByText('Send verification').click();
-    const hint = await page.getByText(/Demo OTP code: \d+/).textContent();
+    const hint = await page.getByText(/Your code is \d+/).textContent();
     const code = hint!.match(/(\d{4,8})/)![1];
     await page.getByLabel('Verification code').fill(code);
     await page.getByRole('textbox', { name: 'New password' }).fill('NewSecret456');

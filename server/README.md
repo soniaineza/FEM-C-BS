@@ -138,6 +138,13 @@ freed, while rides, payments, receipts, wallet history, earnings and cash
 records stay. A rider with an unfinished or unpaid ride, and a driver with an
 open ride, a payout in progress or cash still owed to Kimu, is refused.
 
+**Operator page.** `https://<api-host>/operator` is a simple page for the
+person running the service: sign in with `ADMIN_API_KEY` and your name, then
+approve drivers (after inspecting their four documents in person), decide
+payment cases (unconfirmed cash, refunds) and close SOS events. It calls the
+same `/api/admin` endpoints as the commands in this file; wrong keys are rate
+limited.
+
 **Operator checks** (read-only):
 
 ```
