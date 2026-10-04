@@ -167,6 +167,29 @@ async function readCharge(ref) {
   return { ...processed.data, ref, status: String(processed.data.status || '').toLowerCase() };
 }
 
+/** Which mobile-money network a Rwandan number is on. */
+function networkOf(phone) {
+  const national = toNationalNumber(phone);
+  if (!/^07\d{8}$/.test(national)) return null;
+  if (/^07[89]/.test(national)) return 'mtn';
+  if (/^07[23]/.test(national)) return 'airtel';
+  return null;
+}
+
+/**
+ * Money the merchant account holds per network. A cash-out can only be paid
+ * from the balance of the recipient's own network.
+ */
+async function getBalances() {
+  const access = await getAccessToken();
+  const res = await fetch(apiUrl('/merchants/me'), {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${access}` },
+    signal: AbortSignal.timeout(10000),
+  });
+  const me = await readJson(res, 'merchant lookup');
+  return { mtn: Number(me.mtn_balance || 0), airtel: Number(me.airtel_balance || 0) };
+}
+
 /**
  * Verifies an incoming webhook: the header must equal
  * base64(HMAC-SHA256(rawBody, PAYPACK_WEBHOOK_SECRET)). Without a configured
@@ -188,6 +211,8 @@ module.exports = {
   createCharge,
   createCashout,
   readCharge,
+  getBalances,
+  networkOf,
   verifyWebhookSignature,
   toNationalNumber,
 };

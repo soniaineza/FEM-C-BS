@@ -13,6 +13,7 @@ const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
 const {
   getDriverBalance,
+  quotePayout,
   requestPayout,
   startSettlement,
   payoutToJson,
@@ -356,6 +357,13 @@ router.get('/payouts', asyncHandler(async (req, res) => {
     [req.driverId]
   );
   res.json({ payouts: rows.map(payoutToJson), balance: await getDriverBalance(req.driverId) });
+}));
+
+// GET /api/driver/payouts/quote?amount= — the payout amount, the provider
+// fee and what the driver will receive, to show before they confirm.
+router.get('/payouts/quote', asyncHandler(async (req, res) => {
+  const { requestedAmount, fee, amountReceived } = await quotePayout(req.driverId, req.query.amount);
+  res.json({ quote: { requestedAmount, fee, amountReceived } });
 }));
 
 // POST /api/driver/payouts { amount } — ask for available balance to be

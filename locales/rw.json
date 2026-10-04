@@ -756,5 +756,13 @@
   "driverLocationNotificationTitle": "Kimu Transport irimo gusangiza aho uherereye",
   "driverLocationNotificationBody": "Abagenzi bashobora kukubona igihe uri gukora.",
   "driverBackgroundLocationPromptTitle": "Komeza kwakira ingendo",
-  "driverBackgroundLocationPromptBody": "Emera ko aho uherereye hakoreshwa \"igihe cyose\" kugira ngo abagenzi bakubone n'igihe telefone ifunze cyangwa uri mu yindi porogaramu. Hakoreshwa gusa igihe uri gukora."
+  "driverBackgroundLocationPromptBody": "Emera ko aho uherereye hakoreshwa \"igihe cyose\" kugira ngo abagenzi bakubone n'igihe telefone ifunze cyangwa uri mu yindi porogaramu. Hakoreshwa gusa igihe uri gukora.",
+  "paymentNotCompleted": "Ubwishyu ntibwarangiye.",
+  "tryPaymentAgain": "Ongera wohereze ubusabe bwo kwishyura",
+  "paymentPhoneLabel": "Nimero yishyura",
+  "paymentPhoneHint": "Iyi ni yo nimero izakira ubusabe bwo kwishyura kuri mobile money.",
+  "paymentExpired": "Ubwishyu bwawe bwa mobile money bwarengeje igihe kuko butemejwe ku gihe. Ushobora kongera kugerageza cyangwa kwishyura mu ntoki.",
+  "driverPayoutFee": "Ikiguzi cya Paypack",
+  "driverPayoutYouReceive": "Uzahabwa",
+  "driverConfirmPayout": "Emeza kubikuza"
 }

@@ -121,6 +121,12 @@ const config = {
   // it to go online again, and the smallest payout a driver can request.
   driverMaxCommissionDebt: Number(process.env.DRIVER_MAX_COMMISSION_DEBT || 5000),
   driverMinPayout: Number(process.env.DRIVER_MIN_PAYOUT || 1000),
+  // The provider's cash-out fee, deducted from each driver payout (Paypack
+  // charges 2.3% on money sent out).
+  payoutFeeRate: Number(process.env.PAYOUT_FEE_RATE || 0.023),
+  // A mobile-money prompt nobody answers is treated as failed after this
+  // long, so the rider can retry or pay cash instead of waiting forever.
+  paymentExpirySeconds: Number(process.env.PAYMENT_EXPIRY_SECONDS || 180),
 
   // Dependency-free development simulator. Replaced entirely by the real
   // driver-matching service — kept only for local UI previews.

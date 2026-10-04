@@ -26,16 +26,25 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethod[] = [
 // card processor is wired into server/src/services/payments.js.
 export const BOOKABLE_PAYMENT_METHOD_IDS = ['cash', 'mtn_momo', 'airtel_money', 'wallet'];
 
-export type PaymentStatus = 'pending' | 'processing' | 'succeeded' | 'failed' | 'refunded';
+// Mirrors server/src/services/paymentState.js. `refund_pending` is money the
+// provider collected for an attempt that had already ended (or could not be
+// applied): it is owed back to the rider and did not pay the fare.
+export type PaymentStatus =
+  | 'pending' | 'processing' | 'succeeded' | 'failed' | 'expired' | 'refund_pending' | 'refunded';
+
+const PAYMENT_STATUSES = ['pending', 'processing', 'succeeded', 'failed', 'expired', 'refund_pending', 'refunded'] as const;
 
 export function paymentStatusFromId(id: string): PaymentStatus {
-  return (['pending', 'processing', 'succeeded', 'failed', 'refunded'] as const).includes(id as PaymentStatus)
-    ? (id as PaymentStatus)
-    : 'pending';
+  return PAYMENT_STATUSES.includes(id as PaymentStatus) ? (id as PaymentStatus) : 'pending';
 }
 
 export function isPaymentSettled(status: PaymentStatus): boolean {
-  return status === 'succeeded' || status === 'refunded';
+  return status === 'succeeded';
+}
+
+/** The attempt is over and did not pay the fare: retry or pay cash. */
+export function isPaymentUnpaidFinal(status: PaymentStatus): boolean {
+  return status === 'failed' || status === 'expired' || status === 'refund_pending' || status === 'refunded';
 }
 
 export interface PaymentRecord {

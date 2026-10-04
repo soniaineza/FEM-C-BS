@@ -756,5 +756,13 @@
   "driverLocationNotificationTitle": "Kimu Transport partage votre position",
   "driverLocationNotificationBody": "Les passagers peuvent vous trouver tant que vous êtes en ligne.",
   "driverBackgroundLocationPromptTitle": "Continuez à recevoir des courses",
-  "driverBackgroundLocationPromptBody": "Autorisez la position « toujours » pour que les passagers vous trouvent même quand votre téléphone est verrouillé ou que vous changez d'application. Elle n'est utilisée que lorsque vous êtes en ligne."
+  "driverBackgroundLocationPromptBody": "Autorisez la position « toujours » pour que les passagers vous trouvent même quand votre téléphone est verrouillé ou que vous changez d'application. Elle n'est utilisée que lorsque vous êtes en ligne.",
+  "paymentNotCompleted": "Le paiement n'a pas abouti.",
+  "tryPaymentAgain": "Renvoyer la demande de paiement",
+  "paymentPhoneLabel": "Numéro qui paie",
+  "paymentPhoneHint": "Ce numéro recevra la demande de paiement mobile money.",
+  "paymentExpired": "Votre paiement mobile money a expiré car il n'a pas été validé à temps. Vous pouvez réessayer ou payer en espèces.",
+  "driverPayoutFee": "Frais Paypack",
+  "driverPayoutYouReceive": "Vous recevez",
+  "driverConfirmPayout": "Confirmer le paiement"
 }

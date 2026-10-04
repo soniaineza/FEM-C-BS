@@ -174,6 +174,10 @@ async function waitForAssignment(token, rideId) {
   check('payout requested', payout.status === 201 && payout.data.payout.status === 'pending' &&
     Math.abs(balance.balance - payout.data.balance.balance - 2000) < 0.01,
     `status=${payout.status} ${JSON.stringify(payout.data)}`);
+  check('payout shows the cash-out fee and what the driver receives',
+    payout.data.payout.fee === Math.ceil(2000 * payout.data.balance.payoutFeeRate) &&
+      payout.data.payout.amountReceived === 2000 - payout.data.payout.fee && payout.data.payout.requestedAmount === 2000,
+    JSON.stringify(payout.data.payout));
   const second = await api('POST', '/driver/payouts', { amount: 1000 }, dt);
   check('only one payout in progress at a time', second.status === 409, `status=${second.status}`);
 

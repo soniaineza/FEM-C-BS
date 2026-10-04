@@ -107,6 +107,18 @@ dashboard. Successful or failed `transaction:processed` events settle ride
 payments and wallet top-ups (each one exactly once, even if the event is
 delivered twice). The app's refresh endpoints poll Paypack as a fallback.
 
+**Payment states.** Every ride payment and wallet top-up is one attempt in one of
+`pending`, `succeeded`, `failed`, `expired`, `refund_pending`, `refunded`
+(`src/services/paymentState.js`). A mobile-money prompt nobody approves expires
+after `PAYMENT_EXPIRY_SECONDS` (default 180); the rider can then send a new
+prompt (a new attempt with its own idempotency key) or switch to cash. Money
+Paypack collects for an attempt that had already failed or expired, for a fare
+paid another way, or for the wrong amount is never applied: the attempt becomes
+`refund_pending` and appears in `GET /api/admin/payment-exceptions` with the
+number to refund; resolving it as `refunded` closes it. Drivers are released
+at the end of a wallet or mobile-money trip; a cash trip holds them until they
+confirm the cash.
+
 **SOS.** `EMERGENCY_CALL_CENTER_PHONE` is the number the SOS button dials.
 The API also sends a reference-bearing SMS alert to that number. Operators
 must monitor `GET /api/admin/emergencies`, call the rider, and resolve the

@@ -6,7 +6,7 @@ const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { config } = require('../config');
 const paypack = require('../services/paypackClient');
-const { creditTopup, failTopup } = require('../services/walletTopups');
+const { creditTopup, failTopup, refreshTopup } = require('../services/walletTopups');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -18,6 +18,7 @@ function topupToJson(row) {
     phone: row.phone,
     status: row.status,
     state: row.state || row.status,
+    failureReason: row.failure_reason || null,
     provider: row.provider || null,
     reference: row.reference,
     createdAt: row.created_at,
@@ -69,6 +70,9 @@ router.post(
     const value = Number(amount);
     if (!phone) throw new ApiError(400, 'A phone number is required.');
     if (!Number.isFinite(value) || value <= 0) throw new ApiError(400, 'Enter a valid amount.');
+    if (!paypack.networkOf(phone)) {
+      throw new ApiError(400, 'Enter a valid MTN or Airtel mobile-money number, for example 0781234567.');
+    }
 
     const reference = `TOPUP-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
     const { rows } = await getPool().query(
@@ -137,20 +141,7 @@ router.post(
     );
     const topup = rows[0];
     if (!topup) throw new ApiError(404, 'Top-up not found.');
-    if (topup.status === 'succeeded' || !topup.external_reference || !paypack.isConfigured()) {
-      return res.json({ topup: topupToJson(topup) });
-    }
-
-    const charge = await paypack.readCharge(topup.external_reference);
-    const chargeStatus = String(charge.status || '').toLowerCase();
-
-    let latest = topup;
-    if (chargeStatus === 'successful') {
-      latest = await creditTopup(topup.id, { providerStatus: chargeStatus });
-    } else if (chargeStatus === 'failed') {
-      latest = await failTopup(topup.id, { providerStatus: chargeStatus });
-    }
-    res.json({ topup: topupToJson(latest) });
+    res.json({ topup: topupToJson(await refreshTopup(topup)) });
   })
 );
 

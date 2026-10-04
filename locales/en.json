@@ -756,5 +756,13 @@
   "driverLocationNotificationTitle": "Kimu Transport is sharing your location",
   "driverLocationNotificationBody": "Riders can find you while you are online.",
   "driverBackgroundLocationPromptTitle": "Keep receiving rides",
-  "driverBackgroundLocationPromptBody": "Allow location \"all the time\" so riders can still find you when your phone is locked or you switch apps. It is only used while you are online."
+  "driverBackgroundLocationPromptBody": "Allow location \"all the time\" so riders can still find you when your phone is locked or you switch apps. It is only used while you are online.",
+  "paymentNotCompleted": "The payment was not completed.",
+  "tryPaymentAgain": "Send payment prompt again",
+  "paymentPhoneLabel": "Paying phone number",
+  "paymentPhoneHint": "This is the number that will receive the mobile-money payment prompt.",
+  "paymentExpired": "Your mobile-money payment expired because it was not approved in time. You can retry or pay by cash.",
+  "driverPayoutFee": "Paypack fee",
+  "driverPayoutYouReceive": "You receive",
+  "driverConfirmPayout": "Confirm payout"
 }

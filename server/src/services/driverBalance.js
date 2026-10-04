@@ -44,6 +44,7 @@ async function getDriverBalance(driverId, db = getPool()) {
     owed: Math.max(0, -balance),
     debtLimit: config.driverMaxCommissionDebt,
     minPayout: config.driverMinPayout,
+    payoutFeeRate: config.payoutFeeRate,
     blocked: balance < -config.driverMaxCommissionDebt,
   };
 }
@@ -69,11 +70,46 @@ async function enforceDebtLimit(driverId) {
   });
 }
 
+/** The provider's cash-out fee on a payout: whole francs, rounded up. The
+ * rate is applied in tenths of a percent so no float rounding creeps in. */
+function payoutFee(amount) {
+  const perMille = Math.round(config.payoutFeeRate * 1000);
+  return Math.ceil((Math.round(Number(amount)) * perMille) / 1000);
+}
+
+/**
+ * What a payout of [amount] means for this driver, checked against their
+ * balance: the amount taken from the balance, the fee, and what arrives on
+ * their phone. The same numbers requestPayout then records.
+ */
+async function quotePayout(driverId, amount, db = getPool()) {
+  const value = Math.floor(Number(amount));
+  if (!Number.isFinite(value) || value <= 0) throw new ApiError(400, 'Enter the amount to withdraw.');
+  const { rows } = await db.query('SELECT phone FROM drivers WHERE id = $1', [driverId]);
+  if (!rows[0]) throw new ApiError(404, 'Driver not found.');
+  const network = paypack.networkOf(rows[0].phone);
+  if (!network) {
+    throw new ApiError(400, 'Payouts go to your account phone, which must be an MTN or Airtel mobile-money number. Contact support to update it.');
+  }
+  const balance = await getDriverBalance(driverId, db);
+  if (value < balance.minPayout) {
+    throw new ApiError(400, `The minimum payout is RWF ${balance.minPayout.toLocaleString()}.`);
+  }
+  if (value > balance.available) {
+    throw new ApiError(400, `You can withdraw up to RWF ${Math.floor(balance.available).toLocaleString()}.`);
+  }
+  const fee = payoutFee(value);
+  return { requestedAmount: value, fee, amountReceived: value - fee, phone: rows[0].phone, network };
+}
+
 function payoutToJson(r) {
   return {
     id: r.id,
     driverId: r.driver_id,
     amount: Number(r.amount),
+    requestedAmount: Number(r.amount),
+    fee: Number(r.fee || 0),
+    amountReceived: Number(r.amount) - Number(r.fee || 0),
     method: r.method,
     status: r.status,
     phone: r.phone || null,
@@ -112,18 +148,12 @@ async function requestPayout(driverId, amount) {
       [driverId, OPEN_PAYOUT_STATUSES]
     );
     if (open[0]) throw new ApiError(409, 'You already have a payout in progress.');
-    const balance = await getDriverBalance(driverId, client);
-    if (value < balance.minPayout) {
-      throw new ApiError(400, `The minimum payout is RWF ${balance.minPayout.toLocaleString()}.`);
-    }
-    if (value > balance.available) {
-      throw new ApiError(400, `You can withdraw up to RWF ${Math.floor(balance.available).toLocaleString()}.`);
-    }
+    const quote = await quotePayout(driverId, value, client);
     const reference = `PO-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
     const { rows } = await client.query(
-      `INSERT INTO driver_payouts (driver_id, amount, method, status, reference, phone)
-       VALUES ($1, $2, 'mobile_money', 'pending', $3, $4) RETURNING *`,
-      [driverId, value, reference, drivers[0].phone]
+      `INSERT INTO driver_payouts (driver_id, amount, method, status, reference, phone, fee)
+       VALUES ($1, $2, 'mobile_money', 'pending', $3, $4, $5) RETURNING *`,
+      [driverId, quote.requestedAmount, reference, quote.phone, quote.fee]
     );
     await client.query('COMMIT');
     return rows[0];
@@ -147,7 +177,7 @@ async function finalizePayout(payoutId, success, { failureReason = null } = {}) 
   await pushDriverNotification(payout.driver_id, success
     ? {
         title: 'Payout sent',
-        body: `RWF ${Number(payout.amount).toLocaleString()} was sent to ${payout.phone || 'your mobile money'}.`,
+        body: `RWF ${(Number(payout.amount) - Number(payout.fee || 0)).toLocaleString()} was sent to ${payout.phone || 'your mobile money'}.`,
         type: 'payment',
       }
     : {
@@ -192,9 +222,36 @@ async function approvePayout(payoutId, { reviewer, reference } = {}) {
     ]);
     return finalizePayout(payout.id, true);
   }
+  // The driver receives the payout minus the provider's cash-out fee.
+  const net = Number(payout.amount) - Number(payout.fee || 0);
+  try {
+    // A cash-out is paid from the merchant balance on the recipient's own
+    // network; say so plainly rather than let the transfer fail.
+    const network = paypack.networkOf(payout.phone);
+    const balances = await paypack.getBalances();
+    if (!network) {
+      await release();
+      throw new ApiError(400, 'This payout number is not an MTN or Airtel mobile-money number.');
+    }
+    if (balances[network] < Number(payout.amount)) {
+      // The figures stay in the server log; the API answer carries none.
+      console.error(`[payouts] insufficient ${network} balance for payout ${payout.id}: have ${balances[network]}, need ${payout.amount}`);
+      await release();
+      throw new ApiError(
+        409,
+        `Payouts to ${network === 'mtn' ? 'MTN' : 'Airtel'} are temporarily unavailable because there is not enough payout balance. Please try again later.`,
+        'INSUFFICIENT_PROVIDER_BALANCE'
+      );
+    }
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    console.error('[payouts] Paypack balance check failed:', err.message);
+    await release();
+    throw new ApiError(502, 'Could not read the Paypack balance. Try again.');
+  }
   try {
     const transfer = await paypack.createCashout({
-      amount: payout.amount,
+      amount: net,
       phone: payout.phone,
       idempotencyKey: payout.reference,
     });
@@ -355,6 +412,7 @@ async function reconcileDriverMoney() {
 module.exports = {
   getDriverBalance,
   enforceDebtLimit,
+  quotePayout,
   requestPayout,
   approvePayout,
   rejectPayout,

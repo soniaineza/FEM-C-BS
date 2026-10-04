@@ -136,6 +136,8 @@ ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS external_reference TEXT;
 ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS failure_reason TEXT;
 ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+-- Provider cash-out fee taken out of `amount`; the driver receives amount - fee.
+ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS fee DOUBLE PRECISION NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_driver_payouts_external ON driver_payouts(external_reference)
   WHERE external_reference IS NOT NULL;
 

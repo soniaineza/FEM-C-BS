@@ -16,6 +16,7 @@ const {
 const { publishRideEvent } = require('./rideEvents');
 const { pushNotification } = require('./notify');
 const { pushDriverNotification } = require('./driverNotify');
+const { toNationalNumber, networkOf } = require('./paypackClient');
 
 const BOOKABLE_STATUSES = new Set([
   'searchingDriver',
@@ -81,6 +82,7 @@ async function createRide(passengerId, body) {
     scheduledFor,
     quoteId,
     seats: requestedSeats,
+    paymentPhone,
   } = body || {};
 
   if (
@@ -92,6 +94,14 @@ async function createRide(passengerId, body) {
   }
   const type = rideType === 'shared' ? 'shared' : 'private';
   const seats = normalizeSeats(type, requestedSeats);
+  // Optional mobile-money number to charge instead of the account phone.
+  let payFrom = null;
+  if (paymentPhone && (paymentMethodId === 'mtn_momo' || paymentMethodId === 'airtel_money')) {
+    payFrom = toNationalNumber(paymentPhone);
+    if (!/^07\d{8}$/.test(payFrom) || !networkOf(payFrom)) {
+      throw new ApiError(400, 'Enter a valid MTN or Airtel mobile-money number, for example 0781234567.');
+    }
+  }
 
   // Duplicate-request guard: a passenger with a live (non terminal) ride
   // must not be able to stack another booking — the driver matcher, simulator
@@ -140,8 +150,8 @@ async function createRide(passengerId, body) {
        dest_address, dest_latitude, dest_longitude,
        distance_km, duration_minutes, payment_method, estimated_fare,
        status, ride_note, promotion_id, applied_discount, scheduled_for,
-       fare_breakdown, surge_multiplier, seats
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+       fare_breakdown, surge_multiplier, seats, payment_phone
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
      RETURNING *`,
     [
       passengerId,
@@ -165,6 +175,7 @@ async function createRide(passengerId, body) {
       JSON.stringify(fare),
       fare.surgeMultiplier,
       seats,
+      payFrom,
     ]
   );
   const ride = rows[0];

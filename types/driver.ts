@@ -120,7 +120,16 @@ export interface DriverBalance {
   owed: number;
   debtLimit: number;
   minPayout: number;
+  /** Provider cash-out fee deducted from each payout, e.g. 0.023. */
+  payoutFeeRate: number;
   blocked: boolean;
+}
+
+/** What a payout costs, computed by the server before the driver confirms. */
+export interface DriverPayoutQuote {
+  requestedAmount: number;
+  fee: number;
+  amountReceived: number;
 }
 
 export interface DriverSettlement {
@@ -137,6 +146,10 @@ export interface DriverPayout {
   amount: number;
   method: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'reversed';
+  /** Provider fee taken out of the requested amount; the rest is received. */
+  requestedAmount: number;
+  fee: number;
+  amountReceived: number;
   phone?: string;
   failureReason?: string;
   reference?: string;

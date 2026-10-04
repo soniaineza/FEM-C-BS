@@ -52,6 +52,8 @@ const mock = {
   sms: [],
   failNextCashin: false,
   failNextSms: false,
+  // Merchant balance per network, read before a cash-out is sent.
+  balances: { mtn: 1e9, airtel: 1e9 },
   counts: { authorize: 0, refresh: 0, cashin: 0, find: 0 },
   contractViolations: [],
 };
@@ -130,6 +132,27 @@ function startMock() {
         if (key) mock.byIdemKey.set(key, txn.ref);
         return send(200, { amount: txn.amount, created_at: txn.created_at, kind: 'CASHIN', ref: txn.ref, status: 'pending' });
       }
+      if (req.method === 'GET' && url === '/api/merchants/me') {
+        if (!authed()) return send(401, { error: 'unauthorized' });
+        return send(200, { id: 'TEST', mtn_balance: mock.balances.mtn, airtel_balance: mock.balances.airtel, balance: mock.balances.mtn + mock.balances.airtel });
+      }
+      if (req.method === 'POST' && url === '/api/transactions/cashout') {
+        if (!authed()) return send(401, { error: 'unauthorized' });
+        const b = json();
+        const key = req.headers['idempotency-key'];
+        if (!b || !Number.isInteger(b.amount) || b.amount <= 0 || !/^07\d{8}$/.test(String(b.number))) {
+          mock.contractViolations.push(`cashout bad payload ${body}`);
+          return send(400, { error: 'bad payload' });
+        }
+        if (key && mock.byIdemKey.has(key)) return send(200, mock.txns.get(mock.byIdemKey.get(key)));
+        const txn = {
+          ref: crypto.randomUUID(), kind: 'CASHOUT', amount: b.amount, client: b.number,
+          status: 'pending', created_at: new Date().toISOString(), idemKey: key || null,
+        };
+        mock.txns.set(txn.ref, txn);
+        if (key) mock.byIdemKey.set(key, txn.ref);
+        return send(200, { amount: txn.amount, created_at: txn.created_at, kind: 'CASHOUT', ref: txn.ref, status: 'pending' });
+      }
       // Status polling reads the event log, like the real API: a processed
       // event exists only once the transaction has succeeded or failed.
       if (req.method === 'GET' && url.startsWith('/api/events/transactions')) {
@@ -156,7 +179,7 @@ function webhookBody(txn) {
     kind: 'transaction:processed',
     created_at: new Date().toISOString(),
     data: {
-      ref: txn.ref, kind: 'CASHIN', fee: 2.3, merchant: 'TEST', client: txn.client,
+      ref: txn.ref, kind: txn.kind || 'CASHIN', fee: 2.3, merchant: 'TEST', client: txn.client,
       amount: txn.amount, provider: 'mtn', status: txn.status,
       created_at: txn.created_at, processed_at: new Date().toISOString(),
     },
@@ -200,7 +223,9 @@ const world = {
   log: [],
 };
 let seq = 0;
-const uniquePhone = () => `+2507${String(SEED % 10)}${String(++seq).padStart(7, '0')}`;
+// Real network prefixes (MTN 078/079, Airtel 072/073): the API only charges
+// and pays out to numbers on a known network.
+const uniquePhone = () => `+2507${'8293'[++seq % 4]}${String(SEED % 10)}${String(seq).padStart(6, '0')}`;
 
 function note(msg) {
   world.log.push(msg);
@@ -367,10 +392,12 @@ async function collectViolations(step) {
     if (Number(r.net) !== want) fail('I12 history chain ends at current status', `${r.id} status=${r.status} ${r.st} net=${r.net}`);
   }
 
-  // I13 Paypack side: each charge is for the recorded amount + passenger number.
+  // I13 Paypack side: each charge is for the recorded amount, to the paying
+  // number chosen for the ride or else the passenger's own.
   for (const r of await q(`
-      SELECT p.external_reference AS ref, p.amount, ps.phone FROM payments p
-        JOIN passengers ps ON ps.id = p.passenger_id WHERE p.external_reference IS NOT NULL
+      SELECT p.external_reference AS ref, p.amount, COALESCE(rd.payment_phone, ps.phone) AS phone FROM payments p
+        JOIN passengers ps ON ps.id = p.passenger_id
+        JOIN rides rd ON rd.id = p.ride_id WHERE p.external_reference IS NOT NULL
       UNION ALL
       SELECT tp.external_reference, tp.amount, tp.phone FROM wallet_topups tp WHERE tp.external_reference IS NOT NULL`)) {
     const txn = mock.txns.get(r.ref);
@@ -547,9 +574,23 @@ async function topup() {
 async function ride() {
   const p = pick(world.passengers);
   if (!p) return;
-  const [live] = await q(`SELECT id FROM rides WHERE passenger_id = $1 AND status NOT IN ('completed','cancelled')`, [p.id]);
+  const [live] = await q(`SELECT id, status, driver_phone FROM rides WHERE passenger_id = $1 AND status NOT IN ('completed','cancelled')`, [p.id]);
+  if (live && live.status === 'paymentPending') {
+    // A finished trip still unpaid (prompt ignored, payment failed, wallet
+    // short): let the attempt expire, fall back to cash, driver confirms.
+    const [pay] = await q('SELECT * FROM payments WHERE ride_id = $1 ORDER BY created_at DESC LIMIT 1', [live.id]);
+    if (pay.method !== 'cash' && pay.status === 'pending') {
+      await q(`UPDATE payments SET created_at = now() - interval '10 minutes' WHERE id = $1`, [pay.id]);
+      await api('POST', `/payments/${pay.id}/refresh`, null, p.token);
+    }
+    const cash = await api('POST', '/payments', { rideId: live.id, method: 'cash' }, p.token);
+    const d = world.drivers.find((x) => x.phone === live.driver_phone);
+    const c = await api('POST', `/drivers/rides/${live.id}/confirm-cash`, null, d.token);
+    if (c.status !== 200) violations.push(`cash fallback for unpaid ride: switch ${cash.status}, confirm ${c.status}`);
+    note(`unpaid ride ${live.id} settled in cash: ${c.status}`);
+    return;
+  }
   if (live) {
-    // Leftover unpaid ride from an unresolved payment: cancel it.
     const c = await api('POST', `/rides/${live.id}/cancel`, { reason: 'cleanup' }, p.token);
     note(`cancel leftover ride ${live.id}: ${c.status}`);
     return;
@@ -586,15 +627,20 @@ async function ride() {
   await api('POST', `/drivers/rides/${rideId}/verify-pin`, { pin }, d.token);
   const failCashin = (method === 'mtn_momo' || method === 'airtel_money') && chance(0.1);
   mock.failNextCashin = failCashin;
-  await api('POST', `/drivers/rides/${rideId}/complete-trip`, null, d.token);
+  const done = await api('POST', `/drivers/rides/${rideId}/complete-trip`, null, d.token);
   mock.failNextCashin = false;
 
   const [payment] = await q('SELECT * FROM payments WHERE ride_id = $1', [rideId]);
+  if (!payment) {
+    const [r] = await q('SELECT status, driver_phone FROM rides WHERE id = $1', [rideId]);
+    throw new Error(`no payment after complete-trip ${done.status} ${JSON.stringify(done.data).slice(0, 160)} ride=${r.status} assigned=${assigned.driver.phone} now=${r.driver_phone} assignedStatus=${assigned.status}`);
+  }
   const fare = Number(payment.amount);
   let how;
   if (method === 'cash') {
-    const c = await api('POST', `/payments/${payment.id}/confirm-cash`, null, p.token);
-    how = `cash confirm ${c.status}`;
+    const c = await api('POST', `/drivers/rides/${rideId}/confirm-cash`, null, d.token);
+    if (c.status !== 200) violations.push(`driver cash confirmation returned ${c.status}`);
+    how = `cash confirmed by driver ${c.status}`;
   } else if (method === 'wallet') {
     if (p.expectedBalance >= fare) { p.expectedBalance -= fare; how = 'wallet debited'; }
     else how = 'wallet insufficient';
@@ -604,6 +650,310 @@ async function ride() {
     how = await resolveTxn(payment.external_reference, () => api('POST', `/payments/${payment.id}/refresh`, null, p.token));
   }
   note(`ride ${method} fare ${fare}: ${how}`);
+}
+
+// ---------- deterministic payment-lifecycle scenarios ----------
+// Run after the random walk, against the same production-mode server and
+// fake Paypack. Each expectation that does not hold is a violation.
+let scenarioChecks = 0;
+function expect(name, cond, detail = '') {
+  scenarioChecks++;
+  if (!cond) violations.push(`scenario: ${name} ${detail}`);
+}
+
+async function onlineDriver(phone) {
+  const reg = await api('POST', '/drivers/register', { fullName: `Scenario ${phone.slice(-4)}`, phone, password: 'secret123', licenseNumber: `SC${phone.slice(-6)}` });
+  if (reg.status !== 201) throw new Error(`scenario driver register ${reg.status} ${JSON.stringify(reg.data)}`);
+  const d = { id: reg.data.driver.id, token: reg.data.token, phone, docIds: [], docsApproved: true };
+  for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
+    const doc = await api('POST', '/driver/documents', { docType, fileName: `${docType}.jpg` }, d.token);
+    await admin('POST', `/documents/${doc.data.document.id}/review`, {
+      status: 'approved', reviewer: 'invariants', method: 'in_person', evidenceReference: `scenario-${docType}`,
+    });
+  }
+  await admin('POST', `/drivers/${d.id}/verify`);
+  world.drivers.push(d);
+  return d;
+}
+
+/** Keeps every driver's location fresh (matching ignores stale drivers). */
+async function pingDrivers() {
+  for (const d of world.drivers) {
+    await api('POST', '/drivers/location', { latitude: -1.9441, longitude: 30.0619 }, d.token);
+    await api('PUT', '/driver/status', { status: 'active' }, d.token);
+  }
+}
+
+/** Books a ride and drives it to the end of the trip (payment not resolved). */
+async function tripToPayment(p, method, extra = {}) {
+  await pingDrivers();
+  const created = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'Nyamirambo', latitude: -1.9586, longitude: 30.0205 },
+    vehicleId: 'fem_economy', paymentMethodId: method, ...extra,
+  }, p.token);
+  if (created.status !== 201) throw new Error(`scenario ride ${created.status} ${JSON.stringify(created.data)}`);
+  const rideId = created.data.ride.id;
+  let assigned = null;
+  for (let i = 0; i < 30 && !assigned; i++) {
+    const r = await api('GET', `/rides/${rideId}`, null, p.token);
+    if (r.data.ride.status !== 'searchingDriver') assigned = r.data.ride;
+    else await sleep(300);
+  }
+  if (!assigned) throw new Error('scenario ride was never matched');
+  const d = world.drivers.find((x) => x.phone === assigned.driver.phone);
+  const step = async (name, call) => {
+    const r = await call();
+    if (r.status !== 200) throw new Error(`scenario ${method} ${name} ${r.status} ${JSON.stringify(r.data)}`);
+    return r;
+  };
+  await step('accept', () => api('POST', `/drivers/rides/${rideId}/accept`, null, d.token));
+  await step('arrived', () => api('POST', `/drivers/rides/${rideId}/arrived`, null, d.token));
+  const pin = (await api('GET', `/rides/${rideId}`, null, p.token)).data.ride.pin;
+  await step('verify-pin', () => api('POST', `/drivers/rides/${rideId}/verify-pin`, { pin }, d.token));
+  const done = await step('complete-trip', () => api('POST', `/drivers/rides/${rideId}/complete-trip`, null, d.token));
+  return { rideId, d, fare: Number(done.data.ride.finalFare ?? done.data.ride.estimatedFare) };
+}
+
+const driverStatus = async (d) => (await q('SELECT status FROM drivers WHERE id = $1', [d.id]))[0].status;
+const rideStatus = async (id) => (await q('SELECT status FROM rides WHERE id = $1', [id]))[0].status;
+const paymentsOf = (rideId) => q('SELECT * FROM payments WHERE ride_id = $1 ORDER BY created_at', [rideId]);
+const walletOf = async (p) => Number((await q('SELECT balance FROM wallets WHERE passenger_id = $1', [p.id]))[0]?.balance ?? 0);
+const national = (phone) => `0${phone.slice(-9)}`;
+
+/** Makes an attempt old enough to expire, then asks the server to look at it. */
+async function expirePayment(p, paymentId) {
+  await q(`UPDATE payments SET created_at = now() - interval '10 minutes' WHERE id = $1`, [paymentId]);
+  return api('POST', `/payments/${paymentId}/refresh`, null, p.token);
+}
+
+async function scenarios() {
+  await newPassenger();
+  const p = world.passengers[world.passengers.length - 1];
+  await onlineDriver('+250788900001');
+
+  // ----- mobile money: driver released at trip end, prompt ignored -----
+  const a = await tripToPayment(p, 'mtn_momo');
+  let [a1] = await paymentsOf(a.rideId);
+  expect('momo trip end leaves the payment pending', a1.status === 'pending' && await rideStatus(a.rideId) === 'paymentPending', `payment=${a1.status}`);
+  expect('momo trip end releases the driver', await driverStatus(a.d) === 'active', `driver=${await driverStatus(a.d)}`);
+  const stops = await api('GET', '/drivers/rides/active', null, a.d.token);
+  expect('released driver has no active ride left', stops.data.rides.length === 0, `n=${stops.data.rides?.length}`);
+  expect('momo prompt goes to the account phone by default', mock.txns.get(a1.external_reference)?.client === national(p.phone),
+    `client=${mock.txns.get(a1.external_reference)?.client}`);
+
+  const second = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'Nyamirambo', latitude: -1.9586, longitude: 30.0205 },
+    vehicleId: 'fem_economy', paymentMethodId: 'cash',
+  }, p.token);
+  expect('rider with an unpaid trip cannot book another', second.status === 409, `status=${second.status}`);
+  const earlyCash = await api('POST', '/payments', { rideId: a.rideId, method: 'cash' }, p.token);
+  expect('cash is refused while the mobile-money attempt is pending', earlyCash.status === 409, `status=${earlyCash.status}`);
+  const earlyRetry = await api('POST', '/payments', { rideId: a.rideId, retry: true }, p.token);
+  expect('retry while pending returns the same attempt', earlyRetry.data.payment?.id === a1.id, `id=${earlyRetry.data.payment?.id}`);
+
+  // ----- expiry -----
+  const exp = await expirePayment(p, a1.id);
+  expect('unanswered prompt expires', exp.data.payment?.status === 'expired' && exp.data.payment?.failureReason === 'PAYMENT_EXPIRED',
+    JSON.stringify(exp.data.payment));
+  expect('expiry does not pay the ride', await rideStatus(a.rideId) === 'paymentPending');
+  expect('expired payment row is kept', (await paymentsOf(a.rideId)).length === 1);
+
+  // ----- retry: a new attempt, the old one untouched -----
+  const retry = await api('POST', '/payments', { rideId: a.rideId, retry: true }, p.token);
+  let rows = await paymentsOf(a.rideId);
+  const a2 = rows.find((r) => r.id !== a1.id);
+  expect('retry creates a new payment row', retry.status === 201 && rows.length === 2 && retry.data.payment.id === a2?.id, `status=${retry.status} rows=${rows.length}`);
+  expect('retry has a new idempotency key, reference and provider transaction',
+    a2 && a2.idempotency_key !== a1.idempotency_key && a2.reference !== a1.reference && a2.external_reference && a2.external_reference !== a1.external_reference,
+    JSON.stringify({ k1: a1.idempotency_key, k2: a2?.idempotency_key }));
+  const oldAfterRetry = rows.find((r) => r.id === a1.id);
+  expect('old attempt stays expired after a retry', oldAfterRetry.status === 'expired' && oldAfterRetry.external_reference === a1.external_reference);
+
+  // ----- late success on the expired attempt -----
+  const lateTxn = mock.txns.get(a1.external_reference);
+  lateTxn.status = 'successful';
+  await deliverWebhook(lateTxn); await deliverWebhook(lateTxn);
+  await sleep(300);
+  rows = await paymentsOf(a.rideId);
+  expect('late success on an expired attempt is queued for refund, not settled',
+    rows.find((r) => r.id === a1.id).status === 'refund_pending' && await rideStatus(a.rideId) === 'paymentPending',
+    `status=${rows.find((r) => r.id === a1.id).status} ride=${await rideStatus(a.rideId)}`);
+  const exc = await q('SELECT * FROM payment_exceptions WHERE payment_id = $1', [a1.id]);
+  expect('late success opens exactly one payment exception', exc.length === 1 && exc[0].reason === 'provider_success_after_expiry', JSON.stringify(exc));
+  expect('late success creates no receipt or earnings',
+    (await q('SELECT 1 FROM receipts WHERE ride_id = $1', [a.rideId])).length === 0 &&
+      (await q('SELECT 1 FROM driver_earnings WHERE ride_id = $1', [a.rideId])).length === 0);
+
+  // ----- the retry succeeds, twice-delivered -----
+  const goodTxn = mock.txns.get(a2.external_reference);
+  goodTxn.status = 'successful';
+  await Promise.all([deliverWebhook(goodTxn), deliverWebhook(goodTxn), deliverWebhook(goodTxn)]);
+  await sleep(300);
+  rows = await paymentsOf(a.rideId);
+  expect('successful retry completes the ride', await rideStatus(a.rideId) === 'completed' && rows.find((r) => r.id === a2.id).status === 'succeeded');
+  const earn = await q('SELECT * FROM driver_earnings WHERE ride_id = $1', [a.rideId]);
+  expect('duplicate success webhooks settle once (one receipt, one earnings row)',
+    (await q('SELECT 1 FROM receipts WHERE ride_id = $1', [a.rideId])).length === 1 && earn.length === 1, `earnings=${earn.length}`);
+  expect('driver earns 85% of the fare', earn.length === 1 && Math.abs(Number(earn[0].net_amount) - a.fare * 0.85) < 0.011 && Math.abs(Number(earn[0].commission) - a.fare * 0.15) < 0.011,
+    JSON.stringify({ fare: a.fare, net: earn[0]?.net_amount }));
+
+  // The refund is sent by an operator, which closes the old attempt.
+  const open = await admin('GET', '/payment-exceptions');
+  const mine = open.data.exceptions.find((x) => x.payment_id === a1.id);
+  expect('operator sees the refund with the number to send it to', !!mine && !!mine.phone, JSON.stringify(mine));
+  await admin('POST', `/payment-exceptions/${mine.id}/resolve`, { resolution: 'refunded', reference: 'refund-1' });
+  expect('resolved refund marks the attempt refunded', (await paymentsOf(a.rideId)).find((r) => r.id === a1.id).status === 'refunded');
+
+  // ----- custom paying number; expiry -> cash; late success -----
+  const b = await tripToPayment(p, 'airtel_money', { paymentPhone: '0728 111 222' });
+  const [b1] = await paymentsOf(b.rideId);
+  expect('prompt goes to the paying number the rider chose', mock.txns.get(b1.external_reference)?.client === '0728111222',
+    `client=${mock.txns.get(b1.external_reference)?.client}`);
+  const badPhone = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'Nyamirambo', latitude: -1.9586, longitude: 30.0205 },
+    vehicleId: 'fem_economy', paymentMethodId: 'mtn_momo', paymentPhone: "1'; DROP TABLE rides;--",
+  }, p.token);
+  expect('an invalid paying number is rejected', badPhone.status === 400 || badPhone.status === 409, `status=${badPhone.status}`);
+  await expirePayment(p, b1.id);
+  const toCash = await api('POST', '/payments', { rideId: b.rideId, method: 'cash' }, p.token);
+  expect('cash allowed once the attempt has expired', toCash.status === 201 && toCash.data.payment.method === 'cash', `status=${toCash.status}`);
+  const lateB = mock.txns.get(b1.external_reference);
+  lateB.status = 'successful';
+  await deliverWebhook(lateB);
+  await sleep(300);
+  expect('late mobile-money success after switching to cash does not settle the ride',
+    await rideStatus(b.rideId) === 'paymentPending' && (await paymentsOf(b.rideId)).find((r) => r.id === b1.id).status === 'refund_pending');
+  const cashOk = await api('POST', `/drivers/rides/${b.rideId}/confirm-cash`, null, b.d.token);
+  rows = await paymentsOf(b.rideId);
+  expect('driver cash confirmation settles the ride exactly once',
+    cashOk.status === 200 && await rideStatus(b.rideId) === 'completed' && rows.filter((r) => r.status === 'succeeded').length === 1 &&
+      (await q('SELECT 1 FROM driver_earnings WHERE ride_id = $1', [b.rideId])).length === 1);
+
+  // ----- cash: driver stays on the ride until cash is confirmed -----
+  const c = await tripToPayment(p, 'cash');
+  expect('cash trip keeps the driver busy until cash is confirmed', await driverStatus(c.d) === 'busy', `driver=${await driverStatus(c.d)}`);
+  await api('POST', `/drivers/rides/${c.rideId}/confirm-cash`, null, c.d.token);
+  expect('cash confirmation completes the ride and frees the driver', await rideStatus(c.rideId) === 'completed' && await driverStatus(c.d) === 'active');
+
+  // ----- wallet top-ups -----
+  const topupOf = async (id) => (await q('SELECT * FROM wallet_topups WHERE id = $1', [id]))[0];
+  const startTopup = async (amount) => {
+    const r = await api('POST', '/wallet/topup', { phone: p.phone, amount }, p.token);
+    if (r.status !== 201) throw new Error(`scenario topup ${r.status} ${JSON.stringify(r.data)}`);
+    return topupOf(r.data.topup.id);
+  };
+  let before = await walletOf(p);
+  let t = await startTopup(20000);
+  let txn = mock.txns.get(t.external_reference);
+  txn.status = 'successful';
+  await deliverWebhook(txn); await deliverWebhook(txn);
+  await api('POST', `/wallet/topups/${t.id}/refresh`, null, p.token);
+  await sleep(300);
+  p.expectedBalance += 20000;
+  expect('successful top-up credits the wallet exactly once', await walletOf(p) === before + 20000 && (await topupOf(t.id)).status === 'succeeded', `wallet=${await walletOf(p)}`);
+
+  before = await walletOf(p);
+  t = await startTopup(700);
+  txn = mock.txns.get(t.external_reference);
+  txn.status = 'failed';
+  await deliverWebhook(txn);
+  await sleep(300);
+  expect('failed top-up credits nothing', await walletOf(p) === before && (await topupOf(t.id)).status === 'failed');
+
+  t = await startTopup(900);
+  await q(`UPDATE wallet_topups SET created_at = now() - interval '10 minutes' WHERE id = $1`, [t.id]);
+  const expT = await api('POST', `/wallet/topups/${t.id}/refresh`, null, p.token);
+  expect('unanswered top-up expires and credits nothing',
+    expT.data.topup?.status === 'expired' && expT.data.topup?.failureReason === 'PAYMENT_EXPIRED' && await walletOf(p) === before, JSON.stringify(expT.data.topup));
+  txn = mock.txns.get(t.external_reference);
+  txn.status = 'successful';
+  await deliverWebhook(txn); await deliverWebhook(txn);
+  await sleep(300);
+  const tExc = await q('SELECT * FROM payment_exceptions WHERE topup_id = $1', [t.id]);
+  expect('late success on an expired top-up is queued for refund, wallet unchanged',
+    (await topupOf(t.id)).status === 'refund_pending' && tExc.length === 1 && await walletOf(p) === before,
+    `status=${(await topupOf(t.id)).status} exceptions=${tExc.length} wallet=${await walletOf(p)}`);
+
+  t = await startTopup(1100);
+  txn = mock.txns.get(t.external_reference);
+  txn.status = 'successful';
+  await deliverWebhook({ ...txn, amount: 1 });
+  await sleep(300);
+  expect('a webhook whose amount does not match credits nothing',
+    await walletOf(p) === before && (await topupOf(t.id)).status === 'refund_pending', `status=${(await topupOf(t.id)).status}`);
+  const badTopup = await api('POST', '/wallet/topup', { phone: '12345', amount: 500 }, p.token);
+  expect('top-up to an invalid number is rejected', badTopup.status === 400, `status=${badTopup.status}`);
+
+  // ----- wallet rides: driver released whether or not the wallet can pay -----
+  before = await walletOf(p);
+  const w = await tripToPayment(p, 'wallet');
+  p.expectedBalance -= w.fare;
+  expect('wallet ride settles at trip end and frees the driver',
+    await rideStatus(w.rideId) === 'completed' && await driverStatus(w.d) === 'active' && await walletOf(p) === before - w.fare,
+    `ride=${await rideStatus(w.rideId)} wallet=${await walletOf(p)}`);
+
+  await newPassenger();
+  const poor = world.passengers[world.passengers.length - 1];
+  const wf = await tripToPayment(poor, 'wallet');
+  const [wf1] = await paymentsOf(wf.rideId);
+  expect('wallet ride with no balance stays unpaid, driver still released',
+    wf1.status === 'failed' && await rideStatus(wf.rideId) === 'paymentPending' && await driverStatus(wf.d) === 'active', `payment=${wf1.status}`);
+  const wfCash = await api('POST', '/payments', { rideId: wf.rideId, method: 'cash' }, poor.token);
+  await api('POST', `/drivers/rides/${wf.rideId}/confirm-cash`, null, wf.d.token);
+  expect('failed wallet payment can be settled in cash', wfCash.status === 201 && await rideStatus(wf.rideId) === 'completed');
+
+  // ----- driver payouts: fee, provider balance per network, idempotency -----
+  const balanceOf = async (d) => (await api('GET', '/driver/balance', null, d.token)).data.balance;
+  const cashouts = () => [...mock.txns.values()].filter((x) => x.kind === 'CASHOUT');
+  for (const [network, phone] of [['mtn', '+250788900002'], ['airtel', '+250728900003']]) {
+    const reg = await api('POST', '/drivers/register', { fullName: `Payout ${network}`, phone, password: 'secret123', licenseNumber: `PO${network}` });
+    const d = { id: reg.data.driver.id, token: reg.data.token };
+    await admin('POST', `/drivers/${d.id}/settlements`, { amount: 3000, reference: `seed-${network}`, recordedBy: 'invariants' });
+    const quote = await api('GET', '/driver/payouts/quote?amount=1000', null, d.token);
+    expect(`${network}: payout quote shows a 2.3% fee and the amount received`,
+      quote.status === 200 && quote.data.quote.requestedAmount === 1000 && quote.data.quote.fee === 23 && quote.data.quote.amountReceived === 977,
+      JSON.stringify(quote.data));
+    const start = await balanceOf(d);
+    const req = await api('POST', '/driver/payouts', { amount: 1000 }, d.token);
+    expect(`${network}: payout records the same fee`, req.status === 201 && req.data.payout.fee === 23 && req.data.payout.amountReceived === 977, JSON.stringify(req.data.payout));
+    const id = req.data.payout.id;
+
+    mock.balances = { mtn: 0, airtel: 0 };
+    const sent = cashouts().length;
+    const blocked = await admin('POST', `/payouts/${id}/approve`, { reviewer: 'invariants' });
+    expect(`${network}: insufficient provider balance blocks the payout with a safe error`,
+      blocked.status === 409 && blocked.data.code === 'INSUFFICIENT_PROVIDER_BALANCE' && !/\d/.test(blocked.data.error) && cashouts().length === sent,
+      JSON.stringify(blocked.data));
+    expect(`${network}: a blocked payout stays pending`, (await q('SELECT status FROM driver_payouts WHERE id = $1', [id]))[0].status === 'pending');
+
+    mock.balances = { mtn: 50000, airtel: 50000 };
+    const ok = await admin('POST', `/payouts/${id}/approve`, { reviewer: 'invariants' });
+    const transfer = cashouts().find((x) => x.client === national(phone));
+    expect(`${network}: sufficient balance sends the net amount to the driver`,
+      ok.status === 200 && ok.data.payout.status === 'processing' && transfer?.amount === 977 && cashouts().length === sent + 1,
+      `status=${ok.status} sent=${transfer?.amount}`);
+    const twice = await admin('POST', `/payouts/${id}/approve`, { reviewer: 'invariants' });
+    expect(`${network}: a payout is never sent twice`, twice.status === 404 && cashouts().length === sent + 1, `status=${twice.status}`);
+
+    transfer.status = network === 'mtn' ? 'successful' : 'failed';
+    await deliverWebhook(transfer); await deliverWebhook(transfer);
+    await sleep(300);
+    const end = await balanceOf(d);
+    const [row] = await q('SELECT status FROM driver_payouts WHERE id = $1', [id]);
+    if (network === 'mtn') {
+      expect('mtn: confirmed payout debits the balance by the requested amount, once', row.status === 'completed' && Math.abs(start.balance - end.balance - 1000) < 0.01,
+        `status=${row.status} start=${start.balance} end=${end.balance}`);
+    } else {
+      expect('airtel: failed transfer returns the amount to the driver balance', row.status === 'failed' && Math.abs(start.balance - end.balance) < 0.01,
+        `status=${row.status} start=${start.balance} end=${end.balance}`);
+    }
+  }
+
+  await checkInvariants('scenarios');
+  console.log(`  scenarios: ${scenarioChecks} checks`);
 }
 
 // ---------- runner ----------
@@ -643,6 +993,9 @@ async function main() {
     DEV_AUTO_VERIFY_DRIVERS: '0',
     DEMO_PAYMENTS: '0',
     DEMO_FLEET: '0',
+    // The walk's drivers do many cash trips and never pay commission in;
+    // the debt block is covered by test/driver-money.js.
+    DRIVER_MAX_COMMISSION_DEBT: '100000000',
     // Windows needs these for DNS/sockets in the child process.
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
   };
@@ -690,6 +1043,12 @@ ${serverLog.slice(-1500)}`);
     }
     await checkInvariants(step);
     if (step % 20 === 0) console.log(`  step ${step}: ${violations.length} violations so far`);
+  }
+
+  try {
+    await scenarios();
+  } catch (err) {
+    violations.push(`scenarios threw: ${err.message}`);
   }
 
   const stats = await q(`SELECT

@@ -115,6 +115,8 @@ export async function requestRide(params: {
   rideType: RideType;
   /** Seats to book on a shared ride (1 or 2). */
   seats?: number;
+  /** Mobile-money number to charge instead of the account phone. */
+  paymentPhone?: string;
   note?: string;
   promotionCode?: string;
   scheduledFor?: string;
@@ -132,6 +134,7 @@ export async function requestRide(params: {
     paymentMethodId: params.paymentMethod.id,
     rideType: params.rideType,
     seats: params.seats,
+    paymentPhone: params.paymentPhone,
     rideNote: params.note,
     promotionCode: params.promotionCode,
     scheduledFor: params.scheduledFor,

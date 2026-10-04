@@ -32,6 +32,10 @@ async function main() {
 
   const app = express();
   app.disable('x-powered-by');
+  // Behind the host's reverse proxy every request arrives from the proxy's
+  // address; trust its X-Forwarded-For so req.ip is the real client and the
+  // rate limiters do not lump every user into one bucket.
+  app.set('trust proxy', 1);
   app.use(
     cors({
       origin: corsOrigins.includes('*') ? true : corsOrigins,

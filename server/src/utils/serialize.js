@@ -154,6 +154,7 @@ function paymentToJson(row) {
     method: row.method,
     status: row.status,
     state: row.state || row.status,
+    failureReason: row.failure_reason || null,
     provider: row.provider || null,
     reference: row.reference,
     externalReference: row.external_reference || null,

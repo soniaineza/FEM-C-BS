@@ -2,6 +2,7 @@ const express = require('express');
 
 const { getPool } = require('../db');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
+const { isUnpaidFinal } = require('../services/paymentState');
 const { paymentToJson } = require('../utils/serialize');
 const { requireAuth } = require('../middleware/auth');
 const {
@@ -21,12 +22,13 @@ async function loadOwnedPayment(paymentId, passengerId) {
   return rows[0] || null;
 }
 
-// POST /api/payments — (re)initiates payment for a ride. Duplicate rides are
+// POST /api/payments { rideId, method?: 'cash', retry?: true } — (re)initiates
+// payment for a ride. Duplicate rides are
 // rejected via the idempotency key so a retry can never double-charge.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { rideId, method } = req.body || {};
+    const { rideId, method, retry } = req.body || {};
     if (!rideId) throw new ApiError(400, 'rideId is required.');
     const { rows } = await getPool().query(
       'SELECT * FROM rides WHERE id = $1 AND passenger_id = $2',
@@ -47,17 +49,13 @@ router.post(
       if (ride.payment_method === 'cash' && previous) {
         return res.json({ payment: paymentToJson(previous) });
       }
-      if (!previous || previous.status !== 'failed') {
-        throw new ApiError(409, 'Wait for the previous payment to fail before switching to cash.');
-      }
-      if (previous.provider === 'paypack') {
-        if (!previous.external_reference) {
-          throw new ApiError(409, 'Payment outcome is uncertain. Contact support before paying in cash.');
-        }
-        const confirmed = await refreshPaymentStatus(previous);
-        if (confirmed.status !== 'failed') {
-          throw new ApiError(409, 'The mobile-money payment has not definitively failed.');
-        }
+      // Cash may only replace a digital attempt that is definitively over —
+      // never one still pending, or both could settle the same fare.
+      if (!previous) throw new ApiError(409, 'Wait for the previous payment to fail before switching to cash.');
+      const settled = previous.provider === 'paypack' ? await refreshPaymentStatus(previous) : previous;
+      if (settled.status === 'succeeded') return res.json({ payment: paymentToJson(settled) });
+      if (!isUnpaidFinal(settled.status)) {
+        throw new ApiError(409, 'The mobile-money payment is still waiting for approval. Approve it, or wait for it to expire.');
       }
       const switched = await getPool().query(
         `UPDATE rides SET payment_method='cash' WHERE id=$1 AND passenger_id=$2 AND status='paymentPending'
@@ -66,6 +64,21 @@ router.post(
       if (!switched.rows[0]) throw new ApiError(409, 'Ride is no longer awaiting payment.');
       const cash = await createPaymentForRide(switched.rows[0]);
       return res.status(201).json({ payment: paymentToJson(cash) });
+    }
+    // Send the mobile-money prompt (or debit the wallet) again after a failure.
+    // The failed attempt is left as it is for the audit trail; the retry is
+    // a new payment row with its own reference and idempotency key.
+    if (previous && retry && ride.payment_method !== 'cash') {
+      const settled = previous.provider === 'paypack' ? await refreshPaymentStatus(previous) : previous;
+      if (!isUnpaidFinal(settled.status)) return res.json({ payment: paymentToJson(settled) });
+      const { rows: stillOwed } = await getPool().query(
+        `SELECT * FROM rides WHERE id = $1 AND status = 'paymentPending'`, [rideId]
+      );
+      if (!stillOwed[0]) throw new ApiError(409, 'Ride is no longer awaiting payment.');
+      const again = await createPaymentForRide(ride);
+      await chargePayment(again, ride);
+      const { rows: fresh } = await getPool().query('SELECT * FROM payments WHERE id = $1', [again.id]);
+      return res.status(201).json({ payment: paymentToJson(fresh[0]) });
     }
     if (previous) {
       return res.json({ payment: paymentToJson(previous) });

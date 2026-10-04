@@ -8,9 +8,9 @@ import { Button } from '../../../components/Button';
 import { Input } from '../../../components/Input';
 import { ErrorMessage } from '../../../components/ErrorMessage';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { getDriverPayouts, requestDriverPayout, settleDriverCommission } from '../../../services/driver-profile-service';
+import { getDriverPayouts, quoteDriverPayout, requestDriverPayout, settleDriverCommission } from '../../../services/driver-profile-service';
 import { ApiError } from '../../../services/driver-api-client';
-import { DriverBalance, DriverPayout } from '../../../types/driver';
+import { DriverBalance, DriverPayout, DriverPayoutQuote } from '../../../types/driver';
 import { formatFare } from '../../../types/ride';
 
 const STATUS_COLORS: Record<DriverPayout['status'], string> = {
@@ -42,6 +42,8 @@ export default function DriverPayoutsScreen() {
   const [actionError, setActionError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
+  // The server's figures for the typed amount, shown for the driver to confirm.
+  const [quote, setQuote] = useState<DriverPayoutQuote | null>(null);
 
   function load() {
     setLoading(true);
@@ -86,9 +88,24 @@ export default function DriverPayoutsScreen() {
       }));
       return;
     }
+    // Step 1: ask the server what this payout costs. Nothing is requested yet.
+    setActionError(undefined);
+    setNotice(undefined);
+    setSubmitting(true);
+    quoteDriverPayout(value)
+      .then(setQuote)
+      .catch((err) => setActionError(err instanceof ApiError ? err.message : t('requestFailed')))
+      .finally(() => setSubmitting(false));
+  }
+
+  // Step 2: the driver has seen the fee and what they will receive.
+  function handleConfirmPayout() {
+    if (!quote) return;
+    const value = quote.requestedAmount;
     run(async () => {
       await requestDriverPayout(value);
       setAmount('');
+      setQuote(null);
       return t('driverPayoutRequested');
     });
   }
@@ -135,7 +152,18 @@ export default function DriverPayoutsScreen() {
                     ? t('driverPayoutInProgress')
                     : t('driverPayoutHint', { min: formatFare(balance.minPayout) })}
                 </Text>
-                {canWithdraw ? (
+                {canWithdraw && quote ? (
+                  <View className="mt-3 gap-3">
+                    <View className="rounded-xl bg-gray-light p-3">
+                      <QuoteRow label={t('driverPayoutAmount')} value={formatFare(quote.requestedAmount)} />
+                      <QuoteRow label={t('driverPayoutFee')} value={`- ${formatFare(quote.fee)}`} />
+                      <View className="my-1.5 h-px bg-border" />
+                      <QuoteRow label={t('driverPayoutYouReceive')} value={formatFare(quote.amountReceived)} strong />
+                    </View>
+                    <Button title={t('driverConfirmPayout')} onPress={handleConfirmPayout} loading={submitting} />
+                    <Button title={t('cancel')} variant="outline" onPress={() => setQuote(null)} disabled={submitting} />
+                  </View>
+                ) : canWithdraw ? (
                   <View className="mt-3 gap-3">
                     <Input
                       label={t('driverPayoutAmount')}
@@ -162,10 +190,11 @@ export default function DriverPayoutsScreen() {
                 {payouts.map((item) => (
                   <View key={item.id} className="mb-3 flex-row items-center justify-between rounded-xl border border-border p-4">
                     <View className="flex-1 pr-3">
-                      <Text className="text-base font-semibold text-ink">{formatFare(item.amount)}</Text>
+                      <Text className="text-base font-semibold text-ink">{formatFare(item.amountReceived ?? item.amount)}</Text>
                       <Text className="mt-0.5 text-xs text-text-secondary">
                         {new Date(item.createdAt).toLocaleDateString()}
                         {item.phone ? ` · ${item.phone}` : ''}
+                        {item.fee ? ` · ${t('driverPayoutFee')} ${formatFare(item.fee)}` : ''}
                       </Text>
                     </View>
                     <Text className="text-xs font-semibold" style={{ color: STATUS_COLORS[item.status] }}>
@@ -179,5 +208,14 @@ export default function DriverPayoutsScreen() {
         )}
       </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
+  );
+}
+
+function QuoteRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <View className="flex-row items-center justify-between py-1">
+      <Text className={strong ? 'text-sm font-bold text-ink' : 'text-sm text-text-secondary'}>{label}</Text>
+      <Text className={strong ? 'text-base font-bold text-primary' : 'text-sm font-semibold text-ink'}>{value}</Text>
+    </View>
   );
 }

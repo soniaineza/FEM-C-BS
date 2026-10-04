@@ -40,6 +40,9 @@ async function getActiveRides(driverId) {
        LEFT JOIN passenger_locations pl ON pl.passenger_id = r.passenger_id
       WHERE r.driver_id = $1
         AND r.status = ANY($2)
+        -- A finished trip awaiting a digital payment is no longer the
+        -- driver's to act on; only a cash fare still needs their confirmation.
+        AND NOT (r.status = 'paymentPending' AND r.payment_method != 'cash')
       ORDER BY r.created_at ASC`,
     [driverId, DRIVER_ACTIVE_RIDE_STATUSES]
   );
@@ -254,6 +257,11 @@ async function completeTrip(driverId, rideId) {
   const updated = await getPool().query('SELECT * FROM rides WHERE id = $1', [rideId]);
   const payment = await createPaymentForRide(updated.rows[0]);
   const paymentAfter = await chargePayment(payment, updated.rows[0]);
+
+  // Wallet and mobile-money fares are collected by the platform, so the
+  // driver is free for the next ride now rather than waiting on the rider's
+  // phone. A cash fare keeps them here until they confirm they were paid.
+  if (updated.rows[0].payment_method !== 'cash') await releaseDriver(driverId);
 
   const { rows } = await getPool().query('SELECT * FROM rides WHERE id = $1', [rideId]);
   return { ride: rows[0], payment: paymentAfter || payment };

@@ -7,6 +7,7 @@ const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { driverToJson } = require('../utils/serialize');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
+const { transition } = require('../services/paymentState');
 const {
   getDriverBalance,
   approvePayout,
@@ -70,9 +71,16 @@ router.post('/emergencies/:id/resolve', asyncHandler(async (req, res) => {
 
 router.get('/payment-exceptions', asyncHandler(async (_req, res) => {
   const { rows } = await getPool().query(
-    `SELECT x.*, p.external_reference, p.amount, p.method FROM payment_exceptions x
-       JOIN payments p ON p.id=x.payment_id WHERE x.status='open'
-       ORDER BY x.created_at DESC LIMIT 200`
+    `SELECT x.*, COALESCE(p.external_reference, t.external_reference) AS external_reference,
+            COALESCE(p.amount, t.amount) AS amount, COALESCE(p.method, 'wallet_topup') AS method,
+            COALESCE(t.phone, r.payment_phone, pa.phone) AS phone
+       FROM payment_exceptions x
+       LEFT JOIN payments p ON p.id = x.payment_id
+       LEFT JOIN wallet_topups t ON t.id = x.topup_id
+       LEFT JOIN rides r ON r.id = x.ride_id
+       LEFT JOIN passengers pa ON pa.id = COALESCE(p.passenger_id, t.passenger_id)
+      WHERE x.status='open'
+      ORDER BY x.created_at DESC LIMIT 200`
   );
   res.json({ exceptions: rows });
 }));
@@ -89,6 +97,11 @@ router.post('/payment-exceptions/:id/resolve', asyncHandler(async (req, res) => 
     [req.params.id, resolution, String(reference).trim()]
   );
   if (!rows[0]) throw new ApiError(404, 'Open payment exception not found.');
+  // Money sent back closes the attempt it came from.
+  if (resolution === 'refunded') {
+    if (rows[0].payment_id) await transition(getPool(), 'payments', rows[0].payment_id, 'refunded');
+    if (rows[0].topup_id) await transition(getPool(), 'wallet_topups', rows[0].topup_id, 'refunded');
+  }
   res.json({ exception: rows[0] });
 }));
 

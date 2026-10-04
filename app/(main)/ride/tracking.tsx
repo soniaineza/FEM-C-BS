@@ -9,8 +9,8 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { useMapScene } from '../../../hooks/useMapScene';
 import { useTripMap } from '../../../hooks/useTripMap';
-import { getPaymentForRide, initiatePayment, refreshPaymentStatus } from '../../../services/payment-service';
-import { PaymentRecord, isPaymentSettled } from '../../../types/payment';
+import { getPaymentForRide, initiatePayment, refreshPaymentStatus, retryPayment } from '../../../services/payment-service';
+import { PaymentRecord, isPaymentSettled, isPaymentUnpaidFinal } from '../../../types/payment';
 import { formatFare } from '../../../types/ride';
 
 const PADDING = { top: 90, bottom: 300, left: 50, right: 50 };
@@ -39,6 +39,31 @@ export default function TrackingScreen() {
       else if (ride.status === 'paymentPending') initiatePayment(ride.id).then(setPayment).catch(() => setPaymentError(t('paymentPendingNotice')));
     }).catch(() => setPaymentError(t('paymentPendingNotice')));
   }, [ride?.status, ride?.id]);
+
+  // While a mobile-money request is waiting on the rider's phone, follow it
+  // so an approval, a decline or an expiry shows up without a manual check.
+  const waitingOnProvider = !!ride && ride.status === 'paymentPending' && !!payment && payment.method !== 'cash' && payment.status === 'pending';
+  useEffect(() => {
+    if (!waitingOnProvider || !ride) return;
+    const timer = setInterval(() => {
+      getPaymentForRide(ride.id).then((p) => { if (p) setPayment(p); }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingOnProvider, ride?.id]);
+
+  async function handleRetry() {
+    if (!ride) return;
+    setPayLoading(true);
+    try {
+      setPayment(await retryPayment(ride.id));
+      setPaymentError(null);
+    } catch {
+      setPaymentError(t('requestFailed'));
+    } finally {
+      setPayLoading(false);
+    }
+  }
 
   async function handleRefreshStatus() {
     if (!payment) return;
@@ -116,13 +141,19 @@ export default function TrackingScreen() {
                 </View>
               ) : (
                 <View className="mt-3">
-                  <Text className="text-sm text-text-secondary">{t('paymentPendingNotice')}</Text>
-                  {payment.status === 'failed' ? (
-                    <View className="mt-3"><Button title={t('payCashInstead')} onPress={handleCashFallback} loading={payLoading} /></View>
-                  ) : null}
-                  <View className="mt-3">
-                    <Button title={t('checkPaymentStatus')} variant="outline" onPress={handleRefreshStatus} loading={payLoading} />
-                  </View>
+                  <Text className={isPaymentUnpaidFinal(payment.status) ? 'text-sm text-error' : 'text-sm text-text-secondary'}>
+                    {t(payment.status === 'expired' ? 'paymentExpired' : isPaymentUnpaidFinal(payment.status) ? 'paymentNotCompleted' : 'paymentPendingNotice')}
+                  </Text>
+                  {isPaymentUnpaidFinal(payment.status) ? (
+                    <>
+                      <View className="mt-3"><Button title={t('tryPaymentAgain')} onPress={handleRetry} loading={payLoading} /></View>
+                      <View className="mt-3"><Button title={t('payCashInstead')} variant="outline" onPress={handleCashFallback} loading={payLoading} /></View>
+                    </>
+                  ) : (
+                    <View className="mt-3">
+                      <Button title={t('checkPaymentStatus')} variant="outline" onPress={handleRefreshStatus} loading={payLoading} />
+                    </View>
+                  )}
                 </View>
               )
             ) : (

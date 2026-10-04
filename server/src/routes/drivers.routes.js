@@ -76,7 +76,9 @@ router.post(
 // and the reference driver console.
 router.post(
   '/login',
-  apiLimiter({ max: 40 }),
+  // Per phone number being tried, so one account cannot be brute-forced and
+  // drivers on a shared address do not lock each other out.
+  apiLimiter({ max: 40, keyGenerator: (req) => `driver-login:${String(req.body?.phone || req.ip).trim()}` }),
   asyncHandler(async (req, res) => {
     const { phone, password } = req.body || {};
     if (!phone || !password) throw new ApiError(400, 'Phone and password are required.');
@@ -213,7 +215,10 @@ active.post(
 // POST /api/drivers/rides/:id/verify-pin
 active.post(
   '/rides/:id/verify-pin',
-  apiLimiter({ max: 15 }),
+  // Guards one ride's PIN against guessing. Keyed per driver and ride, not
+  // per IP: drivers share carrier and proxy addresses, and a shared bucket
+  // would stop every driver from starting trips.
+  apiLimiter({ max: 15, keyGenerator: (req) => `pin:${req.driverId}:${req.params.id}` }),
   asyncHandler(async (req, res) => {
     const { pin } = req.body || {};
     if (!pin) throw new ApiError(400, 'A ride PIN is required.');

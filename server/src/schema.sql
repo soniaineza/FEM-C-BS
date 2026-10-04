@@ -141,6 +141,8 @@ CREATE INDEX IF NOT EXISTS idx_rides_pool_group ON rides (pool_group_id)
   WHERE pool_group_id IS NOT NULL;
 -- Seats this booking takes in a shared vehicle (1 or 2). Private rides are 1.
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS seats INTEGER NOT NULL DEFAULT 1;
+-- Mobile-money number to charge when it is not the rider's account phone.
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS payment_phone TEXT;
 
 CREATE TABLE IF NOT EXISTS ride_status_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -362,6 +364,17 @@ CREATE TABLE IF NOT EXISTS payment_exceptions (
 );
 ALTER TABLE payment_exceptions ADD COLUMN IF NOT EXISTS resolution TEXT;
 ALTER TABLE payment_exceptions ADD COLUMN IF NOT EXISTS resolution_reference TEXT;
+-- A wallet top-up the provider collected after it had expired or failed is
+-- queued for refund the same way, keyed by the top-up instead of a payment.
+ALTER TABLE payment_exceptions ALTER COLUMN payment_id DROP NOT NULL;
+ALTER TABLE payment_exceptions ALTER COLUMN ride_id DROP NOT NULL;
+ALTER TABLE payment_exceptions ADD COLUMN IF NOT EXISTS topup_id UUID UNIQUE REFERENCES wallet_topups(id);
+
+-- Why an attempt ended unpaid (PAYMENT_EXPIRED, PROVIDER_DECLINED, ...).
+-- status is one of: pending | succeeded | failed | expired | refund_pending |
+-- refunded — see services/paymentState.js for the allowed moves.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS failure_reason TEXT;
+ALTER TABLE wallet_topups ADD COLUMN IF NOT EXISTS failure_reason TEXT;
 
 CREATE TABLE IF NOT EXISTS trip_shares (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

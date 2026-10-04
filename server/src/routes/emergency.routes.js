@@ -36,7 +36,8 @@ router.get(
 // and the client dials the Kimu Transport call center with the OS dialer.
 router.post(
   '/',
-  apiLimiter({ max: 5 }),
+  // Per rider: an SOS must never be refused because other people used theirs.
+  apiLimiter({ max: 5, keyGenerator: (req) => `sos:${req.passengerId}` }),
   asyncHandler(async (req, res) => {
     const { rideId, latitude, longitude, address, details } = req.body || {};
     if (rideId) {

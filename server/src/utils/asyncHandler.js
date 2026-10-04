@@ -5,11 +5,13 @@ function asyncHandler(fn) {
   };
 }
 
-/** A handled API error with an HTTP status and a passenger-safe message. */
+/** A handled API error with an HTTP status, a passenger-safe message and,
+ * where the client needs to tell cases apart, a stable machine-readable code. */
 class ApiError extends Error {
-  constructor(status, message) {
+  constructor(status, message, code = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 

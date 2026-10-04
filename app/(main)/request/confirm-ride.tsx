@@ -9,6 +9,7 @@ import { Input } from '../../../components/Input';
 import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
+import { useAuthStore } from '../../../stores/useAuthStore';
 import { requestRide } from '../../../services/ride-service';
 import { getWallet } from '../../../services/wallet-service';
 import { formatFare } from '../../../types/ride';
@@ -17,7 +18,8 @@ import { ApiError } from '../../../services/api-client';
 export default function ConfirmRideScreen() {
   const { t } = useTranslation();
   const wizard = useRideWizardStore();
-  const { pickup, destination, vehicle, fareEstimate, paymentMethod, rideType, seats, note, setNote, reset } = wizard;
+  const currentUser = useAuthStore((st) => st.currentUser);
+  const { pickup, destination, vehicle, fareEstimate, paymentMethod, paymentPhone, rideType, seats, note, setNote, reset } = wizard;
 
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
@@ -48,6 +50,10 @@ export default function ConfirmRideScreen() {
         paymentMethod,
         rideType,
         seats,
+        // Only sent when it differs from the account phone, which is the server's default.
+        paymentPhone: paymentMethod.type === 'mobileMoney' && paymentPhone.trim() && paymentPhone.trim() !== currentUser?.phone
+          ? paymentPhone.trim()
+          : undefined,
         note: note.trim() || undefined,
         quoteId: fareEstimate?.quoteId,
       });

@@ -21,6 +21,8 @@ interface RideWizardState {
   vehicle: Vehicle | null;
   fareEstimate: FareEstimate | null;
   paymentMethod: PaymentMethod | null;
+  /** Mobile-money number to charge; empty means the account phone. */
+  paymentPhone: string;
   note: string;
   setPickup: (p: Place) => void;
   setDestination: (p: Place) => void;
@@ -29,6 +31,7 @@ interface RideWizardState {
   setVehicle: (v: Vehicle) => void;
   setFareEstimate: (e: FareEstimate) => void;
   setPaymentMethod: (m: PaymentMethod) => void;
+  setPaymentPhone: (p: string) => void;
   setNote: (n: string) => void;
   reset: () => void;
 }
@@ -41,6 +44,7 @@ const initial = {
   vehicle: null,
   fareEstimate: null,
   paymentMethod: null,
+  paymentPhone: '',
   note: '',
 };
 
@@ -54,6 +58,7 @@ export const useRideWizardStore = create<RideWizardState>((set) => ({
   setVehicle: (v) => set({ vehicle: v }),
   setFareEstimate: (e) => set({ fareEstimate: e }),
   setPaymentMethod: (m) => set({ paymentMethod: m }),
+  setPaymentPhone: (p) => set({ paymentPhone: p }),
   setNote: (n) => set({ note: n }),
   reset: () => set({ ...initial }),
 }));

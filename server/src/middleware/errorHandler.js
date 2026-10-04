@@ -3,7 +3,7 @@ const { ApiError } = require('../utils/asyncHandler');
 /** Central error handler — always returns a JSON { error: message } body. */
 function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-vars
   if (err instanceof ApiError) {
-    return res.status(err.status).json({ error: err.message });
+    return res.status(err.status).json(err.code ? { error: err.message, code: err.code } : { error: err.message });
   }
 
   // Postgres unique-violation -> a friendlier 409.

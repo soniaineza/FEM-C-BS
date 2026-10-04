@@ -1,7 +1,7 @@
 const express = require('express');
 
 const { getPool } = require('../db');
-const { settleSucceededPayment } = require('../services/payments');
+const { settleSucceededPayment, failProviderPayment } = require('../services/payments');
 const { creditTopup, failTopup } = require('../services/walletTopups');
 const paypack = require('../services/paypackClient');
 const { handleProviderTransaction } = require('../services/driverBalance');
@@ -55,20 +55,25 @@ async function handleTransaction(data) {
   );
   const topup = topupRows[0];
   if (topup) {
+    // Both are no-ops for a repeated delivery, so the rider is told once.
     if (success) {
-      await creditTopup(topup.id, { webhookStatus: status });
-      await pushNotification(topup.passenger_id, {
-        title: 'Wallet topped up',
-        body: `RWF ${Number(topup.amount).toLocaleString()} was added to your wallet.`,
-        type: 'payment',
-      });
+      const credited = await creditTopup(topup.id, { webhookStatus: status }, { providerAmount: data.amount });
+      if (credited.justCredited) {
+        await pushNotification(topup.passenger_id, {
+          title: 'Wallet topped up',
+          body: `RWF ${Number(topup.amount).toLocaleString()} was added to your wallet.`,
+          type: 'payment',
+        });
+      }
     } else {
-      await failTopup(topup.id, { webhookStatus: status });
-      await pushNotification(topup.passenger_id, {
-        title: 'Top-up failed',
-        body: 'Your mobile-money top-up was not completed. Please try again.',
-        type: 'payment',
-      });
+      const failed = await failTopup(topup.id, { webhookStatus: status });
+      if (failed.justFailed) {
+        await pushNotification(topup.passenger_id, {
+          title: 'Top-up failed',
+          body: 'Your mobile-money top-up was not completed. Please try again.',
+          type: 'payment',
+        });
+      }
     }
     return;
   }
@@ -87,24 +92,11 @@ async function handleRidePayment(payment, data, success) {
   const ride = rideRows[0];
 
   if (success) {
-    await settleSucceededPayment(payment, ride);
+    // The amount the provider collected is checked against the fare.
+    await settleSucceededPayment(payment, ride, { providerAmount: data.amount });
     return;
   }
-  await getPool().query(
-    `UPDATE payments SET status='failed',
-       state=CASE WHEN status='succeeded' THEN 'succeeded' ELSE 'failed' END, updated_at=now(),
-       metadata=COALESCE(metadata,'{}'::jsonb) || $2::jsonb
-     WHERE id = $1 AND status != 'succeeded'`,
-    [payment.id, JSON.stringify({ webhookStatus: data.status })]
-  );
-  if (ride && ride.passenger_id) {
-    await pushNotification(ride.passenger_id, {
-      title: 'Payment failed',
-      body: 'Your payment was not completed. Please retry or pay in cash.',
-      type: 'payment',
-      rideId: ride.id,
-    });
-  }
+  await failProviderPayment(payment, { webhookStatus: data.status });
 }
 
 module.exports = router;

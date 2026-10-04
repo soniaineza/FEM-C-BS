@@ -1,24 +1,32 @@
-import { View, Text, FlatList, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
+import { Input } from '../../../components/Input';
 import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { getBookablePaymentMethods } from '../../../services/ride-service';
 import { PaymentMethod } from '../../../types/payment';
+import { useAuthStore } from '../../../stores/useAuthStore';
 
 export default function PaymentMethodScreen() {
   const { t } = useTranslation();
   const paymentMethod = useRideWizardStore((s) => s.paymentMethod);
   const setPaymentMethod = useRideWizardStore((s) => s.setPaymentMethod);
+  const paymentPhone = useRideWizardStore((s) => s.paymentPhone);
+  const setPaymentPhone = useRideWizardStore((s) => s.setPaymentPhone);
+  const accountPhone = useAuthStore((s) => s.currentUser?.phone ?? '');
 
   // Only methods the backend can actually charge (no 'card' placeholder).
   const methods = getBookablePaymentMethods();
 
   function choose(method: PaymentMethod) {
     setPaymentMethod(method);
+    // Start from the account number so the rider never has to retype it.
+    if (method.type === 'mobileMoney' && !paymentPhone) setPaymentPhone(accountPhone);
   }
 
   function proceed() {
@@ -27,31 +35,47 @@ export default function PaymentMethodScreen() {
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2">
         <BackHeader />
         <Text className="mt-1 text-xl text-ink font-display">{t('paymentMethod')}</Text>
 
-        <FlatList
-          className="mt-4"
-          data={methods}
-          keyExtractor={(m) => m.id}
-          renderItem={({ item }) => {
+        <View className="mt-4">
+          {methods.map((item) => {
             const selected = paymentMethod?.id === item.id;
             return (
               <Pressable
+                key={item.id}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                aria-checked={selected}
                 className={`mb-3 rounded border p-4 ${selected ? 'border-primary bg-primary/5' : 'border-border'}`}
                 onPress={() => choose(item)}
               >
                 <Text className="text-base font-medium text-ink">{item.name}</Text>
               </Pressable>
             );
-          }}
-        />
+          })}
+        </View>
 
-        <View className="mt-auto pb-8">
+        {/* Prefilled with the account phone; the rider may pay from another number. */}
+        {paymentMethod?.type === 'mobileMoney' ? (
+          <View className="mt-1">
+            <Input
+              label={t('paymentPhoneLabel')}
+              value={paymentPhone}
+              onChangeText={setPaymentPhone}
+              keyboardType="phone-pad"
+              placeholder="07XXXXXXXX"
+              prefixIcon="call-outline"
+            />
+            <Text className="mt-1.5 text-xs text-text-secondary">{t('paymentPhoneHint')}</Text>
+          </View>
+        ) : null}
+
+        <View className="mt-auto pb-8 pt-6">
           <Button title={t('continueLabel')} onPress={proceed} disabled={!paymentMethod} />
         </View>
-      </View>
+      </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>
   );
 }

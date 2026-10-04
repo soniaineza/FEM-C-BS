@@ -6,6 +6,7 @@ import {
   DriverEarningsSummary,
   DriverSettlement,
   DriverPayout,
+  DriverPayoutQuote,
   DriverRating,
   DriverRatingSummary,
   driverDocumentFromBackendJson,
@@ -71,6 +72,12 @@ export async function getDriverEarningsHistory(): Promise<DriverEarningEntry[]> 
 // ---- Payouts ----
 export async function getDriverPayouts(): Promise<{ payouts: DriverPayout[]; balance: DriverBalance }> {
   return driverApiClient.get<{ payouts: DriverPayout[]; balance: DriverBalance }>('/driver/payouts');
+}
+
+/** The payout amount, provider fee and amount received for [amount]. */
+export async function quoteDriverPayout(amount: number): Promise<DriverPayoutQuote> {
+  const json = await driverApiClient.get<{ quote: DriverPayoutQuote }>(`/driver/payouts/quote?amount=${amount}`);
+  return json.quote;
 }
 
 /** Asks for [amount] of the available balance to be paid out; an operator

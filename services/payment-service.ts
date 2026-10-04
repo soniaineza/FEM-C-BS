@@ -10,6 +10,12 @@ export async function initiatePayment(rideId: string, method?: 'cash'): Promise<
   return paymentRecordFromBackendJson(json.payment);
 }
 
+/** Sends the mobile-money request (or wallet debit) again after a failure. */
+export async function retryPayment(rideId: string): Promise<PaymentRecord> {
+  const json = await apiClient.post<{ payment: any }>('/payments', { rideId, retry: true });
+  return paymentRecordFromBackendJson(json.payment);
+}
+
 export async function getPaymentForRide(rideId: string): Promise<PaymentRecord | null> {
   const json = await apiClient.get<{ payment: any | null }>(`/rides/${rideId}/payment`);
   return json.payment ? paymentRecordFromBackendJson(json.payment) : null;
