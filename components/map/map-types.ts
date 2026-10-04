@@ -85,6 +85,21 @@ export interface MapScene {
   zoomCommand?: { delta: number; token: number };
 }
 
+/**
+ * Camera commands sent from a screen to the map (see MapGestureLayer). The
+ * shared ride-flow map sits behind the navigator where touches cannot reach
+ * it, so the screen on top reads the gestures and forwards them here.
+ * Offsets and points are in screen pixels relative to the map's top-left.
+ */
+export type MapController = {
+  /** Drag the map by this many pixels (finger movement). */
+  panBy: (dx: number, dy: number) => void;
+  /** Change zoom by `delta` levels, keeping the point (x, y) under the fingers. */
+  zoomBy: (delta: number, x: number, y: number, animate: boolean) => void;
+  /** Let the map glide on after a drag released at this velocity (px/s). */
+  fling: (vx: number, vy: number) => void;
+};
+
 export const KIGALI_CENTER: LngLat = { latitude: -1.9441, longitude: 30.0619 };
 
 /** Hex for a car colour name as drivers enter it ("Red", "Silver"...). */

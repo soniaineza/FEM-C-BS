@@ -13,7 +13,7 @@ import { Colors } from '../../../constants/theme';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
-import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
+import { screenForRide, useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
 import { useNearbyCars } from '../../../hooks/useNearbyCars';
 import { getCurrentPlace, getSeedPlace, MapDefaults } from '../../../services/location-service';
 import { useLocationPermission } from '../../../hooks/useLocationPermission';
@@ -237,7 +237,7 @@ export default function HomeScreen() {
             {activeRide ? (
               <Pressable
                 className="mb-4 flex-row items-center rounded-2xl border border-white/30 bg-white/15 p-4"
-                onPress={() => router.push({ pathname: '/(main)/ride/tracking', params: { rideId: activeRide.id } })}
+                onPress={() => router.push(screenForRide(activeRide))}
               >
                 <View className="h-10 w-10 items-center justify-center rounded-full bg-white/20">
                   <Ionicons name="navigate" size={20} color="#FFFFFF" />

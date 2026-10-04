@@ -3,6 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { KeyboardFormScrollView } from '../../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
+import { goHome } from '../../../utils/navigation';
 
 import { Button } from '../../../components/Button';
 import { Card } from '../../../components/Card';
@@ -57,7 +58,9 @@ export default function ConfirmRideScreen() {
         quoteId: fareEstimate?.quoteId,
       });
       reset();
-      router.replace({ pathname: '/(main)/ride/searching-driver', params: { rideId: ride.id } });
+      // Drop the booking steps first: the ride screens sit directly on Home.
+      goHome();
+      router.push({ pathname: '/(main)/ride/searching-driver', params: { rideId: ride.id } });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : undefined);
     } finally {

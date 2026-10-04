@@ -12,6 +12,8 @@ import { useRideTracking } from '../../../hooks/useRideTracking';
 import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
 import { cancelRide, fetchVehicles } from '../../../services/ride-service';
 import { MapSheet } from '../../../components/map/MapSheet';
+import { MapGestureLayer } from '../../../components/map/MapGestureLayer';
+import { goHome } from '../../../utils/navigation';
 import { useMapScene } from '../../../hooks/useMapScene';
 import { useNearbyCars } from '../../../hooks/useNearbyCars';
 import { distanceM } from '../../../components/map/trackInterpolation';
@@ -79,7 +81,7 @@ export default function SearchingDriverScreen() {
         // explicit passenger cancellation (or any other cancelled-by) still
         // returns straight home.
         if (ride.cancelledBy !== 'system') {
-          router.replace('/(main)/(tabs)');
+          goHome();
         }
         return;
       }
@@ -92,9 +94,12 @@ export default function SearchingDriverScreen() {
     setCancelling(true);
     try {
       await cancelRide(rideId);
+    } catch {
+      // Still searching if the cancel did not go through: Home shows the ride
+      // in its banner, from where it can be cancelled again.
     } finally {
       setCancelling(false);
-      router.replace('/(main)/(tabs)');
+      goHome();
     }
   }
 
@@ -112,7 +117,7 @@ export default function SearchingDriverScreen() {
         <Text className="mt-5 text-title-2 text-fg font-display">{t('searchTimedOutTitle')}</Text>
         <Text className="mt-2 text-center leading-relaxed text-fg-muted">{t('searchTimedOutBody')}</Text>
         <View className="mt-8 w-full">
-          <Button title={t('backHome')} onPress={() => router.replace('/(main)/(tabs)')} />
+          <Button title={t('backHome')} onPress={goHome} />
         </View>
       </SafeAreaViewPlaceholder>
     );
@@ -125,6 +130,7 @@ export default function SearchingDriverScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      <MapGestureLayer />
       {/* Back bails out of the search: the ride is cancelled first so no
           driver is dispatched to a passenger who already left. */}
       <SafeAreaView edges={['top']} pointerEvents="box-none">

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../../../components/Button';
 import { MapSheet } from '../../../components/map/MapSheet';
+import { MapGestureLayer } from '../../../components/map/MapGestureLayer';
 import { FareBreakdownView, clockIn } from '../../../components/FareBreakdownView';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useMapScene } from '../../../hooks/useMapScene';
@@ -84,6 +85,7 @@ export default function FareEstimateScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      <MapGestureLayer />
       <SafeAreaView edges={['top']} pointerEvents="box-none">
         <Pressable
           accessibilityRole="button"

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { getRideDetails, getDriverLocation, DriverLocation } from '../services/ride-service';
 import { Ride } from '../types/ride';
+import { markRideOpened } from '../utils/opened-rides';
 
 // NOTE: the backend actually exposes GET /rides/:id/stream (real
 // Server-Sent Events, see rides.routes.js) — better than polling in
@@ -61,6 +62,7 @@ export function useRideTracking(rideId: string | null) {
     setOffset(live?.offset ?? 0);
     setDriverLocation(live?.driverLocation ?? null);
     if (!rideId) return;
+    markRideOpened(rideId);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 

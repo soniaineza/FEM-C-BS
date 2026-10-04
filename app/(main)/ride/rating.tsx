@@ -11,6 +11,7 @@ import { Input } from '../../../components/Input';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { rateRide } from '../../../services/ride-service';
+import { goHome } from '../../../utils/navigation';
 import { ApiError } from '../../../services/api-client';
 import { Colors } from '../../../constants/theme';
 
@@ -29,7 +30,7 @@ export default function RatingScreen() {
     setLoading(true);
     try {
       await rateRide(rideId, stars, comment.trim() || undefined);
-      router.replace('/(main)/(tabs)');
+      goHome();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('ratingSaveFailed'));
     } finally {

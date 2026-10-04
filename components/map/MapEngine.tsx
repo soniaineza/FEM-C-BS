@@ -3,10 +3,10 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import * as THREE from 'three';
-import { useEffect, useRef } from 'react';
-import type { DOMProps } from 'expo/dom';
+import { useEffect, useRef, type Ref } from 'react';
+import { useDOMImperativeHandle, type DOMImperativeFactory, type DOMProps } from 'expo/dom';
 
-import type { MapCar, MapMarker, MapRoute, MapScene, LngLat } from './map-types';
+import type { MapCar, MapController, MapMarker, MapRoute, MapScene, LngLat } from './map-types';
 import { KIGALI_CENTER } from './map-types';
 import { CAR_LENGTH_M, createCar, createLights, loadCarModels, setBrakeLights } from './carModel';
 import { RENDER_DELAY_MS, Track, distanceM, lerpAngle, projectOnRoute } from './trackInterpolation';
@@ -102,6 +102,8 @@ interface Props {
   onPress?: (latitude: number, longitude: number) => Promise<void>;
   onCenterChanged?: (latitude: number, longitude: number) => Promise<void>;
   onUserGesture?: () => Promise<void>;
+  /** Camera commands from the native side (gestures read by an overlay). */
+  ref?: Ref<MapController>;
   dom?: DOMProps;
 }
 
@@ -400,7 +402,7 @@ function boundsOf(points: [number, number][]): maplibregl.LngLatBounds | null {
   return b;
 }
 
-export default function MapEngine({ scene, onReady, onError, onPress, onCenterChanged, onUserGesture }: Props) {
+export default function MapEngine({ scene, onReady, onError, onPress, onCenterChanged, onUserGesture, ref }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const carsRef = useRef<CarLayer | null>(null);
@@ -417,6 +419,47 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
   const callbacks = useRef({ onReady, onError, onPress, onCenterChanged, onUserGesture });
   callbacks.current = { onReady, onError, onPress, onCenterChanged, onUserGesture };
   sceneRef.current = scene;
+
+  // ---------- camera commands from the native side ----------
+  // Used where the map cannot receive touches itself (the shared ride-flow
+  // map behind the navigator). Each one counts as a user gesture, so follow
+  // mode holds off instead of pulling the camera straight back.
+  // expo/dom types handles as JSON-argument functions; ours take numbers.
+  useDOMImperativeHandle(
+    ref as unknown as Ref<DOMImperativeFactory>,
+    () => {
+      const touched = () => {
+        easingTo.current = null;
+        lastUserGestureAt.current = Date.now();
+      };
+      const controller: MapController = {
+        panBy: (dx: number, dy: number) => {
+          const map = mapRef.current;
+          if (!map || !loadedRef.current) return;
+          touched();
+          map.panBy([-dx, -dy], { duration: 0 });
+        },
+        zoomBy: (delta: number, x: number, y: number, animate: boolean) => {
+          const map = mapRef.current;
+          if (!map || !loadedRef.current) return;
+          touched();
+          const zoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), map.getZoom() + delta));
+          map.easeTo({ zoom, around: map.unproject([x, y]), duration: animate ? 250 : 0 });
+        },
+        fling: (vx: number, vy: number) => {
+          const map = mapRef.current;
+          if (!map || !loadedRef.current) return;
+          touched();
+          // A short glide in the release direction, capped so a hard flick
+          // cannot throw the map across the city.
+          const cap = (v: number) => Math.max(-320, Math.min(320, v * 0.18));
+          map.panBy([-cap(vx), -cap(vy)], { duration: 450, easing: (t) => 1 - Math.pow(1 - t, 3) });
+        },
+      };
+      return controller as unknown as DOMImperativeFactory;
+    },
+    []
+  );
 
   // ---------- one-time map setup ----------
   useEffect(() => {

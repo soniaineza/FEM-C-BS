@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Linking, ActivityIndicator } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, Linking, ActivityIndicator, BackHandler } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -8,6 +8,8 @@ import { Button } from '../../../components/Button';
 import { SlideToConfirm } from '../../../components/ui/SlideToConfirm';
 import { Card } from '../../../components/Card';
 import { MapSheet } from '../../../components/map/MapSheet';
+import { MapGestureLayer } from '../../../components/map/MapGestureLayer';
+import { goHome } from '../../../utils/navigation';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
@@ -42,9 +44,21 @@ export default function DriverAcceptedScreen() {
       router.replace({ pathname: '/(main)/ride/tracking', params: { rideId: ride.id } });
     }
     if (ride && ride.status === 'cancelled') {
-      router.replace('/(main)/(tabs)');
+      goHome();
     }
   }, [ride]);
+
+  // Android back leaves for Home like the arrow does; the ride carries on and
+  // is reopened from Home's banner.
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        goHome();
+        return true;
+      });
+      return () => sub.remove();
+    }, [])
+  );
 
   if (!ride || !ride.driver) {
     return (
@@ -88,6 +102,7 @@ export default function DriverAcceptedScreen() {
   if (offerPending) {
     return (
       <View style={{ flex: 1 }}>
+        <MapGestureLayer />
         <MapSheet
           collapsible
           expandLabel={t('driverFoundTitle')}
@@ -117,7 +132,7 @@ export default function DriverAcceptedScreen() {
                 title={t('declineDriver')}
                 variant="text"
                 onPress={async () => {
-                  try { await cancelRide(ride.id); } finally { router.replace('/(main)/(tabs)'); }
+                  try { await cancelRide(ride.id); } catch { /* still live: Home shows it in the banner */ } finally { goHome(); }
                 }}
               />
             </View>
@@ -149,13 +164,14 @@ export default function DriverAcceptedScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      <MapGestureLayer />
       {/* Back returns home without cancelling: the driver is already on
-          their way, and the ride stays resumable from Activity > Active. */}
+          their way, and the ride is reopened from Home's banner. */}
       <SafeAreaView edges={['top']} pointerEvents="box-none">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('back')}
-          onPress={() => router.replace('/(main)/(tabs)')}
+          onPress={goHome}
           className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-surface"
           style={Elevation[3]}
         >
@@ -175,7 +191,7 @@ export default function DriverAcceptedScreen() {
           <View className="gap-2">
             <Button title={t('safety')} variant="outline" icon="shield-checkmark-outline" onPress={() => router.push({ pathname: '/(main)/ride/safety', params: { rideId: ride.id } })} />
             {ride.status === 'driverAssigned' ? (
-              <Button title={t('cancelRide')} variant="text" onPress={async () => { await cancelRide(ride.id); router.replace('/(main)/(tabs)'); }} />
+              <Button title={t('cancelRide')} variant="text" onPress={async () => { try { await cancelRide(ride.id); } catch { /* still live: Home shows it in the banner */ } goHome(); }} />
             ) : null}
           </View>
         }

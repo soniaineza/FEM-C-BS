@@ -4,6 +4,7 @@ import { router, usePathname } from 'expo-router';
 import { useAuthStore } from '../stores/useAuthStore';
 import { getCurrentRide, cancelRide } from '../services/ride-service';
 import { canCancelRide, Ride } from '../types/ride';
+import { markRideOpened, wasRideOpened } from '../utils/opened-rides';
 const ACTIVE_STATUSES = new Set([
   'scheduled',
   'searchingDriver',
@@ -18,7 +19,7 @@ const ACTIVE_STATUSES = new Set([
 
 const SEARCH_GIVE_UP_MS = 10 * 60 * 1000;
 
-function screenForRide(ride: Ride) {
+export function screenForRide(ride: Ride) {
   if (ride.status === 'searchingDriver' || ride.status === 'scheduled') {
     return { pathname: '/(main)/ride/searching-driver', params: { rideId: ride.id } } as const;
   }
@@ -74,8 +75,9 @@ export function useActiveRideRestore() {
             
           const p = pathnameRef.current ?? '';
           const onHomeRoot = p === '/' || p === '(main)/(tabs)' || p.endsWith('/(main)/(tabs)') || p.endsWith('/(tabs)');
-          if (isActive && ride && onHomeRoot) {
-            router.replace(screenForRide(ride));
+          if (isActive && ride && onHomeRoot && !wasRideOpened(ride.id)) {
+            markRideOpened(ride.id);
+            router.push(screenForRide(ride));
           }
         })
         .catch(() => {

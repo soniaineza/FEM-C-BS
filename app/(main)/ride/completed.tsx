@@ -11,6 +11,7 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import { getCachedRide } from '../../../hooks/useRideTracking';
 import { getRideDetails } from '../../../services/ride-service';
 import { Ride, formatFare } from '../../../types/ride';
+import { goHome } from '../../../utils/navigation';
 import { Colors } from '../../../constants/theme';
 
 export default function CompletedScreen() {
@@ -36,7 +37,7 @@ export default function CompletedScreen() {
         {error ? (
           <View className="flex-1 justify-center">
             <ErrorState message={error} retryLabel={t('tryAgain')} onRetry={load} />
-            <Button title={t('backHome')} variant="ghost" onPress={() => router.replace('/(main)/(tabs)')} />
+            <Button title={t('backHome')} variant="ghost" onPress={goHome} />
           </View>
         ) : (
           <View className="flex-1 justify-center"><LoadingState /></View>
@@ -48,13 +49,13 @@ export default function CompletedScreen() {
   return (
     <Screen
       background="surface"
-      header={<ScreenHeader back={() => router.replace('/(main)/(tabs)')} />}
+      header={<ScreenHeader back={goHome} />}
       footer={
         <>
           {ride.rating == null ? (
             <Button title={t('rating')} icon="star" onPress={() => router.push({ pathname: '/(main)/ride/rating', params: { rideId: ride.id } })} />
           ) : null}
-          <Button title={t('backHome')} variant={ride.rating == null ? 'ghost' : 'primary'} onPress={() => router.replace('/(main)/(tabs)')} />
+          <Button title={t('backHome')} variant={ride.rating == null ? 'ghost' : 'primary'} onPress={goHome} />
         </>
       }
     >

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Pressable } from '../ui/Pressable';
 import { Ionicons } from '@expo/vector-icons';
 
 import MapEngine from './MapEngine';
-import type { MapScene } from './map-types';
+import type { MapController, MapScene } from './map-types';
 import { Colors, Elevation, KimuColors } from '../../constants/theme';
 import { useTranslation } from '../../hooks/useTranslation';
 
@@ -20,6 +20,8 @@ export interface LiveMapProps {
   rounded?: boolean;
   /** Show the +/− zoom buttons (default true; hidden on non-interactive maps). */
   zoomControls?: boolean;
+  /** Receives the map's camera commands (pan/zoom from an overlay). */
+  controllerRef?: Ref<MapController>;
 }
 
 /**
@@ -37,6 +39,7 @@ export function LiveMap({
   retryLabel = 'Retry',
   rounded = false,
   zoomControls = true,
+  controllerRef,
 }: LiveMapProps) {
   const { t } = useTranslation();
   const [zoomCommand, setZoomCommand] = useState<{ delta: number; token: number } | undefined>();
@@ -86,6 +89,7 @@ export function LiveMap({
     <View style={[styles.fill, rounded && styles.rounded]}>
       <MapEngine
         key={nonce}
+        ref={controllerRef}
         scene={sceneWithZoom}
         onReady={handleReady}
         onError={handleError}
