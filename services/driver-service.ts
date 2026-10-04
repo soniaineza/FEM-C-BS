@@ -26,12 +26,24 @@ export async function setDriverStatus(status: DriverStatus): Promise<DriverProfi
   return driverFromBackendJson(json.driver);
 }
 
+/** What the server did with a reported fix. A fix it does not trust (too
+ * old, too inaccurate, an impossible jump...) is ignored, with the reason. */
+export interface LocationReportResult {
+  accepted: boolean;
+  reason?: 'invalid' | 'stale' | 'low_accuracy' | 'too_frequent' | 'jump';
+}
+
 export async function reportDriverLocation(params: {
   latitude: number;
   longitude: number;
   heading?: number;
-}): Promise<void> {
-  await driverApiClient.post('/drivers/location', params);
+  /** Radius of uncertainty reported by the phone, in metres. */
+  accuracy?: number;
+  /** When the phone took the fix (epoch ms). */
+  recordedAt?: number;
+}): Promise<LocationReportResult> {
+  const json = await driverApiClient.post<LocationReportResult | undefined>('/drivers/location', params);
+  return json && typeof json.accepted === 'boolean' ? json : { accepted: true };
 }
 
 /** Every ride currently assigned to this driver (a pooled trip can be more

@@ -5,6 +5,8 @@ export type DriverStatus = 'offline' | 'active' | 'busy' | 'suspended';
 
 export interface DriverProfile {
   id: string;
+  /** Whether the server is still receiving this driver's position. */
+  location?: DriverLocationFreshness;
   fullName: string;
   phone: string;
   email?: string;
@@ -40,6 +42,7 @@ export function driverFromBackendJson(json: any): DriverProfile {
     rating: json.rating ?? null,
     totalTrips: json.totalTrips ?? json.total_trips ?? 0,
     isProfileComplete: Boolean(json.isProfileComplete ?? json.is_profile_complete ?? false),
+    location: json.location ?? undefined,
     emergencyContactName: json.emergencyContactName ?? undefined,
     emergencyContactPhone: json.emergencyContactPhone ?? undefined,
     preferredLanguage: json.preferredLanguage ?? 'en',
@@ -82,6 +85,13 @@ export function driverDocumentFromBackendJson(json: any): DriverDocument {
     uploadedAt: json.uploadedAt,
     reviewedAt: json.reviewedAt ?? undefined,
   };
+}
+
+/** How fresh the server's copy of the driver's position is. */
+export interface DriverLocationFreshness {
+  ageSeconds: number | null;
+  maxAgeSeconds: number;
+  fresh: boolean;
 }
 
 export interface DriverEarningsSummary {

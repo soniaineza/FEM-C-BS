@@ -156,9 +156,37 @@ event through `POST /api/admin/emergencies/:id/resolve`. Failed SMS sends stay
 in the queue and are retried. Confirm provider delivery and staff coverage
 before opening this workflow to riders.
 
-**Maps.** Production requires private or contracted `OSRM_URL`, `PHOTON_URL`
-and `PHOTON_REVERSE_URL` endpoints. Optional Nominatim fallback must also be
-private. The public demonstration endpoints are development defaults only.
+**Maps.** The apps never call a map provider: they call `/api/maps/search`,
+`/api/maps/reverse`, `/api/maps/route` and `/api/maps/config` on this server
+(signed-in riders and drivers only, rate limited per account, coordinates
+validated against the service area). Which provider answers is configuration:
+
+| Variable | Values |
+| --- | --- |
+| `MAP_ROUTING_PROVIDER` | `geoapify` (needs `MAP_ROUTING_API_KEY`) or `osrm` (needs your own `OSRM_URL`; see `osrm/`) |
+| `MAP_GEOCODING_PROVIDER` | `geoapify` (needs `MAP_GEOCODING_API_KEY`, defaults to the routing key) or `photon` (needs your own `PHOTON_URL` / `PHOTON_REVERSE_URL`) |
+| `MAP_TILE_URL` | MapLibre style the apps draw; default OpenFreeMap |
+
+Without these the server falls back to the public OSRM and Photon servers,
+which are for development only and are refused when `NODE_ENV=production`.
+A fare is only ever computed from a route the provider returned: if routing
+is down, pricing and booking answer 503 `MAP_SERVICE_UNAVAILABLE` and the app
+offers a retry. Routes, searches and reverse lookups are cached.
+
+**Driver GPS.** `POST /api/drivers/location` takes `latitude`, `longitude`,
+`heading`, `accuracy` and `recordedAt` and answers `{ accepted, reason }`. A
+fix outside the service area, older than 60 s, less accurate than 150 m,
+sooner than 1 s after the last, or implying an impossible jump is ignored.
+A driver is shown to riders and matched only while their last accepted fix is
+newer than `DRIVER_LOCATION_MAX_AGE_SECONDS` (default 45). Accepted fixes are
+pushed to the rider over `GET /api/rides/:id/stream`.
+
+**Login codes.** `OTP_MODE=sms` (default) sends codes through the SMS provider
+below. `OTP_MODE=demo` sends nothing: the code is returned to the app, which
+shows it on screen. Codes are still random, single-use and expire. Demo mode
+verifies nobody's phone number, so anyone who knows a rider's phone or email
+can reset that rider's password; use it for a pilot only. It is on only when
+set explicitly, and the server warns about it at every start.
 
 **Driver verification.** New drivers start unverified and can't go online
 until an operator approves them. Set `ADMIN_API_KEY` (at least 24 random
@@ -272,6 +300,8 @@ own npm script (each exits non-zero on failure):
 | `npm run test:smoke` | API on `:3000` started with `DEV_REVEAL_CODES=1 DEV_AUTO_VERIFY_DRIVERS=1`; add `DEMO_PAYMENTS=1` to both the server and the test to cover demo settlement. |
 | `npm run test:wallet` | Same local API as the smoke test. |
 | `npm run test:money` | Same local API started with `DEMO_PAYMENTS=1` and an `ADMIN_API_KEY` (pass the same key to the test). Covers shared-ride seats, the stop plan, cash commission, commission settlement and payouts; start the API with `DRIVER_MAX_COMMISSION_DEBT=100` to also cover the going-online block. |
+| `npm run test:maps` | Nothing: provider adapters, routing, geocoding and GPS validation with the provider stubbed. |
+| `npm run test:otp` | A local database; starts its own server to check demo login codes. |
 | `npm run test:readiness` | API on `:3000` started with the same `PAYPACK_WEBHOOK_SECRET` and `ADMIN_API_KEY` as in `server/.env`. |
 | `npm run test:invariants` | Only PostgreSQL (`INV_DATABASE_URL`). Starts its own production-mode API, fake Paypack and SMS gateway, and a fresh database. Optional args: `-- <seed> <steps>`. |
 | `npm run test:places` | API on `:3000` and `TYPESAFE_API_KEY`; TypeSafe's Jev judges whether place search returns the place a rider meant. |

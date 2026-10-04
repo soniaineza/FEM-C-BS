@@ -27,6 +27,7 @@ import { useLocaleStore } from '../stores/useLocaleStore';
 import { useAppModeStore } from '../stores/useAppModeStore';
 import { useDriverAuthStore } from '../stores/useDriverAuthStore';
 import { configureNotificationHandler } from '../utils/notifications';
+import { useMapConfigStore } from '../stores/useMapConfigStore';
 // Registers the driver's background location task at module scope, so the OS
 // can run it when it wakes the app without any screen mounted.
 import '../utils/driver-background-location';
@@ -79,6 +80,7 @@ export default function RootLayout() {
     hydrateLocale();
     hydrateMode();
     hydrateDriverAuth();
+    useMapConfigStore.getState().load();
   }, [hydrateAuth, hydrateLocale, hydrateMode, hydrateDriverAuth]);
 
   const ready = fontsLoaded && isAuthHydrated && isLocaleHydrated && isModeHydrated && isDriverAuthHydrated;

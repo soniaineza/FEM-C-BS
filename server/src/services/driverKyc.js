@@ -2,7 +2,7 @@ const { getPool } = require('../db');
 const { config } = require('../config');
 
 const REQUIRED_DOCUMENTS = ['license', 'national_id', 'vehicle_registration', 'insurance'];
-const LOCATION_MAX_AGE_SECONDS = 45;
+const LOCATION_MAX_AGE_SECONDS = config.driverLocationMaxAgeSeconds;
 // SQL fragment for queries that alias drivers as d.
 // A driver is only shown to riders and offered rides while their phone is
 // actually reporting its position; one that stopped is not really there.

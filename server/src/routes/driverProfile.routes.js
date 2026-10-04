@@ -29,10 +29,25 @@ router.use(requireDriverAuth);
 // ============================================================
 
 // GET /api/driver/me — current driver profile.
+/** How fresh the driver's reported position is, for the app's status. */
+async function locationFreshness(driverId) {
+  const { rows } = await getPool().query(
+    'SELECT EXTRACT(EPOCH FROM (now() - recorded_at)) AS age FROM driver_locations WHERE driver_id = $1',
+    [driverId]
+  );
+  const ageSeconds = rows[0] ? Math.round(Number(rows[0].age)) : null;
+  return {
+    ageSeconds,
+    maxAgeSeconds: config.driverLocationMaxAgeSeconds,
+    fresh: ageSeconds != null && ageSeconds <= config.driverLocationMaxAgeSeconds,
+  };
+}
+
 router.get('/me', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query('SELECT * FROM drivers WHERE id = $1', [req.driverId]);
   if (!rows[0]) throw new ApiError(404, 'Driver account not found.');
-  res.json({ driver: driverToJson(rows[0]) });
+  // `location` lets the app tell "online" from "online but GPS not updating".
+  res.json({ driver: { ...driverToJson(rows[0]), location: await locationFreshness(req.driverId) } });
 }));
 
 // PUT /api/driver/me — update profile fields.

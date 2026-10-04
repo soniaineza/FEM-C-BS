@@ -54,6 +54,7 @@ const mock = {
   failNextSms: false,
   // Merchant balance per network, read before a cash-out is sent.
   balances: { mtn: 1e9, airtel: 1e9 },
+  routeOk: false,
   counts: { authorize: 0, refresh: 0, cashin: 0, find: 0 },
   contractViolations: [],
 };
@@ -131,6 +132,13 @@ function startMock() {
         mock.txns.set(txn.ref, txn);
         if (key) mock.byIdemKey.set(key, txn.ref);
         return send(200, { amount: txn.amount, created_at: txn.created_at, kind: 'CASHIN', ref: txn.ref, status: 'pending' });
+      }
+      // The routing provider (OSRM). Absent until a scenario switches it
+      // on, so the "provider down" path is what the walk runs against.
+      if (req.method === 'GET' && url.startsWith('/route/v1/driving/')) {
+        if (!mock.routeOk) return send(503, { error: 'routing down' });
+        const [from, to] = url.split('/').pop().split('?')[0].split(';').map((pair) => pair.split(',').map(Number));
+        return send(200, { code: 'Ok', routes: [{ distance: 6100, duration: 840, geometry: { coordinates: [from, to] } }] });
       }
       if (req.method === 'GET' && url === '/api/merchants/me') {
         if (!authed()) return send(401, { error: 'unauthorized' });
@@ -1035,6 +1043,145 @@ async function scenarios() {
 
   await checkInvariants('scenarios');
 
+  // ----- map endpoints: access, validation, limits -----
+  const mapsGet = (path, token) => api('GET', `/maps${path}`, null, token);
+  const cfg = await mapsGet('/config');
+  expect('map config is readable and carries no key', cfg.status === 200 && /^https:\/\//.test(cfg.data.styleUrl) && !/key/i.test(JSON.stringify(cfg.data)), JSON.stringify(cfg.data));
+  const anon = await Promise.all([
+    mapsGet('/search?q=Kimironko'), mapsGet('/reverse?lat=-1.9441&lng=30.0619'),
+    mapsGet('/route?origin=-1.9441,30.0619&destination=-1.9586,30.0205'),
+  ]);
+  expect('unauthorized map requests are refused', anon.every((r) => r.status === 401), anon.map((r) => r.status).join());
+  const forged = await mapsGet('/search?q=Kimironko', 'not-a-real-token');
+  expect('a forged token cannot use the map endpoints', forged.status === 401, `status=${forged.status}`);
+  const bad = await Promise.all([
+    mapsGet('/route?origin=abc&destination=-1.9586,30.0205', p.token),
+    mapsGet('/route?origin=95,30&destination=-1.9586,30.0205', p.token),
+    mapsGet('/route?origin=48.8566,2.3522&destination=-1.9586,30.0205', p.token),
+    mapsGet('/search?q=a', p.token),
+    mapsGet(`/search?q=${'x'.repeat(200)}`, p.token),
+  ]);
+  expect('invalid coordinates and queries are rejected before reaching a provider', bad.every((r) => r.status === 400), bad.map((r) => r.status).join());
+
+  // The routing provider is down (the fake has no route yet): a clear,
+  // retryable error — not a made-up route.
+  const down = await mapsGet('/route?origin=-1.9441,30.0619&destination=-1.9700,30.1000', p.token);
+  expect('routing failure is a retryable error, not a guessed route', down.status === 503 && down.data.code === 'MAP_SERVICE_UNAVAILABLE', JSON.stringify(down.data));
+  mock.routeOk = true;
+  const up = await mapsGet('/route?origin=-1.9441,30.0619&destination=-1.9700,30.1000', p.token);
+  expect('routing success returns distance, duration, geometry and provider',
+    up.status === 200 && up.data.distanceMeters === 6100 && up.data.durationSeconds === 840 && up.data.geometry.length >= 2 &&
+      up.data.points.length === up.data.geometry.length && up.data.provider === 'osrm', JSON.stringify(up.data).slice(0, 200));
+  const asDriver = await mapsGet('/route?origin=-1.9441,30.0619&destination=-1.9700,30.1000', k.d.token);
+  expect('drivers can use the map endpoints too', asDriver.status === 200, `status=${asDriver.status}`);
+
+  // The fare comes from the server's own route, whatever the client claims.
+  await pingDrivers();
+  const cheat = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'Far', latitude: -1.9700, longitude: 30.1000 },
+    vehicleId: 'fem_economy', paymentMethodId: 'cash',
+    distanceKm: 0.01, durationMinutes: 1, estimatedFare: 1, fare: { total: 1 },
+  }, p.token);
+  expect('a distance or fare supplied by the client is ignored',
+    cheat.status === 201 && cheat.data.ride.distanceKm === 6.1 && cheat.data.ride.estimatedFare > 1000,
+    `status=${cheat.status} km=${cheat.data.ride?.distanceKm} fare=${cheat.data.ride?.estimatedFare}`);
+  await api('POST', `/rides/${cheat.data.ride.id}/cancel`, { reason: 'scenario' }, p.token);
+  const outside = await api('POST', '/rides', {
+    pickup: { address: 'Paris', latitude: 48.8566, longitude: 2.3522 },
+    destination: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    vehicleId: 'fem_economy', paymentMethodId: 'cash',
+  }, p.token);
+  expect('a ride outside the service area is refused', outside.status === 400 && outside.data.code === 'OUTSIDE_SERVICE_AREA', JSON.stringify(outside.data));
+
+  // Reverse geocoding is limited per account (the test server allows 5).
+  const reverse = [];
+  for (let i = 0; i < 7; i++) reverse.push((await mapsGet(`/reverse?lat=-1.94${i}1&lng=30.0619`, p.token)).status);
+  expect('map requests are rate limited per account', reverse.slice(0, 5).every((s) => s !== 429) && reverse[6] === 429, reverse.join());
+
+  // ----- driver GPS: validation, freshness, live push -----
+  const gps = await onlineDriver('+250788900021');
+  onlyDriver = gps;
+  await pingDrivers();
+  const postFix = (body) => api('POST', '/drivers/location', body, gps.token);
+  const here = { latitude: -1.9441, longitude: 30.0619 };
+  await sleep(1100);
+  const good = await postFix({ ...here, accuracy: 10, recordedAt: Date.now() });
+  expect('a good GPS fix is accepted', good.status === 200 && good.data.accepted === true, JSON.stringify(good.data));
+  const [stored] = await q('SELECT accuracy, device_recorded_at, state FROM driver_locations WHERE driver_id = $1', [gps.id]);
+  expect('the stored location carries accuracy, the phone timestamp and the driver state',
+    Number(stored.accuracy) === 10 && stored.device_recorded_at && stored.state === 'available', JSON.stringify(stored));
+  const tooFast = await postFix({ ...here });
+  expect('updates faster than the allowed rate are ignored', tooFast.data.accepted === false && tooFast.data.reason === 'too_frequent', JSON.stringify(tooFast.data));
+  await sleep(1100);
+  const jump = await postFix({ latitude: -2.4, longitude: 30.0619, accuracy: 10 });
+  expect('an impossible GPS jump is ignored', jump.data.accepted === false && jump.data.reason === 'jump', JSON.stringify(jump.data));
+  await sleep(1100);
+  const oldFix = await postFix({ ...here, recordedAt: Date.now() - 10 * 60 * 1000 });
+  expect('a fix taken long ago is ignored', oldFix.data.reason === 'stale', JSON.stringify(oldFix.data));
+  await sleep(1100);
+  const vague = await postFix({ ...here, accuracy: 900 });
+  expect('an inaccurate fix is ignored', vague.data.reason === 'low_accuracy', JSON.stringify(vague.data));
+  const malformed = await postFix({ latitude: 123, longitude: 30 });
+  expect('malformed coordinates are rejected', malformed.status === 400, `status=${malformed.status}`);
+  const [kept] = await q('SELECT latitude, longitude FROM driver_locations WHERE driver_id = $1', [gps.id]);
+  expect('ignored fixes do not move the driver', kept.latitude === here.latitude && kept.longitude === here.longitude, JSON.stringify(kept));
+
+  const nearby = async () => (await api('GET', '/drivers/nearby?lat=-1.9441&lng=30.0619', null, p.token)).data.drivers.length;
+  const me = async () => (await api('GET', '/driver/me', null, gps.token)).data.driver;
+  expect('an online driver with a fresh location is available', await nearby() === 1 && (await me()).location.fresh === true, `nearby=${await nearby()}`);
+  await q(`UPDATE driver_locations SET recorded_at = now() - interval '5 minutes' WHERE driver_id = $1`, [gps.id]);
+  const staleMe = await me();
+  expect('an online driver whose location went stale is not shown as available',
+    await nearby() === 0 && staleMe.status === 'active' && staleMe.location.fresh === false, `nearby=${await nearby()} ${JSON.stringify(staleMe.location)}`);
+  const unmatched = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'Nyamirambo', latitude: -1.9586, longitude: 30.0205 },
+    vehicleId: 'fem_economy', paymentMethodId: 'cash',
+  }, p.token);
+  await sleep(2500);
+  expect('a rider is not matched with a driver whose location stopped updating',
+    await rideStatus(unmatched.data.ride.id) === 'searchingDriver', `status=${await rideStatus(unmatched.data.ride.id)}`);
+  await api('POST', `/rides/${unmatched.data.ride.id}/cancel`, { reason: 'scenario' }, p.token);
+  await sleep(1100);
+  await postFix({ ...here, accuracy: 10 });
+  expect('reporting again makes the driver available again', await nearby() === 1 && (await me()).location.fresh === true);
+
+  // A ride with this driver; the rider watches the live stream.
+  const live = await api('POST', '/rides', {
+    pickup: { address: 'KN 5 Rd', latitude: -1.9441, longitude: 30.0619 },
+    destination: { address: 'Nyamirambo', latitude: -1.9586, longitude: 30.0205 },
+    vehicleId: 'fem_economy', paymentMethodId: 'cash',
+  }, p.token);
+  const liveId = live.data.ride.id;
+  await waitFor(async () => await rideStatus(liveId) === 'driverAssigned', 12000);
+  await api('POST', `/drivers/rides/${liveId}/accept`, null, gps.token);
+  const stream = await fetch(`${API}/rides/${liveId}/stream`, { headers: { Authorization: `Bearer ${p.token}` } });
+  const reader = stream.body.getReader();
+  let streamed = '';
+  const pump = (async () => { for (;;) { const { done, value } = await reader.read(); if (done) return; streamed += Buffer.from(value).toString(); } })().catch(() => {});
+  await sleep(1200);
+  const moved = { latitude: -1.9449, longitude: 30.0627 };
+  const sentAt = Date.now();
+  await postFix({ ...moved, accuracy: 8, heading: 45 });
+  const pushed = await waitFor(async () => streamed.includes('"latitude":-1.9449'), 1500);
+  expect('the driver\'s new position is pushed to the rider over the live stream',
+    pushed && Date.now() - sentAt < 2000 && /"type":"driverLocation"/.test(streamed), `ms=${Date.now() - sentAt}`);
+  const seen = await api('GET', `/rides/${liveId}/driver-location`, null, p.token);
+  expect('the rider reads the driver\'s real reported position', seen.data.location?.latitude === moved.latitude && seen.data.driverLocationStale === false, JSON.stringify(seen.data).slice(0, 160));
+  await q(`UPDATE driver_locations SET recorded_at = now() - interval '5 minutes' WHERE driver_id = $1`, [gps.id]);
+  const lost = await api('GET', `/rides/${liveId}/driver-location`, null, p.token);
+  expect('a driver who disappears mid-ride is reported as not updating, and the ride is kept',
+    lost.data.location === null && lost.data.driverLocationStale === true && await rideStatus(liveId) === 'driverArriving',
+    `${JSON.stringify(lost.data)} ride=${await rideStatus(liveId)}`);
+  await reader.cancel().catch(() => {});
+  await pump;
+  await api('POST', `/rides/${liveId}/cancel`, { reason: 'scenario' }, p.token);
+  await api('PUT', '/driver/status', { status: 'offline' }, gps.token);
+  onlyDriver = null;
+
+  await checkInvariants('maps');
+
   // ----- closing an account keeps every money record -----
   const count = async (sql, id) => Number((await q(sql, [id]))[0].n);
   const riderRecords = async () => ({
@@ -1148,6 +1295,7 @@ async function main() {
     DRIVER_COMMISSION_RATE: String(COMMISSION),
     // Short sweep interval so the cash-timeout scenarios do not wait long.
     SCHEDULER_INTERVAL_MS: '3000',
+    MAPS_REVERSE_LIMIT: '5',
     // Windows needs these for DNS/sockets in the child process.
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
   };

@@ -2,26 +2,28 @@ import { useEffect, useState } from 'react';
 
 import { getRideDetails, getDriverLocation, DriverLocation } from '../services/ride-service';
 import { Ride } from '../types/ride';
+import { openRideStream } from '../utils/ride-stream';
 
-// NOTE: the backend actually exposes GET /rides/:id/stream (real
-// Server-Sent Events, see rides.routes.js) — better than polling in
-// principle. It isn't used here because browser EventSource cannot send a
-// custom Authorization header, and requireAuth (middleware/auth.js) only
-// reads that header (no ?token= fallback) — wiring SSE up would need an
-// additional backend change beyond the two already agreed for this
-// migration. Left as a documented future improvement, not done silently.
+// How long to wait between requests when the live stream is delivering
+// updates (a safety net only) and when it is not (the only source).
+const POLL_WITH_STREAM_MS = 15000;
+const POLL_WITHOUT_STREAM_MS = 3000;
+const STREAM_RETRY_MS = 15000;
+// With no position for this long the driver's phone has stopped reporting;
+// the map then says so instead of leaving the car frozen in place.
+const LOCATION_SILENCE_MS = 50000;
+
+// Follows one ride: its state and the driver's live position.
 //
-// This hook is the direct replacement for subscribeToRide() in the old
-// ride_tracking_screen.dart, where a just-fixed bug (commit 5fd55b6) had
-// the Timer.periodic's cancellation discarded, orphaning a polling loop on
-// every screen visit. Two things here specifically close that bug class:
-//   1. setTimeout chained AFTER each response resolves, not setInterval —
-//      only one request is ever in flight, so nothing can stack even if a
-//      response is slow (e.g. a cold-starting backend).
-//   2. A `cancelled` flag checked before every setState AND before
-//      scheduling the next tick — clearing the timer stops FUTURE ticks;
-//      the flag stops a response already in flight at unmount time from
-//      updating state or scheduling one more tick.
+// The driver's position is pushed by the backend over the ride stream
+// (driver GPS -> backend -> stream -> this hook), so the rider's map moves as
+// the driver does without the app asking every second. A slow poll runs
+// alongside as a safety net, and takes over at a faster rate whenever the
+// stream cannot be opened or drops; the stream is then retried.
+//
+// Polling uses setTimeout chained after each response (never setInterval),
+// with a `cancelled` flag checked before every state update, so requests
+// cannot stack up and nothing fires after the screen is left.
 export function useRideTracking(rideId: string | null) {
   const [ride, setRide] = useState<Ride | null>(null);
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
@@ -32,35 +34,82 @@ export function useRideTracking(rideId: string | null) {
     if (!rideId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-
+    let streamRetry: ReturnType<typeof setTimeout> | null = null;
+    let closeStream: (() => void) | null = null;
+    let streamLive = false;
+    let lastStatus: string | null = null;
+    let lastLocationAt = 0;
     let offset: number | null = null;
+
+    const noteServerTime = (serverTime: number | undefined, sentAt: number) => {
+      if (!serverTime) return;
+      // Smoothed server-minus-device clock offset for the map's animation.
+      const sample = serverTime - (sentAt + Date.now()) / 2;
+      offset = offset == null ? sample : offset * 0.8 + sample * 0.2;
+      setOffset(Math.round(offset));
+    };
+
+    async function refreshRide() {
+      const details = await getRideDetails(rideId!);
+      if (cancelled) return;
+      lastStatus = details.status;
+      setRide(details);
+    }
 
     async function poll() {
       const sentAt = Date.now();
       try {
-        const [details, location] = await Promise.all([getRideDetails(rideId!), getDriverLocation(rideId!)]);
+        const [, location] = await Promise.all([refreshRide(), getDriverLocation(rideId!)]);
         if (cancelled) return;
-        setRide(details);
-        setDriverLocation(location);
-        if (location?.serverTime) {
-          // Smoothed server-minus-device clock offset for the map's animation.
-          const sample = location.serverTime - (sentAt + Date.now()) / 2;
-          offset = offset == null ? sample : offset * 0.8 + sample * 0.2;
-          setOffset(Math.round(offset));
-        }
+        if (location) lastLocationAt = Date.now();
+        // A fresher pushed position is not replaced by an older polled one.
+        if (location || Date.now() - lastLocationAt > LOCATION_SILENCE_MS) setDriverLocation(location);
+        noteServerTime(location?.serverTime, sentAt);
         setError(null);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err : new Error('tracking failed'));
       }
-      if (!cancelled) {
-        timer = setTimeout(poll, 2000);
-      }
+      if (!cancelled) timer = setTimeout(poll, streamLive ? POLL_WITH_STREAM_MS : POLL_WITHOUT_STREAM_MS);
     }
+
+    function connect() {
+      if (cancelled) return;
+      closeStream = openRideStream(rideId!, {
+        onEvent: (event) => {
+          if (cancelled) return;
+          streamLive = true;
+          if (event.type === 'driverLocation' && event.location) {
+            lastLocationAt = Date.now();
+            setDriverLocation({ ...event.location, serverTime: event.serverTime });
+            noteServerTime(event.serverTime, Date.now());
+          } else if (event.type === 'ride') {
+            // The stream repeats the ride every few seconds; only a change
+            // of status is worth re-reading the full ride for.
+            if (event.ride?.status && event.ride.status !== lastStatus) refreshRide().catch(() => {});
+          } else {
+            refreshRide().catch(() => {});
+          }
+        },
+        onClose: (reason) => {
+          streamLive = false;
+          if (cancelled || reason === 'ended') return;
+          streamRetry = setTimeout(connect, STREAM_RETRY_MS);
+        },
+      });
+    }
+
     poll();
+    connect();
+    const silence = setInterval(() => {
+      if (!cancelled && lastLocationAt && Date.now() - lastLocationAt > LOCATION_SILENCE_MS) setDriverLocation(null);
+    }, 5000);
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      if (streamRetry) clearTimeout(streamRetry);
+      clearInterval(silence);
+      closeStream?.();
     };
   }, [rideId]);
 

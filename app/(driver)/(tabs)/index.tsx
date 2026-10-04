@@ -64,6 +64,15 @@ export default function DriverHomeScreen() {
     }, [refreshDriver])
   );
 
+  // Online, but the server has stopped receiving this phone's position: the
+  // driver is not offered rides until it resumes, so say so.
+  const gpsStale = isOnline && !!currentDriver?.location && !currentDriver.location.fresh;
+  useEffect(() => {
+    if (!isOnline || !isFocused) return;
+    const timer = setInterval(() => { refreshDriver().catch(() => {}); }, 15000);
+    return () => clearInterval(timer);
+  }, [isOnline, isFocused, refreshDriver]);
+
   const offeredRide = primaryRide && primaryRide.status === 'driverAssigned' ? primaryRide : null;
   const tripInProgress = primaryRide && primaryRide.status !== 'driverAssigned' ? primaryRide : null;
   const activeRideCount = rides.filter((r) => r.status !== 'driverAssigned').length;
@@ -136,10 +145,10 @@ export default function DriverHomeScreen() {
             <Text className="text-[13px] text-text-secondary">{t(greetingKey())},</Text>
             <Text className="text-lg font-bold text-ink">{currentDriver?.fullName?.split(' ')[0] || t('driverRoleLabel')}</Text>
           </View>
-          <View className={`flex-row items-center rounded-full px-3 py-1.5 ${isOnline ? 'bg-primary/10' : 'bg-gray-light'}`}>
-            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: isOnline ? '#0E7C4A' : '#9CA3AF' }} />
-            <Text className={`ml-1.5 text-xs font-semibold ${isOnline ? 'text-primary' : 'text-text-secondary'}`}>
-              {isOnline ? t('driverOnline') : t('driverOffline')}
+          <View className={`flex-row items-center rounded-full px-3 py-1.5 ${gpsStale ? 'bg-warning/10' : isOnline ? 'bg-primary/10' : 'bg-gray-light'}`}>
+            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: gpsStale ? '#D97706' : isOnline ? '#0E7C4A' : '#9CA3AF' }} />
+            <Text className={`ml-1.5 text-xs font-semibold ${gpsStale ? 'text-warning' : isOnline ? 'text-primary' : 'text-text-secondary'}`}>
+              {gpsStale ? t('driverGpsStale') : isOnline ? t('driverOnline') : t('driverOffline')}
             </Text>
           </View>
         </View>

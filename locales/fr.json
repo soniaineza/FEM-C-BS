@@ -421,7 +421,7 @@
   "verificationFailed": "Nous ne pouvons pas verifier votre code maintenant. Reessayez.",
   "verify": "Verifier",
   "verifyAccount": "Verifiez votre compte",
-  "demoOtpHint": "Code OTP de demo : {code}",
+  "demoOtpHint": "Vérification de démonstration : aucun SMS n'est envoyé. Votre code est {code}",
   "waitingDriver": "En attente de l’attribution d’un chauffeur",
   "waitingForPayment": "En attente du paiement",
   "waitingForRideRequest": "En attente d'une demande",
@@ -771,5 +771,6 @@
   "driverCashToRemit": "Espèces à reverser à Kimu",
   "driverCashToRemitHint": "Ce sont les espèces que vous avez encaissées. Reversez-les à Kimu par mobile money. Au-delà de {limit}, vous ne pouvez plus passer en ligne tant qu'elles ne sont pas reversées.",
   "driverSendCash": "Reverser à Kimu",
-  "cashUnderReview": "Votre chauffeur n'a pas encore confirmé le paiement en espèces. Notre équipe vérifie. Vous pouvez continuer à utiliser Kimu."
+  "cashUnderReview": "Votre chauffeur n'a pas encore confirmé le paiement en espèces. Notre équipe vérifie. Vous pouvez continuer à utiliser Kimu.",
+  "driverGpsStale": "En ligne · GPS inactif"
 }

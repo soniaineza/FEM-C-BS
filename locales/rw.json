@@ -421,7 +421,7 @@
   "verificationFailed": "Ntitwashoboye kwemeza kode ubu. Ongera ugerageze.",
   "verify": "Emeza",
   "verifyAccount": "Emeza konti yawe",
-  "demoOtpHint": "Kode ya OTP y'igerageza: {code}",
+  "demoOtpHint": "Kwemeza kw'igerageza: nta SMS yoherezwa. Kode yawe ni {code}",
   "waitingDriver": "Dutegereje guhabwa umushoferi",
   "waitingForPayment": "Dutegereje kwishyura",
   "waitingForRideRequest": "Dutegereje icyifuzo cy'urugendo",
@@ -771,5 +771,6 @@
   "driverCashToRemit": "Amafaranga yo mu ntoki ugomba kohereza Kimu",
   "driverCashToRemitHint": "Aya ni amafaranga wakiriye mu ntoki ku bagenzi. Yohereze Kimu ukoresheje mobile money. Iyo arenze {limit}, ntushobora gutangira gukora utarayohereza.",
   "driverSendCash": "Ohereza amafaranga kuri Kimu",
-  "cashUnderReview": "Umushoferi wawe ntaremeza ko yakiriye amafaranga mu ntoki. Itsinda ryacu ririmo kubisuzuma. Ushobora gukomeza gukoresha Kimu."
+  "cashUnderReview": "Umushoferi wawe ntaremeza ko yakiriye amafaranga mu ntoki. Itsinda ryacu ririmo kubisuzuma. Ushobora gukomeza gukoresha Kimu.",
+  "driverGpsStale": "Urakora · GPS ntiri kuvugururwa"
 }

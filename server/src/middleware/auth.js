@@ -61,4 +61,26 @@ function requireDriverAuth(req, _res, next) {
   }
 }
 
-module.exports = { requireAuth, requireSession, requireDriverAuth };
+/**
+ * Requires a signed-in rider (phone verified) or driver. Sets req.userKey
+ * ("rider:<id>" / "driver:<id>") for per-account rate limiting.
+ */
+function requireAnyUser(req, res, next) {
+  const token = readBearer(req);
+  if (!token) return next(new ApiError(401, 'Sign in to continue.'));
+  let role;
+  try {
+    ({ role } = verifyToken(token));
+  } catch {
+    return next(new ApiError(401, 'Your session has expired. Please sign in again.'));
+  }
+  const done = (err) => {
+    if (err) return next(err);
+    req.userKey = role === 'driver' ? `driver:${req.driverId}` : `rider:${req.passengerId}`;
+    next();
+  };
+  if (role === 'driver') return requireDriverAuth(req, res, done);
+  return requireAuth(req, res, done);
+}
+
+module.exports = { requireAuth, requireSession, requireDriverAuth, requireAnyUser };

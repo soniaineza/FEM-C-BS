@@ -2,7 +2,7 @@ const crypto = require('crypto');
 
 const { getPool } = require('../db');
 const { haversineKm } = require('../utils/distance');
-const { getRoadRoute, getTravelTimes, estimateSeconds } = require('./routing');
+const { getFareRoute, getTravelTimes, estimateSeconds } = require('./routing');
 const { eligibleDriverSql } = require('./driverKyc');
 const { MAX_ADDED_MINUTES } = require('./poolPlanner');
 
@@ -167,7 +167,7 @@ function pruneQuotes() {
 async function quoteTrip(pickup, destination, rideType = 'private', seats = 1) {
   seats = normalizeSeats(rideType, seats);
   const [route, surge, etas, { rows: vehicles }] = await Promise.all([
-    getRoadRoute(pickup, destination),
+    getFareRoute(pickup, destination),
     surgeAt(pickup),
     pickupEtas(pickup),
     getPool().query('SELECT * FROM vehicles ORDER BY base_fare ASC'),
@@ -195,7 +195,7 @@ async function quoteTrip(pickup, destination, rideType = 'private', seats = 1) {
     };
   });
   return {
-    route: { coordinates: route.coordinates, source: route.source, ...trip },
+    route: { coordinates: route.coordinates, source: route.source, provider: route.provider, ...trip },
     surge,
     expiresAt: new Date(expiresAt).toISOString(),
     // What a shared rider is promised: the most other riders may add to
@@ -219,7 +219,7 @@ async function fareForRide(vehicle, pickup, destination, rideType, quoteId, seat
   ) {
     return { ...locked.trip, fare: locked.fare, locked: true };
   }
-  const [route, surge] = await Promise.all([getRoadRoute(pickup, destination), surgeAt(pickup)]);
+  const [route, surge] = await Promise.all([getFareRoute(pickup, destination), surgeAt(pickup)]);
   const trip = routeSummary(route);
   return { ...trip, fare: priceFor(vehicle, trip, rideType, surge.multiplier, seats), locked: false };
 }

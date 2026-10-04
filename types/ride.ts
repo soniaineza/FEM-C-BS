@@ -123,7 +123,7 @@ export interface FareEstimate {
   pickupEtaMinutes?: number | null;
   /** Road route as [lng, lat] pairs, for the map. */
   routeCoordinates?: [number, number][];
-  routeSource?: 'osrm' | 'estimate';
+  routeSource?: 'provider' | 'osrm' | 'estimate';
 }
 
 export interface Ride {

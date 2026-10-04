@@ -13,15 +13,27 @@ import { reportDriverLocation } from '../services/driver-service';
 // root layout, so the OS can run it when it wakes the app with no screen.
 const DRIVER_LOCATION_TASK = 'kimu-driver-location';
 
+// How often the driver's position is sent: often on a trip (the rider is
+// watching the car move), less often while waiting for a ride (enough to
+// stay available for matching without draining the battery).
+export type DriverLocationMode = 'idle' | 'trip';
+export const DRIVER_LOCATION_INTERVAL_MS: Record<DriverLocationMode, number> = { idle: 15000, trip: 4000 };
+
 if (Platform.OS !== 'web') {
   TaskManager.defineTask<{ locations: Location.LocationObject[] }>(DRIVER_LOCATION_TASK, async ({ data, error }) => {
     if (error) return;
     const latest = data?.locations?.[data.locations.length - 1];
     if (!latest) return;
-    const { latitude, longitude, heading } = latest.coords;
+    const { latitude, longitude, heading, accuracy } = latest.coords;
     // A dropped report is not fatal — the next fix retries. With no driver
     // session (signed out) the request is rejected and nothing is recorded.
-    await reportDriverLocation({ latitude, longitude, heading: heading ?? undefined }).catch(() => {});
+    await reportDriverLocation({
+      latitude,
+      longitude,
+      heading: heading ?? undefined,
+      accuracy: accuracy ?? undefined,
+      recordedAt: latest.timestamp,
+    }).catch(() => {});
   });
 }
 
@@ -50,16 +62,23 @@ export async function requestBackgroundLocationPermission(): Promise<boolean> {
  * (web, permission missing, or a build without the native module) so the
  * caller can fall back to foreground-only reporting.
  */
-export async function startDriverBackgroundLocation(notification: { title: string; body: string }): Promise<boolean> {
+export async function startDriverBackgroundLocation(
+  notification: { title: string; body: string },
+  mode: DriverLocationMode = 'idle'
+): Promise<boolean> {
   if (Platform.OS === 'web') return false;
   try {
     if (!(await hasBackgroundLocationPermission())) return false;
-    if (await Location.hasStartedLocationUpdatesAsync(DRIVER_LOCATION_TASK)) return true;
+    // Restarted on every call so a change of mode (idle <-> trip) takes effect.
+    if (await Location.hasStartedLocationUpdatesAsync(DRIVER_LOCATION_TASK)) {
+      await Location.stopLocationUpdatesAsync(DRIVER_LOCATION_TASK);
+    }
     await Location.startLocationUpdatesAsync(DRIVER_LOCATION_TASK, {
-      accuracy: Location.Accuracy.High,
-      // Same throttling as the foreground watcher in useDriverLocationReporting.
-      timeInterval: 5000,
-      distanceInterval: 25,
+      accuracy: mode === 'trip' ? Location.Accuracy.BestForNavigation : Location.Accuracy.High,
+      // Time-based, with no distance filter: a parked driver must keep
+      // reporting or the server would treat them as gone.
+      timeInterval: DRIVER_LOCATION_INTERVAL_MS[mode],
+      distanceInterval: 0,
       activityType: Location.ActivityType.AutomotiveNavigation,
       pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: true,

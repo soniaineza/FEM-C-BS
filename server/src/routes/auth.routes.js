@@ -28,6 +28,10 @@ const authLimiter = apiLimiter();
 const otpLimiter = apiLimiter({ max: config.rateLimitMax * 2 });
 
 function devPayload(code) {
+  // Local development (DEV_REVEAL_CODES, local database only) and the
+  // explicit demo mode both show the code to the person who asked for it;
+  // in every other case it only ever leaves by SMS.
+  if (config.otpMode === 'demo') return { devCode: code, otpMode: 'demo' };
   return config.devRevealCodes ? { devCode: code } : {};
 }
 
@@ -37,6 +41,13 @@ async function findByIdentifier(identifier) {
     [identifier]
   );
   return rows[0] || null;
+}
+
+/** What the reset request says back, without claiming an SMS that was not sent. */
+function resetMessage(identifier) {
+  return config.otpMode === 'demo'
+    ? 'Demo verification: no SMS is sent. If this account exists, its code is shown in the app.'
+    : `We sent a verification code to ${identifier}.`;
 }
 
 // Sets req.identityKey so both the phone/email AND the IP count towards the
@@ -173,7 +184,12 @@ router.post(
     );
     const passenger = passengerRows[0];
     await deliverOtp(passenger, { code, purpose });
-    res.json({ ...devPayload(code), message: 'A new verification code was sent.' });
+    res.json({
+      ...devPayload(code),
+      message: config.otpMode === 'demo'
+        ? 'Demo verification: no SMS is sent. Your code is shown in the app.'
+        : 'A new verification code was sent.',
+    });
   })
 );
 
@@ -195,13 +211,10 @@ router.post(
         purpose: 'reset',
       });
       await deliverOtp(passenger, { code, purpose: 'reset' });
-      res.json({
-        message: `We sent a verification code to ${identifier}.`,
-        ...devPayload(code),
-      });
+      res.json({ message: resetMessage(identifier), ...devPayload(code) });
       return;
     }
-    res.json({ message: `We sent a verification code to ${identifier}.` });
+    res.json({ message: resetMessage(identifier) });
   })
 );
 

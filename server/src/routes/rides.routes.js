@@ -19,6 +19,7 @@ const {
 const { quoteTrip } = require('../services/pricing');
 const { recentTrail } = require('../services/driverTrails');
 const { LOCATION_MAX_AGE_SECONDS } = require('../services/driverKyc');
+const { isValidCoordinate } = require('../services/maps/geo');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -50,7 +51,7 @@ router.post(
   '/location',
   asyncHandler(async (req, res) => {
     const { latitude, longitude, heading } = req.body || {};
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    if (!isValidCoordinate(latitude, longitude)) {
       throw new ApiError(400, 'latitude and longitude are required.');
     }
     await getPool().query(
@@ -166,6 +167,9 @@ router.get(
     const now = Date.now();
     res.json({
       serverTime: now,
+      // The driver's phone has stopped reporting: the app says so instead of
+      // showing an old position as if it were live.
+      driverLocationStale: !loc,
       location: loc
         ? {
             latitude: loc.latitude,
@@ -269,6 +273,7 @@ router.get(
         if (loc.rows[0]) {
           send({
             type: 'driverLocation',
+            serverTime: Date.now(),
             location: {
               latitude: loc.rows[0].latitude,
               longitude: loc.rows[0].longitude,

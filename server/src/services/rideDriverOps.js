@@ -9,6 +9,9 @@ const { createPaymentForRide, chargePayment } = require('./payments');
 const { recordSample } = require('./driverTrails');
 const { releaseDriver } = require('./driverMatcher');
 const { planStops } = require('./poolPlanner');
+const { config } = require('../config');
+const { publishRideEvent } = require('./rideEvents');
+const { isValidCoordinate, assessLocationSample } = require('./maps/geo');
 
 const DRIVER_ACTIVE_RIDE_STATUSES = [
   'driverAssigned',
@@ -37,7 +40,9 @@ async function getActiveRides(driverId) {
             pl.latitude AS passenger_latitude, pl.longitude AS passenger_longitude
        FROM rides r
        JOIN passengers p ON p.id = r.passenger_id
+       -- only a rider position reported in the last two minutes is shown as live
        LEFT JOIN passenger_locations pl ON pl.passenger_id = r.passenger_id
+         AND pl.recorded_at > now() - interval '120 seconds'
       WHERE r.driver_id = $1
         AND r.status = ANY($2)
         -- A finished trip awaiting a digital payment is no longer the
@@ -66,7 +71,9 @@ async function getActiveRideById(driverId, rideId) {
             pl.latitude AS passenger_latitude, pl.longitude AS passenger_longitude
        FROM rides r
        JOIN passengers p ON p.id = r.passenger_id
+       -- only a rider position reported in the last two minutes is shown as live
        LEFT JOIN passenger_locations pl ON pl.passenger_id = r.passenger_id
+         AND pl.recorded_at > now() - interval '120 seconds'
       WHERE r.id = $1 AND r.driver_id = $2 AND r.status = ANY($3)`,
     [rideId, driverId, DRIVER_ACTIVE_RIDE_STATUSES]
   );
@@ -109,31 +116,74 @@ async function getStopPlan(driverId) {
   };
 }
 
-async function updateDriverLocation(driverId, { latitude, longitude, heading }) {
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    throw new ApiError(400, 'latitude and longitude are required.');
+/**
+ * Records a GPS fix reported by the driver's phone — if it can be trusted.
+ * The phone is not believed blindly: a fix outside the service area, taken
+ * too long ago, too inaccurate, arriving faster than the allowed rate, or
+ * implying an impossible jump from the last accepted position is ignored
+ * and the previous position stands. Returns { accepted, reason? }.
+ *
+ * An accepted fix becomes the driver's latest location (with its accuracy,
+ * the phone's own timestamp and what the driver was doing), lays a
+ * breadcrumb on each ride they are carrying, and is pushed straight to the
+ * riders watching those rides.
+ */
+async function updateDriverLocation(driverId, { latitude, longitude, heading, accuracy, recordedAt } = {}) {
+  if (!isValidCoordinate(latitude, longitude)) {
+    throw new ApiError(400, 'latitude and longitude are required.', 'INVALID_COORDINATES');
   }
+  const now = Date.now();
+  const deviceTime = recordedAt == null ? null : new Date(recordedAt).getTime();
+  const { rows: last } = await getPool().query(
+    `SELECT dl.latitude, dl.longitude, dl.recorded_at, d.status
+       FROM drivers d LEFT JOIN driver_locations dl ON dl.driver_id = d.id
+      WHERE d.id = $1`,
+    [driverId]
+  );
+  const previous = last[0]?.recorded_at
+    ? { latitude: last[0].latitude, longitude: last[0].longitude, at: new Date(last[0].recorded_at).getTime() }
+    : null;
+  const verdict = assessLocationSample(
+    previous,
+    { latitude, longitude, accuracy: accuracy == null ? null : Number(accuracy), recordedAt: deviceTime },
+    now,
+    {
+      maxAccuracyMeters: config.driverMaxAccuracyMeters,
+      maxSampleAgeSeconds: config.driverMaxSampleAgeSeconds,
+      minIntervalMs: config.driverMinUpdateIntervalMs,
+    }
+  );
+  if (!verdict.accepted) return verdict;
+
+  const state = last[0]?.status === 'busy' ? 'on_trip' : last[0]?.status === 'active' ? 'available' : 'offline';
+  const cleanHeading = Number.isFinite(Number(heading)) && heading != null ? Number(heading) : null;
   await getPool().query(
-    `INSERT INTO driver_locations (driver_id, latitude, longitude, heading, recorded_at)
-     VALUES ($1,$2,$3,$4, now())
+    `INSERT INTO driver_locations (driver_id, latitude, longitude, heading, accuracy, device_recorded_at, state, recorded_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7, now())
      ON CONFLICT (driver_id) DO UPDATE SET
        latitude = EXCLUDED.latitude,
        longitude = EXCLUDED.longitude,
        heading = EXCLUDED.heading,
+       accuracy = EXCLUDED.accuracy,
+       device_recorded_at = EXCLUDED.device_recorded_at,
+       state = EXCLUDED.state,
        recorded_at = now()`,
-    [driverId, latitude, longitude, heading ?? null]
+    [driverId, latitude, longitude, cleanHeading, accuracy == null ? null : Number(accuracy),
+      // A phone clock running ahead is not trusted as-is.
+      deviceTime == null ? null : new Date(Math.min(deviceTime, now)), state]
   );
   await getPool().query(
     `UPDATE drivers SET current_latitude = $2, current_longitude = $3,
        current_heading = COALESCE($4, current_heading), last_online_at = now()
      WHERE id = $1`,
-    [driverId, latitude, longitude, heading ?? null]
+    [driverId, latitude, longitude, cleanHeading]
   );
-  recordSample(driverId, { latitude, longitude, heading });
+  recordSample(driverId, { latitude, longitude, heading: cleanHeading });
 
   // Lay down a breadcrumb for every ride this driver is currently on (a
-  // pooled trip can be more than one), so each passenger can be shown the
-  // actual road path travelled once their leg ends.
+  // pooled trip can be more than one), and push the new position to each
+  // rider watching (GET /api/rides/:id/stream) rather than waiting for them
+  // to ask.
   const activeRides = await getActiveRides(driverId);
   for (const activeRide of activeRides) {
     await getPool().query(
@@ -141,7 +191,13 @@ async function updateDriverLocation(driverId, { latitude, longitude, heading }) 
        VALUES ($1, $2, $3, now())`,
       [activeRide.id, latitude, longitude]
     );
+    publishRideEvent(activeRide.id, {
+      type: 'driverLocation',
+      serverTime: now,
+      location: { latitude, longitude, heading: cleanHeading, accuracy: accuracy ?? null, recordedAt: new Date(now).toISOString() },
+    });
   }
+  return { accepted: true };
 }
 
 /** Other passengers currently pooled into the same vehicle as [ride]. */

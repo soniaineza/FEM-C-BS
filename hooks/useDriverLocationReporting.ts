@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { AppState, Platform } from 'react-native';
 
-import { reportDriverLocation } from '../services/driver-service';
+import { reportDriverLocation, LocationReportResult } from '../services/driver-service';
 import { useLocationPermissionStore } from '../stores/useLocationPermissionStore';
 import { useTranslation } from './useTranslation';
 import { appAlert } from '../utils/dialog';
@@ -11,7 +11,16 @@ import {
   requestBackgroundLocationPermission,
   startDriverBackgroundLocation,
   stopDriverBackgroundLocation,
+  DriverLocationMode,
+  DRIVER_LOCATION_INTERVAL_MS,
 } from '../utils/driver-background-location';
+
+/** A phone fix in the shape the server wants: with its accuracy and the
+ * moment the phone took it, so the server can judge whether to trust it. */
+function fixOf(position: Location.LocationObject) {
+  const { latitude, longitude, heading, accuracy } = position.coords;
+  return { latitude, longitude, heading: heading ?? undefined, accuracy: accuracy ?? undefined, recordedAt: position.timestamp };
+}
 
 // The "allow all the time" explanation is shown at most once per launch — a
 // driver who said "Not now" keeps working with foreground-only reporting.
@@ -26,12 +35,15 @@ let backgroundPromptShown = false;
 // With "allow all the time" granted, reporting runs as a background task
 // (utils/driver-background-location.ts) and so keeps going when the phone is
 // locked or the driver switches apps. Otherwise it falls back to a
-// foreground watchPositionAsync. Both are throttled to at most one report
-// every 5s / 25m to avoid hammering the API while stationary.
-export function useDriverLocationReporting(enabled: boolean) {
+// foreground watchPositionAsync. Both send on a timer — every 4 s on a trip,
+// every 15 s while waiting — whether or not the car has moved, because the
+// server treats a driver who stops reporting as unavailable.
+export function useDriverLocationReporting(enabled: boolean, mode: DriverLocationMode = 'idle') {
   const { t } = useTranslation();
   const [lastLocation, setLastLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Why the server ignored the last fix (poor accuracy, a jump...), if it did.
+  const [rejection, setRejection] = useState<LocationReportResult['reason'] | null>(null);
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
@@ -44,6 +56,14 @@ export function useDriverLocationReporting(enabled: boolean) {
 
     let cancelled = false;
 
+    // Sends one fix and remembers whether the server trusted it. A dropped
+    // report is not fatal — the next one retries.
+    const report = (fix: ReturnType<typeof fixOf>) => {
+      reportDriverLocation(fix)
+        .then((result) => { if (!cancelled) setRejection(result.accepted ? null : result.reason ?? null); })
+        .catch(() => {});
+    };
+
     (async () => {
       // Via the shared store so this cannot open a second OS dialog while
       // another screen's request is already on screen.
@@ -55,9 +75,9 @@ export function useDriverLocationReporting(enabled: boolean) {
 
       const initial = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       if (cancelled) return;
-      const initialCoords = { latitude: initial.coords.latitude, longitude: initial.coords.longitude, heading: initial.coords.heading ?? undefined };
+      const initialCoords = fixOf(initial);
       setLastLocation(initialCoords);
-      await reportDriverLocation(initialCoords);
+      report(initialCoords);
 
       if (Platform.OS !== 'web' && !(await hasBackgroundLocationPermission()) && !backgroundPromptShown) {
         backgroundPromptShown = true;
@@ -79,7 +99,7 @@ export function useDriverLocationReporting(enabled: boolean) {
       const inBackground = await startDriverBackgroundLocation({
         title: t('driverLocationNotificationTitle'),
         body: t('driverLocationNotificationBody'),
-      });
+      }, mode);
       if (cancelled) {
         if (inBackground) stopDriverBackgroundLocation();
         return;
@@ -89,14 +109,12 @@ export function useDriverLocationReporting(enabled: boolean) {
       if (inBackground) return;
 
       subscriptionRef.current = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 25 },
+        { accuracy: Location.Accuracy.High, timeInterval: DRIVER_LOCATION_INTERVAL_MS[mode], distanceInterval: 0 },
         (position) => {
           if (cancelled) return;
-          const { latitude, longitude, heading } = position.coords;
-          setLastLocation({ latitude, longitude });
-          reportDriverLocation({ latitude, longitude, heading: heading ?? undefined }).catch(() => {
-            // A single dropped GPS tick is not fatal — the next one retries.
-          });
+          const fix = fixOf(position);
+          setLastLocation(fix);
+          report(fix);
         }
       );
     })().catch(() => { if (!cancelled) setError('Unable to report location.'); });
@@ -106,11 +124,10 @@ export function useDriverLocationReporting(enabled: boolean) {
     const heartbeat = setInterval(async () => {
       if (cancelled || AppState.currentState !== 'active') return;
       try {
-        const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        const fix = fixOf(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }));
         if (cancelled) return;
-        const coords = { latitude: fix.coords.latitude, longitude: fix.coords.longitude, heading: fix.coords.heading ?? undefined };
-        setLastLocation(coords);
-        await reportDriverLocation(coords);
+        setLastLocation(fix);
+        report(fix);
       } catch { setError('Unable to report location.'); }
     }, 20_000);
 
@@ -122,7 +139,7 @@ export function useDriverLocationReporting(enabled: boolean) {
       stopDriverBackgroundLocation();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, mode]);
 
-  return { lastLocation, error };
+  return { lastLocation, error, rejection };
 }

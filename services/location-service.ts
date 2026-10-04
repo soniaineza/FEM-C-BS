@@ -1,6 +1,8 @@
 import * as Location from 'expo-location';
 
 import { apiClient } from './api-client';
+import { driverApiClient } from './driver-api-client';
+import { useAppModeStore } from '../stores/useAppModeStore';
 import { Place } from '../types/place';
 
 // Simple in-memory cache for last known location (survives component remounts)
@@ -11,7 +13,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 // Direct TS port of lib/services/location_service.dart, minus its
 // dev-fallback path that called Photon directly when no backend was
 // configured (the RN app always has a real backend). Unlike the Dart
-// client, getRoute() goes through the backend's new GET /locations/route
+// client, getRoute() goes through the backend's GET /maps/route
 // proxy instead of calling OSRM directly (approved deviation — see the
 // migration plan's "Geocoding/routing" section).
 
@@ -160,10 +162,11 @@ function cachePlace(position: Location.LocationObject): Place {
   cachedPlace = place;
   cachedAt = isGoodFix ? Date.now() : 0;
 
-  apiClient
-    .get<{ address: string }>(`/locations/reverse?lat=${latitude}&lng=${longitude}`)
+  mapsClient()
+    .get<{ address: string | null }>(`/maps/reverse?lat=${latitude}&lng=${longitude}`)
     .then((json) => {
-      if (cachedPlace && cachedPlace.latitude === latitude && cachedPlace.longitude === longitude) {
+      // No address known there: the coordinates still stand on their own.
+      if (json.address && cachedPlace && cachedPlace.latitude === latitude && cachedPlace.longitude === longitude) {
         cachedPlace = { ...cachedPlace, address: json.address };
       }
     })
@@ -174,15 +177,17 @@ function cachePlace(position: Location.LocationObject): Place {
 
 export async function searchLocations(query: string): Promise<Place[]> {
   if (query.trim().length < 2) return [];
-  const json = await apiClient.get<{ results: any[] }>(`/locations/search?q=${encodeURIComponent(query)}`);
+  const json = await mapsClient().get<{ results: any[] }>(`/maps/search?q=${encodeURIComponent(query.trim())}`);
   return json.results.map((r) => ({ address: r.address, latitude: r.latitude, longitude: r.longitude }));
 }
 
 export async function reverseGeocode(params: { latitude: number; longitude: number }): Promise<Place> {
-  const json = await apiClient.get<{ address: string; latitude: number; longitude: number }>(
-    `/locations/reverse?lat=${params.latitude}&lng=${params.longitude}`
+  const json = await mapsClient().get<{ address: string | null; latitude: number; longitude: number }>(
+    `/maps/reverse?lat=${params.latitude}&lng=${params.longitude}`
   );
-  return { address: json.address, latitude: json.latitude, longitude: json.longitude };
+  // Without an address the pin is still usable: show its coordinates.
+  const address = json.address ?? `${json.latitude.toFixed(5)}, ${json.longitude.toFixed(5)}`;
+  return { address, latitude: json.latitude, longitude: json.longitude };
 }
 
 export interface RoutePoint {
@@ -194,6 +199,14 @@ export interface RouteResult {
   points: RoutePoint[];
   distanceMeters: number;
   durationSeconds: number;
+  /** True when the road route could not be fetched and a straight line is drawn instead. */
+  estimated?: boolean;
+}
+
+// Map lookups work for whoever is signed in: the rider client in the rider
+// app, the driver client in the driver app.
+function mapsClient() {
+  return useAppModeStore.getState().mode === 'driver' ? driverApiClient : apiClient;
 }
 
 export async function getRoute(params: { from: Place; to: Place }): Promise<RouteResult | null> {
@@ -201,9 +214,9 @@ export async function getRoute(params: { from: Place; to: Place }): Promise<Rout
     return null;
   }
   try {
-    const json = await apiClient.get<RouteResult>(
-      `/locations/route?fromLat=${params.from.latitude}&fromLng=${params.from.longitude}` +
-        `&toLat=${params.to.latitude}&toLng=${params.to.longitude}`
+    const json = await mapsClient().get<RouteResult>(
+      `/maps/route?origin=${params.from.latitude},${params.from.longitude}` +
+        `&destination=${params.to.latitude},${params.to.longitude}`
     );
     if (json && Array.isArray(json.points) && json.points.length > 1) {
       return json;
@@ -232,7 +245,8 @@ export async function getRoute(params: { from: Place; to: Place }): Promise<Rout
   }
   const distanceMeters = Math.round(haversineM(latA, lngA, latB, lngB));
   const durationSeconds = Math.round((distanceMeters / 1000 / 25) * 3600); // ~25 km/h city speed
-  return { points, distanceMeters, durationSeconds };
+  // A drawing aid only: fares always come from the server's own route.
+  return { points, distanceMeters, durationSeconds, estimated: true };
 }
 
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {

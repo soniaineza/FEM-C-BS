@@ -15,6 +15,8 @@
     "test:smoke": "node test/smoke.js",
     "test:wallet": "node test/wallet-flow.js",
     "test:money": "node test/driver-money.js",
+    "test:maps": "node --test test/maps.test.js",
+    "test:otp": "node test/otp-demo.js",
     "test:readiness": "node test/production-readiness.js",
     "test:invariants": "node test/invariants.js",
     "test:places": "node test/jev-place-search.js"

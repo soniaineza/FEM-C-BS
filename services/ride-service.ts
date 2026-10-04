@@ -261,7 +261,7 @@ export interface TripQuoteOption {
 export interface TripQuote {
   route: {
     coordinates: [number, number][];
-    source: 'osrm' | 'estimate';
+    source: 'provider' | 'osrm' | 'estimate';
     distanceKm: number;
     durationMinutes: number;
   };

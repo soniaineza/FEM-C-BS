@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, Pressable, StyleSheet } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 
 import MapEngine from './MapEngine';
+import { useMapConfigStore } from '../../stores/useMapConfigStore';
 import type { MapScene } from './map-types';
 import { KimuColors } from '../../constants/theme';
 
@@ -33,6 +34,7 @@ export function LiveMap({
   retryLabel = 'Retry',
   rounded = false,
 }: LiveMapProps) {
+  const styleUrl = useMapConfigStore((s) => s.styleUrl);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -64,6 +66,7 @@ export function LiveMap({
       <MapEngine
         key={nonce}
         scene={scene}
+        styleUrl={styleUrl}
         onReady={handleReady}
         onError={handleError}
         onPress={handlePress}

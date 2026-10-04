@@ -20,7 +20,8 @@ import { RENDER_DELAY_MS, Track, distanceM, lerpAngle, projectOnRoute } from './
 // it with one serialisable `scene` prop; it reports back through top-level
 // async callbacks (the only kind a DOM component can receive).
 
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+// Used until the app passes the style chosen by the server (stores/useMapConfigStore.ts).
+const DEFAULT_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 const CAR_PX = 30; // on-screen car length at city zooms
 const ASSIGNED_CAR_PX = 38;
 const FOLLOW_EVERY_MS = 1200;
@@ -31,6 +32,8 @@ const X_AXIS = new THREE.Vector3(1, 0, 0);
 
 interface Props {
   scene: MapScene;
+  /** MapLibre style to draw; chosen by the server (GET /api/maps/config). */
+  styleUrl?: string;
   onReady?: () => Promise<void>;
   onError?: (message: string) => Promise<void>;
   onPress?: (latitude: number, longitude: number) => Promise<void>;
@@ -257,7 +260,7 @@ function boundsOf(points: [number, number][]): maplibregl.LngLatBounds | null {
   return b;
 }
 
-export default function MapEngine({ scene, onReady, onError, onPress, onCenterChanged, onUserGesture }: Props) {
+export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, onCenterChanged, onUserGesture }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const carsRef = useRef<CarLayer | null>(null);
@@ -280,7 +283,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
       const cam = scene.camera;
       map = new maplibregl.Map({
         container: container.current,
-        style: STYLE_URL,
+        style: styleUrl || DEFAULT_STYLE_URL,
         center: [cam.center?.longitude ?? KIGALI_CENTER.longitude, cam.center?.latitude ?? KIGALI_CENTER.latitude],
         zoom: cam.zoom ?? 14,
         pitch: cam.pitch ?? 0,

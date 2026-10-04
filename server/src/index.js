@@ -18,7 +18,7 @@ const paymentsRoutes = require('./routes/payments.routes');
 const promotionsRoutes = require('./routes/promotions.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
 const supportRoutes = require('./routes/support.routes');
-const locationsRoutes = require('./routes/locations.routes');
+const mapsRoutes = require('./routes/maps.routes');
 const emergencyRoutes = require('./routes/emergency.routes');
 const shareRoutes = require('./routes/share.routes');
 const walletRoutes = require('./routes/wallet.routes');
@@ -81,7 +81,9 @@ async function main() {
   app.use('/api/promotions', promotionsRoutes);
   app.use('/api/notifications', notificationsRoutes);
   app.use('/api/support', supportRoutes);
-  app.use('/api/locations', locationsRoutes);
+  app.use('/api/maps', mapsRoutes);
+  // Same endpoints under their old path, for app builds already installed.
+  app.use('/api/locations', mapsRoutes);
   app.use('/api/emergency', emergencyRoutes);
   app.use('/api/share', shareRoutes);
   app.use('/api/wallet', walletRoutes);

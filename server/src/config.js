@@ -86,8 +86,44 @@ const config = {
   photonReverseUrl: process.env.PHOTON_REVERSE_URL || 'https://photon.komoot.io/reverse',
   osrmUrl:
     process.env.OSRM_URL || 'https://router.project-osrm.org/route/v1/driving',
-  // Maps provider key (e.g. Mapbox) — used only when NOMINATIM_URL is private.
-  mapsApiKey: process.env.MAPS_API_KEY || '',
+  // ---- Map providers (services/maps/) ----
+  // Which provider computes routes and which answers place search / reverse
+  // geocoding. Keys stay on the server; the apps only call /api/maps/*.
+  //   routing:   osrm (OSRM_URL; self-hosted, or the public demo for
+  //              development) | geoapify (MAP_ROUTING_API_KEY)
+  //   geocoding: photon (PHOTON_URL; self-hosted, or the public server for
+  //              development) | geoapify (MAP_GEOCODING_API_KEY)
+  mapRoutingProvider: (process.env.MAP_ROUTING_PROVIDER || 'osrm').toLowerCase(),
+  mapGeocodingProvider: (process.env.MAP_GEOCODING_PROVIDER || 'photon').toLowerCase(),
+  mapRoutingApiKey: process.env.MAP_ROUTING_API_KEY || '',
+  mapGeocodingApiKey: process.env.MAP_GEOCODING_API_KEY || process.env.MAP_ROUTING_API_KEY || '',
+  mapProviderTimeoutMs: Number(process.env.MAP_PROVIDER_TIMEOUT_MS || 6000),
+  // The MapLibre style the apps draw the map with, served to them by
+  // GET /api/maps/config so it can change without an app release.
+  mapStyleUrl: process.env.MAP_TILE_URL || 'https://tiles.openfreemap.org/styles/positron',
+  mapAttribution: process.env.MAP_ATTRIBUTION || '© OpenFreeMap © OpenMapTiles © OpenStreetMap contributors',
+  // Requests per account per rate-limit window.
+  mapsSearchLimit: Number(process.env.MAPS_SEARCH_LIMIT || 300),
+  mapsReverseLimit: Number(process.env.MAPS_REVERSE_LIMIT || 120),
+  mapsRouteLimit: Number(process.env.MAPS_ROUTE_LIMIT || 120),
+
+  // ---- Driver GPS ----
+  // A driver is shown to riders and offered rides only while their position
+  // is newer than this.
+  driverLocationMaxAgeSeconds: Number(process.env.DRIVER_LOCATION_MAX_AGE_SECONDS || 45),
+  // A fix less accurate than this, or taken by the phone longer ago than
+  // this, is not used as the driver's position.
+  driverMaxAccuracyMeters: Number(process.env.DRIVER_MAX_ACCURACY_METERS || 150),
+  driverMaxSampleAgeSeconds: Number(process.env.DRIVER_MAX_SAMPLE_AGE_SECONDS || 60),
+  driverMinUpdateIntervalMs: Number(process.env.DRIVER_MIN_UPDATE_INTERVAL_MS || 1000),
+
+  // ---- Login codes ----
+  // 'sms'  — codes are sent by the SMS provider below and never shown.
+  // 'demo' — no SMS is sent; the app shows the rider their code on screen.
+  //          Verification then proves nothing about who owns the phone, so
+  //          this is for a pilot only. It is on ONLY when OTP_MODE=demo is
+  //          set explicitly.
+  otpMode: process.env.OTP_MODE === 'demo' ? 'demo' : 'sms',
 
   // Paypack (Rwanda mobile money). Credentials are read ONLY here, on the
   // server — never shipped to the Flutter app.
@@ -186,6 +222,19 @@ function lockDownHostedServer() {
 }
 lockDownHostedServer();
 
+// Things an operator should see in the log at every start.
+if (config.otpMode === 'demo') {
+  console.warn('[security] OTP_MODE=demo: no SMS is sent and login codes are shown in the app. Phone numbers are NOT verified.');
+}
+if (!config.localDatabase) {
+  if (config.mapRoutingProvider === 'osrm' && /router\.project-osrm\.org/.test(config.osrmUrl)) {
+    console.warn('[maps] routing uses the public OSRM demo server. Set MAP_ROUTING_PROVIDER=geoapify with MAP_ROUTING_API_KEY, or your own OSRM_URL.');
+  }
+  if (config.mapGeocodingProvider === 'photon' && /photon\.komoot\.io/.test(config.photonUrl)) {
+    console.warn('[maps] place search uses the public Photon server. Set MAP_GEOCODING_PROVIDER=geoapify with MAP_GEOCODING_API_KEY, or your own PHOTON_URL.');
+  }
+}
+
 // CORS origins allowed by the API.
 const corsOrigins = (process.env.CORS_ORIGINS || '*')
   .split(',')
@@ -201,16 +250,23 @@ function ensureConfig() {
     if (!config.jwtSecret) problems.push('JWT_SECRET');
     // Checked as requested, not as in effect: production must not even ask.
     for (const key of requestedDevSwitches) problems.push(`${DEV_SWITCHES[key]} (must be "0")`);
-    if (!process.env.OSRM_URL || /router\.project-osrm\.org/.test(config.osrmUrl)) problems.push('OSRM_URL (private capacity)');
-    if (!process.env.PHOTON_URL || /photon\.komoot\.io/.test(config.photonUrl)) problems.push('PHOTON_URL (private capacity)');
-    if (!process.env.PHOTON_REVERSE_URL || /photon\.komoot\.io/.test(config.photonReverseUrl)) problems.push('PHOTON_REVERSE_URL (private capacity)');
+    // The public demo servers are refused; a keyed provider needs no URL.
+    if (config.mapRoutingProvider === 'osrm' && (!process.env.OSRM_URL || /router\.project-osrm\.org/.test(config.osrmUrl))) {
+      problems.push('OSRM_URL (your own server), or MAP_ROUTING_PROVIDER=geoapify');
+    }
+    if (config.mapGeocodingProvider === 'photon') {
+      if (!process.env.PHOTON_URL || /photon\.komoot\.io/.test(config.photonUrl)) problems.push('PHOTON_URL (your own server), or MAP_GEOCODING_PROVIDER=geoapify');
+      if (!process.env.PHOTON_REVERSE_URL || /photon\.komoot\.io/.test(config.photonReverseUrl)) problems.push('PHOTON_REVERSE_URL (your own server), or MAP_GEOCODING_PROVIDER=geoapify');
+    }
     if (process.env.NOMINATIM_URL && /nominatim\.openstreetmap\.org/.test(config.nominatimUrl)) problems.push('NOMINATIM_URL (public service disallowed)');
     if (process.env.NOMINATIM_REVERSE_URL && /nominatim\.openstreetmap\.org/.test(config.nominatimReverseUrl)) problems.push('NOMINATIM_REVERSE_URL (public service disallowed)');
 
     // Real OTP delivery.
-    if (!['pindo', 'africastalking', 'generic'].includes(config.smsProvider)) {
-      problems.push('SMS_PROVIDER (pindo | africastalking | generic)');
+    if (config.otpMode !== 'demo' && !['pindo', 'africastalking', 'generic'].includes(config.smsProvider)) {
+      problems.push('SMS_PROVIDER (pindo | africastalking | generic), or OTP_MODE=demo');
     }
+    if (config.mapRoutingProvider === 'geoapify' && !config.mapRoutingApiKey) problems.push('MAP_ROUTING_API_KEY');
+    if (config.mapGeocodingProvider === 'geoapify' && !config.mapGeocodingApiKey) problems.push('MAP_GEOCODING_API_KEY');
     if (config.smsProvider && !config.smsApiKey) problems.push('SMS_API_KEY');
     if (config.smsProvider === 'generic' && !config.smsGatewayUrl) problems.push('SMS_GATEWAY_URL');
     if (config.smsProvider === 'africastalking' && !config.atUsername) problems.push('AT_USERNAME');

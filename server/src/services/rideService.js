@@ -17,6 +17,7 @@ const { publishRideEvent } = require('./rideEvents');
 const { pushNotification } = require('./notify');
 const { pushDriverNotification } = require('./driverNotify');
 const { toNationalNumber, networkOf } = require('./paypackClient');
+const { inServiceArea } = require('./maps/geo');
 
 const BOOKABLE_STATUSES = new Set([
   'searchingDriver',
@@ -91,6 +92,10 @@ async function createRide(passengerId, body) {
     typeof destination.latitude !== 'number' || typeof destination.longitude !== 'number'
   ) {
     throw new ApiError(400, 'Pickup, destination (with coordinates), vehicle and payment method are required.');
+  }
+  // Coordinates are the source of truth for the trip; the address text is a label.
+  if (!inServiceArea(pickup.latitude, pickup.longitude) || !inServiceArea(destination.latitude, destination.longitude)) {
+    throw new ApiError(400, 'Pickup and destination must be inside the area Kimu serves.', 'OUTSIDE_SERVICE_AREA');
   }
   const type = rideType === 'shared' ? 'shared' : 'private';
   const seats = normalizeSeats(type, requestedSeats);

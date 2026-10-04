@@ -179,8 +179,9 @@ active.get(
 active.post(
   '/location',
   asyncHandler(async (req, res) => {
-    await updateDriverLocation(req.driverId, req.body || {});
-    res.status(204).end();
+    // 200 either way: a fix that was ignored (stale, inaccurate, an
+    // impossible jump...) is reported back so the app can show GPS trouble.
+    res.json(await updateDriverLocation(req.driverId, req.body || {}));
   })
 );
 

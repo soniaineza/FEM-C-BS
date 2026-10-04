@@ -142,11 +142,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // driver's phone reports a few GPS pings while the trip is under way — this
   // is what lets the passenger see the actual road path afterwards.
-  await api('POST', '/drivers/location', { latitude: -1.9441, longitude: 30.0619 }, dt);
-  await sleep(200);
-  await api('POST', '/drivers/location', { latitude: -1.9500, longitude: 30.0450 }, dt);
-  await sleep(200);
-  await api('POST', '/drivers/location', { latitude: -1.9586, longitude: 30.0205 }, dt);
+  // Realistic pings: about a second apart and a short drive from one to the
+  // next (the server ignores faster updates and impossible jumps).
+  for (const [latitude, longitude] of [[-1.9441, 30.0619], [-1.9449, 30.0609], [-1.9457, 30.0599]]) {
+    await sleep(1100);
+    await api('POST', '/drivers/location', { latitude, longitude, accuracy: 10, recordedAt: Date.now() }, dt);
+  }
 
   // driver completes trip -> paymentPending (honest mode) or completed
   // immediately (DEMO_PAYMENTS fake acceptance).

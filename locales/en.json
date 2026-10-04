@@ -421,7 +421,7 @@
   "verificationFailed": "We could not verify your code right now. Please try again.",
   "verify": "Verify",
   "verifyAccount": "Verify your account",
-  "demoOtpHint": "Demo OTP code: {code}",
+  "demoOtpHint": "Demo verification: no SMS is sent. Your code is {code}",
   "waitingDriver": "Waiting for driver assignment",
   "waitingForPayment": "Waiting for payment",
   "waitingForRideRequest": "Waiting for ride request",
@@ -771,5 +771,6 @@
   "driverCashToRemit": "Cash to send to Kimu",
   "driverCashToRemitHint": "This is cash you collected from riders. Send it to Kimu by mobile money. Above {limit} you cannot go online until it is sent.",
   "driverSendCash": "Send cash to Kimu",
-  "cashUnderReview": "Your driver has not confirmed the cash payment yet. Our team is checking it. You can keep using Kimu."
+  "cashUnderReview": "Your driver has not confirmed the cash payment yet. Our team is checking it. You can keep using Kimu.",
+  "driverGpsStale": "Online · GPS not updating"
 }

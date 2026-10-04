@@ -3,6 +3,7 @@ const { getTravelTimes } = require('./routing');
 const { haversineKm } = require('../utils/distance');
 const { eligibleDriverSql } = require('./driverKyc');
 const { evaluatePoolJoin } = require('./poolPlanner');
+const { config } = require('../config');
 
 const MATCH_CANDIDATES = 8;
 const DEFAULT_MAX_MATCH_KM = 5;
@@ -218,9 +219,11 @@ async function assignDriver(rideId, driver, { poolGroupId = null } = {}) {
       `UPDATE drivers SET status = 'busy' WHERE id = $1 AND status = 'active'`,
       [driver.id]
     );
-    // Fallback: persist live location even if this driver hasn't enabled the
-    // location stream yet.
-    await pool.query(
+    // Local test drivers and the simulated fleet never report GPS, so their
+    // parked position is recorded as their location. On a real server a
+    // driver is only matched while their phone is reporting, and nothing is
+    // ever written here on its behalf.
+    if (config.devAllowStaleDrivers || config.demoFleet) await pool.query(
       `INSERT INTO driver_locations (driver_id, latitude, longitude, recorded_at)
        VALUES ($1,$2,$3, now())
        ON CONFLICT (driver_id)
