@@ -764,5 +764,11 @@
   "paymentExpired": "Votre paiement mobile money a expiré car il n'a pas été validé à temps. Vous pouvez réessayer ou payer en espèces.",
   "driverPayoutFee": "Frais Paypack",
   "driverPayoutYouReceive": "Vous recevez",
-  "driverConfirmPayout": "Confirmer le paiement"
+  "driverConfirmPayout": "Confirmer le paiement",
+  "driverFaresToday": "Courses du jour",
+  "driverFaresSentToKimu": "Courses versées à Kimu",
+  "driverRecentFares": "Courses récentes",
+  "driverCashToRemit": "Espèces à reverser à Kimu",
+  "driverCashToRemitHint": "Ce sont les espèces que vous avez encaissées. Reversez-les à Kimu par mobile money. Au-delà de {limit}, vous ne pouvez plus passer en ligne tant qu'elles ne sont pas reversées.",
+  "driverSendCash": "Reverser à Kimu"
 }

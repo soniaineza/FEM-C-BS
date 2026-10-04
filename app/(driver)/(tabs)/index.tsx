@@ -152,7 +152,7 @@ export default function DriverHomeScreen() {
           <View className="h-10 w-px bg-border" />
           <StatColumn icon="star" value={currentDriver?.rating != null ? currentDriver.rating.toFixed(1) : '5.0'} label={t('driverRatingLabel')} iconColor="#F97316" />
           <View className="h-10 w-px bg-border" />
-          <StatColumn icon="wallet-outline" value={summary ? formatFare(summary.today.amount) : '—'} label={t('driverTodaysEarnings')} />
+          <StatColumn icon="wallet-outline" value={summary ? formatFare(summary.balance?.driverShareRate ? summary.today.amount : summary.today.fares) : '—'} label={t(summary && !summary.balance?.driverShareRate ? 'driverFaresToday' : 'driverTodaysEarnings')} />
         </View>
 
         {!currentDriver?.verified ? (

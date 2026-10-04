@@ -47,6 +47,10 @@ const config = {
   // end-to-end without a separate admin-verification tool (which doesn't
   // exist yet). Real KYC review must gate this in production.
   devAutoVerifyDrivers: process.env.DEV_AUTO_VERIFY_DRIVERS === '1',
+  // Local tests only: lets seeded drivers that never report a GPS position
+  // be shown and matched. Never set on a real server — riders would see and
+  // be assigned drivers who are not there.
+  devAllowStaleDrivers: process.env.DEV_ALLOW_STALE_DRIVERS === '1',
 
   // When true, moMo/Airtel charges and wallet top-ups are "accepted"
   // immediately without calling Paypack — the whole payment flow can be
@@ -113,10 +117,12 @@ const config = {
   // ride goes back to searchingDriver for another match.
   assignAcceptTimeoutSeconds: Number(process.env.ASSIGN_ACCEPT_TIMEOUT_SECONDS || 120),
 
-  // Platform commission taken from each settled fare before crediting the
-  // driver's earnings ledger (server/src/services/payments.js's
-  // settleSucceededPayment()). 0.15 = 15%, a typical rideshare take rate.
-  driverCommissionRate: Number(process.env.DRIVER_COMMISSION_RATE || 0.15),
+  // Share of each settled fare kept by the platform; the rest is credited to
+  // the driver's balance (server/src/services/payments.js's
+  // settleSucceededPayment()). 1 = the whole fare goes to the platform's
+  // Paypack account and drivers hold no withdrawable balance — the current
+  // arrangement. Set e.g. 0.15 to pay drivers 85% of each fare.
+  driverCommissionRate: Number(process.env.DRIVER_COMMISSION_RATE ?? 1),
   // Unpaid cash-trip commission (RWF) a driver may owe before they must pay
   // it to go online again, and the smallest payout a driver can request.
   driverMaxCommissionDebt: Number(process.env.DRIVER_MAX_COMMISSION_DEBT || 5000),
@@ -157,6 +163,7 @@ function ensureConfig() {
     if (config.devAutoVerifyDrivers) problems.push('DEV_AUTO_VERIFY_DRIVERS (must be "0")');
     if (config.demoPayments) problems.push('DEMO_PAYMENTS (must be "0")');
     if (config.demoFleet) problems.push('DEMO_FLEET (must be "0")');
+    if (config.devAllowStaleDrivers) problems.push('DEV_ALLOW_STALE_DRIVERS (must be "0")');
     if (!process.env.OSRM_URL || /router\.project-osrm\.org/.test(config.osrmUrl)) problems.push('OSRM_URL (private capacity)');
     if (!process.env.PHOTON_URL || /photon\.komoot\.io/.test(config.photonUrl)) problems.push('PHOTON_URL (private capacity)');
     if (!process.env.PHOTON_REVERSE_URL || /photon\.komoot\.io/.test(config.photonReverseUrl)) problems.push('PHOTON_REVERSE_URL (private capacity)');

@@ -764,5 +764,11 @@
   "paymentExpired": "Ubwishyu bwawe bwa mobile money bwarengeje igihe kuko butemejwe ku gihe. Ushobora kongera kugerageza cyangwa kwishyura mu ntoki.",
   "driverPayoutFee": "Ikiguzi cya Paypack",
   "driverPayoutYouReceive": "Uzahabwa",
-  "driverConfirmPayout": "Emeza kubikuza"
+  "driverConfirmPayout": "Emeza kubikuza",
+  "driverFaresToday": "Amafaranga y'ingendo z'uyu munsi",
+  "driverFaresSentToKimu": "Amafaranga y'ingendo yoherejwe Kimu",
+  "driverRecentFares": "Amafaranga y'ingendo ziheruka",
+  "driverCashToRemit": "Amafaranga yo mu ntoki ugomba kohereza Kimu",
+  "driverCashToRemitHint": "Aya ni amafaranga wakiriye mu ntoki ku bagenzi. Yohereze Kimu ukoresheje mobile money. Iyo arenze {limit}, ntushobora gutangira gukora utarayohereza.",
+  "driverSendCash": "Ohereza amafaranga kuri Kimu"
 }

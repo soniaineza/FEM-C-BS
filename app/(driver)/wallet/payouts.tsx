@@ -134,13 +134,13 @@ export default function DriverPayoutsScreen() {
           <>
             {balance.owed > 0 ? (
               <View className="mt-4 rounded-2xl border border-error/40 bg-error/5 p-4">
-                <Text className="text-xs font-medium text-text-secondary">{t('driverCommissionOwed')}</Text>
+                <Text className="text-xs font-medium text-text-secondary">{t(balance.driverShareRate ? 'driverCommissionOwed' : 'driverCashToRemit')}</Text>
                 <Text className="mt-1 text-2xl font-bold text-error">{formatFare(Math.ceil(balance.owed))}</Text>
                 <Text className="mt-1 text-xs text-text-secondary">
-                  {t(balance.blocked ? 'driverCommissionBlocked' : 'driverCommissionOwedHint', { limit: formatFare(balance.debtLimit) })}
+                  {t(balance.blocked ? 'driverCommissionBlocked' : balance.driverShareRate ? 'driverCommissionOwedHint' : 'driverCashToRemitHint', { limit: formatFare(balance.debtLimit) })}
                 </Text>
                 <View className="mt-3">
-                  <Button title={t('driverPayCommission')} onPress={handleSettle} loading={submitting} />
+                  <Button title={t(balance.driverShareRate ? 'driverPayCommission' : 'driverSendCash')} onPress={handleSettle} loading={submitting} />
                 </View>
               </View>
             ) : (

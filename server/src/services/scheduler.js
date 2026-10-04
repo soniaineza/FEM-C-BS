@@ -115,7 +115,7 @@ async function sweepExpiredSearches() {
 async function sweepStaleOnlineDrivers() {
   await getPool().query(
     `UPDATE drivers d SET status='offline'
-       WHERE d.status='active' AND d.last_online_at < now() - interval '90 seconds'
+       WHERE d.status='active' AND COALESCE(d.last_online_at, 'epoch') < now() - interval '90 seconds'
          AND NOT EXISTS (SELECT 1 FROM driver_locations dl WHERE dl.driver_id=d.id
            AND dl.recorded_at > now() - ($1 || ' seconds')::interval)`,
     [LOCATION_MAX_AGE_SECONDS]

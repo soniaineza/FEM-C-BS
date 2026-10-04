@@ -85,10 +85,11 @@ export function driverDocumentFromBackendJson(json: any): DriverDocument {
 }
 
 export interface DriverEarningsSummary {
-  today: { amount: number; rides: number };
-  week: { amount: number; rides: number };
-  month: { amount: number; rides: number };
-  total: { amount: number; rides: number };
+  // amount = the driver's own share; fares = the full fares riders paid.
+  today: { amount: number; fares: number; rides: number };
+  week: { amount: number; fares: number; rides: number };
+  month: { amount: number; fares: number; rides: number };
+  total: { amount: number; fares: number; rides: number };
   pendingBalance: number;
   balance: DriverBalance;
   rating: number | null;
@@ -122,6 +123,8 @@ export interface DriverBalance {
   minPayout: number;
   /** Provider cash-out fee deducted from each payout, e.g. 0.023. */
   payoutFeeRate: number;
+  /** The driver's share of each fare; 0 means every fare goes to Kimu. */
+  driverShareRate: number;
   blocked: boolean;
 }
 

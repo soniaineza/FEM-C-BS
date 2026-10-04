@@ -45,6 +45,8 @@ async function getDriverBalance(driverId, db = getPool()) {
     debtLimit: config.driverMaxCommissionDebt,
     minPayout: config.driverMinPayout,
     payoutFeeRate: config.payoutFeeRate,
+    // The driver's share of each fare; 0 means every fare goes to the platform.
+    driverShareRate: Math.max(0, 1 - config.driverCommissionRate),
     blocked: balance < -config.driverMaxCommissionDebt,
   };
 }

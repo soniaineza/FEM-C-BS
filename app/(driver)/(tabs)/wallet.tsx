@@ -49,6 +49,10 @@ export default function DriverWalletScreen() {
   useFocusEffect(useCallback(() => { load(); }, []));
 
   const owed = summary?.balance?.owed ?? 0;
+  // With no driver share, every fare goes to Kimu: the dashboard then shows
+  // the fares the driver's trips brought in rather than a balance to withdraw.
+  const noShare = !!summary && !summary.balance?.driverShareRate;
+  const shown = (bucket?: { amount: number; fares: number }) => (noShare ? bucket?.fares : bucket?.amount) ?? 0;
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
@@ -70,35 +74,39 @@ export default function DriverWalletScreen() {
             style={{ shadowColor: '#0E7C4A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
           >
             <Text className="text-xs font-medium text-white/80">
-              {t(owed > 0 ? 'driverCommissionOwed' : 'driverAvailableBalance')}
+              {t(owed > 0 ? (noShare ? 'driverCashToRemit' : 'driverCommissionOwed') : noShare ? 'driverFaresSentToKimu' : 'driverAvailableBalance')}
             </Text>
             <Text className="mt-1 text-3xl font-bold text-white">
-              {formatFare(owed > 0 ? Math.ceil(owed) : Math.floor(summary?.balance?.available ?? 0))}
+              {formatFare(owed > 0 ? Math.ceil(owed) : noShare ? summary?.total.fares ?? 0 : Math.floor(summary?.balance?.available ?? 0))}
             </Text>
             {summary?.balance?.blocked ? (
               <Text className="mt-1 text-xs font-medium text-white">
                 {t('driverCommissionBlocked', { limit: formatFare(summary.balance.debtLimit) })}
               </Text>
             ) : null}
-            <Pressable
-              className="mt-4 flex-row items-center justify-center rounded-xl bg-white/15 py-2.5"
-              onPress={() => router.push('/(driver)/wallet/payouts' as any)}
-            >
-              <Ionicons name="cash-outline" size={16} color="#fff" />
-              <Text className="ml-2 font-semibold text-white">{t(owed > 0 ? 'driverPayCommission' : 'driverViewPayouts')}</Text>
-            </Pressable>
+            {owed > 0 || !noShare ? (
+              <Pressable
+                className="mt-4 min-h-[44px] flex-row items-center justify-center rounded-xl bg-white/15 py-2.5"
+                onPress={() => router.push('/(driver)/wallet/payouts' as any)}
+              >
+                <Ionicons name="cash-outline" size={16} color="#fff" />
+                <Text className="ml-2 font-semibold text-white">
+                  {t(owed > 0 ? (noShare ? 'driverSendCash' : 'driverPayCommission') : 'driverViewPayouts')}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <View className="mt-4 flex-row gap-3">
-            <SummaryCard label={t('driverToday')} amount={summary?.today.amount ?? 0} rides={summary?.today.rides ?? 0} />
-            <SummaryCard label={t('thisWeek')} amount={summary?.week.amount ?? 0} rides={summary?.week.rides ?? 0} />
+            <SummaryCard label={t('driverToday')} amount={shown(summary?.today)} rides={summary?.today.rides ?? 0} />
+            <SummaryCard label={t('thisWeek')} amount={shown(summary?.week)} rides={summary?.week.rides ?? 0} />
           </View>
           <View className="mt-3 flex-row gap-3">
-            <SummaryCard label={t('thisMonth')} amount={summary?.month.amount ?? 0} rides={summary?.month.rides ?? 0} />
-            <SummaryCard label={t('driverAllTime')} amount={summary?.total.amount ?? 0} rides={summary?.total.rides ?? 0} />
+            <SummaryCard label={t('thisMonth')} amount={shown(summary?.month)} rides={summary?.month.rides ?? 0} />
+            <SummaryCard label={t('driverAllTime')} amount={shown(summary?.total)} rides={summary?.total.rides ?? 0} />
           </View>
 
-          <Text className="mt-6 text-base font-bold text-ink">{t('driverRecentEarnings')}</Text>
+          <Text className="mt-6 text-base font-bold text-ink">{t(noShare ? 'driverRecentFares' : 'driverRecentEarnings')}</Text>
           {history.length === 0 ? (
             <Text className="mt-3 text-sm text-text-secondary">{t('driverNoEarningsYet')}</Text>
           ) : (
@@ -111,7 +119,7 @@ export default function DriverWalletScreen() {
                       {entry.distanceKm.toFixed(1)} km · {entry.paymentMethod} · {t(earningStatusKey(entry.status) as any)}
                     </Text>
                   </View>
-                  <Text className="font-bold text-primary">{formatFare(entry.netAmount)}</Text>
+                  <Text className="font-bold text-primary">{formatFare(noShare ? entry.grossAmount : entry.netAmount)}</Text>
                 </View>
               ))}
             </View>

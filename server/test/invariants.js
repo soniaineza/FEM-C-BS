@@ -993,9 +993,12 @@ async function main() {
     DEV_AUTO_VERIFY_DRIVERS: '0',
     DEMO_PAYMENTS: '0',
     DEMO_FLEET: '0',
+    DEV_ALLOW_STALE_DRIVERS: '0',
     // The walk's drivers do many cash trips and never pay commission in;
     // the debt block is covered by test/driver-money.js.
     DRIVER_MAX_COMMISSION_DEBT: '100000000',
+    // The earnings arithmetic is checked with a driver share in place.
+    DRIVER_COMMISSION_RATE: String(COMMISSION),
     // Windows needs these for DNS/sockets in the child process.
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
   };

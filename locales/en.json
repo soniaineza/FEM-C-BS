@@ -764,5 +764,11 @@
   "paymentExpired": "Your mobile-money payment expired because it was not approved in time. You can retry or pay by cash.",
   "driverPayoutFee": "Paypack fee",
   "driverPayoutYouReceive": "You receive",
-  "driverConfirmPayout": "Confirm payout"
+  "driverConfirmPayout": "Confirm payout",
+  "driverFaresToday": "Today's fares",
+  "driverFaresSentToKimu": "Fares sent to Kimu",
+  "driverRecentFares": "Recent trip fares",
+  "driverCashToRemit": "Cash to send to Kimu",
+  "driverCashToRemitHint": "This is cash you collected from riders. Send it to Kimu by mobile money. Above {limit} you cannot go online until it is sent.",
+  "driverSendCash": "Send cash to Kimu"
 }

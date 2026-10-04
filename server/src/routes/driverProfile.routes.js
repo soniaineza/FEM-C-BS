@@ -250,14 +250,14 @@ router.get('/earnings', asyncHandler(async (req, res) => {
 
   // Today's earnings
   const todayRes = await getPool().query(
-    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*)::int as rides
+    `SELECT COALESCE(SUM(net_amount), 0) as total, COALESCE(SUM(gross_amount), 0) as gross, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1 AND created_at >= CURRENT_DATE AND status = 'settled'`,
     [driverId]
   );
 
   // This week's earnings (Mon-Sun)
   const weekRes = await getPool().query(
-    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*)::int as rides
+    `SELECT COALESCE(SUM(net_amount), 0) as total, COALESCE(SUM(gross_amount), 0) as gross, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1
        AND created_at >= date_trunc('week', CURRENT_DATE) AND status = 'settled'`,
     [driverId]
@@ -265,7 +265,7 @@ router.get('/earnings', asyncHandler(async (req, res) => {
 
   // This month's earnings
   const monthRes = await getPool().query(
-    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*)::int as rides
+    `SELECT COALESCE(SUM(net_amount), 0) as total, COALESCE(SUM(gross_amount), 0) as gross, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1
        AND created_at >= date_trunc('month', CURRENT_DATE) AND status = 'settled'`,
     [driverId]
@@ -273,7 +273,7 @@ router.get('/earnings', asyncHandler(async (req, res) => {
 
   // All-time earnings
   const totalRes = await getPool().query(
-    `SELECT COALESCE(SUM(net_amount), 0) as total, COUNT(*)::int as rides
+    `SELECT COALESCE(SUM(net_amount), 0) as total, COALESCE(SUM(gross_amount), 0) as gross, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1 AND status = 'settled'`,
     [driverId]
   );
@@ -295,18 +295,22 @@ router.get('/earnings', asyncHandler(async (req, res) => {
     earnings: {
       today: {
         amount: Number(todayRes.rows[0].total),
+        fares: Number(todayRes.rows[0].gross),
         rides: todayRes.rows[0].rides,
       },
       week: {
         amount: Number(weekRes.rows[0].total),
+        fares: Number(weekRes.rows[0].gross),
         rides: weekRes.rows[0].rides,
       },
       month: {
         amount: Number(monthRes.rows[0].total),
+        fares: Number(monthRes.rows[0].gross),
         rides: monthRes.rows[0].rides,
       },
       total: {
         amount: Number(totalRes.rows[0].total),
+        fares: Number(totalRes.rows[0].gross),
         rides: totalRes.rows[0].rides,
       },
       pendingBalance: Number(pendingRes.rows[0].total),

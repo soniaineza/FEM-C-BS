@@ -14,7 +14,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const BASE = 'http://localhost:3000/api';
 const ADMIN_KEY = process.env.ADMIN_API_KEY;
-const COMMISSION_RATE = Number(process.env.DRIVER_COMMISSION_RATE || 0.15);
+const COMMISSION_RATE = Number(process.env.DRIVER_COMMISSION_RATE ?? 1);
 let passed = 0;
 let failed = 0;
 
@@ -159,9 +159,11 @@ async function waitForAssignment(token, rideId) {
   const badSettle = await admin('POST', `/drivers/${me.id}/settlements`, { amount: 3000 });
   check('operator settlement needs a reference', badSettle.status === 400, `status=${badSettle.status}`);
   balance = (await api('GET', '/driver/balance', null, dt)).data.balance;
-  const opSettle = await admin('POST', `/drivers/${me.id}/settlements`, { amount: 3000, reference: 'office-receipt-1', recordedBy: 'test-operator' });
+  // Clears whatever the cash trip left owing, plus 3,000 to withdraw below.
+  const settleAmount = Math.ceil(balance.owed) + 3000;
+  const opSettle = await admin('POST', `/drivers/${me.id}/settlements`, { amount: settleAmount, reference: 'office-receipt-1', recordedBy: 'test-operator' });
   check('operator records a commission payment',
-    opSettle.status === 201 && Math.abs(opSettle.data.balance.balance - balance.balance - 3000) < 0.01,
+    opSettle.status === 201 && Math.abs(opSettle.data.balance.balance - balance.balance - settleAmount) < 0.01,
     `status=${opSettle.status} ${JSON.stringify(opSettle.data.balance)}`);
 
   // ---- payouts ----
