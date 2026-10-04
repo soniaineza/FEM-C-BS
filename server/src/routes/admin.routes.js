@@ -160,7 +160,12 @@ router.get(
   asyncHandler(async (req, res) => {
     const verified = req.query.verified === undefined ? false : req.query.verified === 'true';
     const { rows: drivers } = await getPool().query(
-      'SELECT * FROM drivers WHERE verified = $1 ORDER BY created_at ASC LIMIT 200',
+      // Closed accounts (deleted by the driver, or development accounts the
+      // server retired) have no password and can never sign in again, so
+      // they are not put in front of the operator.
+      `SELECT * FROM drivers
+        WHERE verified = $1 AND password_hash IS NOT NULL AND deleted_at IS NULL
+        ORDER BY created_at ASC LIMIT 200`,
       [verified]
     );
     const ids = drivers.map((d) => d.id);
