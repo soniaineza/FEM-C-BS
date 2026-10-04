@@ -6,7 +6,7 @@ const LOCATION_MAX_AGE_SECONDS = 45;
 // SQL fragment for queries that alias drivers as d.
 const eligibleDriverSql = config.demoFleet || config.devAutoVerifyDrivers ? '' : `
   AND EXISTS (SELECT 1 FROM driver_locations dl WHERE dl.driver_id = d.id
-    AND dl.recorded_at > now() - interval '${LOCATION_MAX_AGE_SECONDS} seconds')
+    AND dl.measured_at > now() - interval '${LOCATION_MAX_AGE_SECONDS} seconds')
   AND (SELECT count(DISTINCT doc_type) FROM driver_documents dd
     WHERE dd.driver_id = d.id AND dd.doc_type IN ('license','national_id','vehicle_registration','insurance')
       AND dd.status = 'approved' AND dd.reviewed_by IS NOT NULL

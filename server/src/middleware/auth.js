@@ -14,10 +14,14 @@ function requireSession(req, _res, next) {
   const token = readBearer(req);
   if (!token) return next(new ApiError(401, 'Sign in to continue.'));
   try {
-    const { id, role } = verifyToken(token);
+    const { id, role, version } = verifyToken(token);
     if (role !== 'passenger') throw new Error('wrong role');
     req.passengerId = id;
-    next();
+    getPool().query('SELECT session_version, verified_at FROM passengers WHERE id=$1', [id]).then(({ rows }) => {
+      if (!rows[0] || rows[0].session_version !== version) return new ApiError(401, 'Your session has expired. Please sign in again.');
+      req.passengerVerified = Boolean(rows[0].verified_at);
+      return undefined;
+    }, (err) => err).then(next);
   } catch (err) {
     next(new ApiError(401, 'Your session has expired. Please sign in again.'));
   }
@@ -27,13 +31,8 @@ function requireSession(req, _res, next) {
 function requireAuth(req, res, next) {
   requireSession(req, res, (err) => {
     if (err) return next(err);
-    getPool().query('SELECT verified_at FROM passengers WHERE id=$1', [req.passengerId])
-      .then(({ rows }) => {
-        if (!rows[0]) return next(new ApiError(401, 'Account not found.'));
-        if (!rows[0].verified_at) return next(new ApiError(403, 'Verify your phone to continue.'));
-        next();
-      })
-      .catch(next);
+    if (!req.passengerVerified) return next(new ApiError(403, 'Verify your phone to continue.'));
+    next();
   });
 }
 

@@ -39,7 +39,11 @@ export default function MainLayout() {
       <ThemeProvider value={TRANSPARENT_THEME}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: DefaultTheme.colors.background } }}>
           {MAP_SCREENS.map((name) => (
-            <Stack.Screen key={name} name={name} options={{ contentStyle: { backgroundColor: 'transparent' } }} />
+            <Stack.Screen
+              key={name}
+              name={name}
+              options={{ contentStyle: { backgroundColor: 'transparent' } }}
+            />
           ))}
         </Stack>
       </ThemeProvider>

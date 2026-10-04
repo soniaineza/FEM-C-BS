@@ -12,7 +12,7 @@ function apiLimiter(options = {}) {
     max: config.rateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.identityKey || req.ip,
+    keyGenerator: (req) => req.ip,
     message: {
       error: 'Too many requests. Please wait a moment and try again.',
     },

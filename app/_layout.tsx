@@ -1,4 +1,5 @@
 import '../global.css';
+import '../services/driver-background-location';
 
 import { useEffect, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';

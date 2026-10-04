@@ -8,7 +8,7 @@ ship one unrestricted key everywhere**.
 
 ## 1. Create the Google Cloud project
 
-1. Go to https://console.cloud.google.com/ and create a project (e.g. `kimutransport-prod`).
+1. Go to https://console.cloud.google.com/ and create a project (e.g. `femcabs-prod`).
 2. Enable **billing** on the project (required for Maps; free tier still applies).
 
 ## 2. Enable the APIs you actually use

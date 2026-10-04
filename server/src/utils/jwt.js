@@ -2,8 +2,8 @@ const jwt = require('jsonwebtoken');
 const { config } = require('../config');
 
 /** Signs a session token for a passenger id. */
-function signToken(passengerId) {
-  return jwt.sign({ sub: passengerId, role: 'passenger' }, config.jwtSecret, {
+function signToken(passengerId, sessionVersion = 0) {
+  return jwt.sign({ sub: passengerId, role: 'passenger', version: sessionVersion }, config.jwtSecret, {
     expiresIn: config.jwtExpiresIn,
   });
 }
@@ -19,7 +19,7 @@ function signDriverToken(driverId) {
 function verifyToken(token) {
   const decoded = jwt.verify(token, config.jwtSecret);
   if (!decoded.sub) throw new Error('missing subject');
-  return { id: decoded.sub, role: decoded.role || 'passenger' };
+  return { id: decoded.sub, role: decoded.role || 'passenger', version: decoded.version ?? 0 };
 }
 
 module.exports = { signToken, signDriverToken, verifyToken };

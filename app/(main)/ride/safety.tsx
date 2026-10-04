@@ -12,6 +12,10 @@ import {
   createTripShare,
   callPhoneNumber,
   getSosConfig,
+  getStoredCallCenterPhone,
+  lastKnownCoordinates,
+  rememberCallCenterPhone,
+  EMERGENCY_FALLBACK_PHONE,
   EmergencyResult,
 } from '../../../services/safety-service';
 import { ApiError } from '../../../services/api-client';
@@ -35,26 +39,40 @@ export default function SafetyScreen() {
   const [shareLoading, setShareLoading] = useState(false);
 
   useEffect(() => {
-    // Best-effort; falls back to the number returned by POST /emergency.
+    // The number kept from an earlier session first (works with no signal),
+    // then the server's current one.
+    let alive = true;
+    getStoredCallCenterPhone().then((stored) => {
+      if (alive && stored) setCallCenterPhone((current) => current ?? stored);
+    });
     getSosConfig()
-      .then((cfg) => setCallCenterPhone(cfg.callCenterPhone))
+      .then((cfg) => { if (alive && cfg.callCenterPhone) setCallCenterPhone(cfg.callCenterPhone); })
       .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, []);
 
+  // Always has a number: the server's, the last one it gave us, or the
+  // built-in emergency line.
+  const dialNumber = callCenterPhone ?? EMERGENCY_FALLBACK_PHONE;
+
   async function handleSos() {
+    // The call comes first and never waits on the network. Recording the
+    // alert (with the rider's position) follows in the background.
+    callPhoneNumber(dialNumber);
     setSosLoading(true);
     setSosError(undefined);
     try {
-      const result = await triggerEmergency({ rideId });
+      const coordinates = await lastKnownCoordinates();
+      const result = await triggerEmergency({ rideId, ...(coordinates ?? {}) });
       setSosResult(result);
-      if (result.callCenterPhone) setCallCenterPhone(result.callCenterPhone);
-      // The actual call: open the dialer on the Kimu Transport call center.
-      callPhoneNumber(result.callCenterPhone ?? callCenterPhone ?? '');
+      if (result.callCenterPhone) {
+        setCallCenterPhone(result.callCenterPhone);
+        rememberCallCenterPhone(result.callCenterPhone);
+      }
     } catch (err) {
       setSosError(err instanceof ApiError ? err.message : t('sosFailed'));
-      // An alert may be queued for retry, but delivery is unconfirmed. Give
-      // the rider the direct call path immediately when we have a number.
-      if (callCenterPhone) callPhoneNumber(callCenterPhone);
     } finally {
       setSosLoading(false);
     }
@@ -92,15 +110,14 @@ export default function SafetyScreen() {
             </View>
           ) : null}
           {sosError ? <Text className="mt-2 text-caption text-danger">{sosError}</Text> : null}
-          {callCenterPhone ? (
-            <Pressable
-              className="mt-3 flex-row items-center justify-center rounded border border-danger py-2.5"
-              onPress={() => callPhoneNumber(callCenterPhone)}
-            >
-              <Ionicons name="call" size={15} color={Colors.danger} />
-              <Text className="ml-2 text-subhead font-semibold text-danger">{t('emergencyCallCenterTitle')}</Text>
-            </Pressable>
-          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            className="mt-3 flex-row items-center justify-center rounded border border-danger py-2.5"
+            onPress={() => callPhoneNumber(dialNumber)}
+          >
+            <Ionicons name="call" size={15} color={Colors.danger} />
+            <Text className="ml-2 text-subhead font-semibold text-danger">{t('emergencyCallCenterTitle')} · {dialNumber}</Text>
+          </Pressable>
         </View>
 
         <View className="mt-4 rounded border border-border p-4">

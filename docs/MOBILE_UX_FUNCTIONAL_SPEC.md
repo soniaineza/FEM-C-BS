@@ -1,4 +1,4 @@
-# FEM C@BS mobile experience checklist
+# Kimu Transport mobile experience checklist
 
 This checklist covers the passenger and driver apps in this Expo Router project. It defines expected behavior for each surface; a route's existence alone does not prove the behavior works on a device.
 

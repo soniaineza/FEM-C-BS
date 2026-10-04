@@ -92,7 +92,7 @@ export async function createDriver(opts: { verified?: boolean; online?: boolean;
       expect(v.status, `admin verify: ${JSON.stringify(v.data)}`).toBe(200);
     }
   }
-  if (opts.at) await api('POST', '/drivers/location', { ...opts.at, heading: 0 }, d.token);
+  if (opts.at || opts.online) expect((await api('POST', '/drivers/location', { ...(opts.at ?? HUYE), heading: 0, accuracy: 10, measuredAt: Date.now() }, d.token)).status).toBe(204);
   if (opts.online) expect((await api('PUT', '/driver/status', { status: 'active' }, d.token)).status).toBe(200);
   return d;
 }

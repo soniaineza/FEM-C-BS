@@ -109,7 +109,7 @@ function SummaryCard({ label, amount, rides }: { label: string; amount: number; 
     <Card padded={false} className="flex-1 p-4">
       <Text variant="caption" weight="medium" tone="muted" numberOfLines={1}>{label}</Text>
       <Text variant="title-3" weight="bold" numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 4 }}>{formatFare(amount)}</Text>
-      <Text variant="caption" tone="subtle" numberOfLines={1} style={{ marginTop: 2 }}>{t('driverTripsCount', { count: rides })}</Text>
+      <Text variant="caption" tone="subtle" numberOfLines={1} style={{ marginTop: 2 }}>{((rides) === 1 ? t('driverTripsCountOne') : t('driverTripsCount', { count: rides }))}</Text>
     </Card>
   );
 }

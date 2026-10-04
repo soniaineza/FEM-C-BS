@@ -459,9 +459,14 @@ async function adminAction() {
   if (!d) return;
   const [row] = await q('SELECT verified, status FROM drivers WHERE id = $1', [d.id]);
   if (!row.verified || row.status === 'suspended') {
+    for (const docType of ['license','national_id','vehicle_registration','insurance']) {
+      const uploaded = await api('POST','/driver/documents',{docType,fileUrl:`https://example.invalid/${docType}`},d.token);
+      const reviewed = await admin('POST',`/documents/${uploaded.data.document.id}/review`,{status:'approved',reviewer:'Invariant fixture',method:'in_person',evidenceReference:'synthetic-fixture'});
+      if (reviewed.status !== 200) violations.push(`document review ${reviewed.status}`);
+    }
     const r = await admin('POST', `/drivers/${d.id}/verify`);
     if (r.status !== 200) violations.push(`admin verify ${r.status}`);
-    await api('POST', '/drivers/location', { latitude: -1.9441 + rand() * 0.01, longitude: 30.0619 + rand() * 0.01 }, d.token);
+    await api('POST', '/drivers/location', { latitude: -1.9441 + rand() * 0.01, longitude: 30.0619 + rand() * 0.01, accuracy: 10, measuredAt: Date.now() }, d.token);
     const on = await api('PUT', '/driver/status', { status: 'active' }, d.token);
     if (on.status !== 200) violations.push(`verified driver going online returned ${on.status}`);
     note(`admin verified ${d.phone}, online`);
@@ -508,10 +513,15 @@ async function topup() {
   const failCashin = chance(0.1);
   mock.failNextCashin = failCashin;
   const r = await api('POST', '/wallet/topup', { phone, amount }, p.token);
-  if (failCashin) {
-    if (r.status !== 502) violations.push(`top-up with Paypack down returned ${r.status}, expected 502`);
-    note(`top-up ${amount} for ${p.phone}: Paypack down -> 502`);
+  if (!Number.isInteger(amount)) {
+    mock.failNextCashin = false;
+    if (r.status !== 400) violations.push(`fractional top-up accepted: ${r.status}`);
     return;
+  }
+  if (failCashin) {
+    if (r.status !== 201 || r.data.topup.status !== 'pending') violations.push(`uncertain top-up not retained: ${r.status}`);
+    await q("UPDATE wallet_topups SET updated_at=now()-interval '61 seconds' WHERE id=$1",[r.data.topup.id]);
+    await api('POST', `/wallet/topups/${r.data.topup.id}/refresh`, null, p.token);
   }
   if (r.status !== 201) throw new Error(`topup ${r.status} ${JSON.stringify(r.data)}`);
   const [row] = await q('SELECT external_reference FROM wallet_topups WHERE id = $1', [r.data.topup.id]);
@@ -626,10 +636,18 @@ async function main() {
     try { if ((await fetch(`${API}/health`)).ok) break; } catch { /* booting */ }
     await sleep(250);
   }
+  try {
+    if (!(await fetch(`${API}/health`)).ok) throw new Error('Health check failed');
+  } catch {
+    server.kill(); mockServer.close();
+    throw new Error(`Invariant API failed to boot:\n${serverLog}`);
+  }
   db = new Pool({ connectionString: DB_URL });
 
   // Production-mode surface checks.
   const sos = await api('POST', '/auth/signup', { fullName: 'x', phone: uniquePhone(), email: `sos${SEED}@e.com`, password: 'secret123' });
+  const sosCode = await codeFor(sos.data.passenger.phone);
+  await api('POST','/auth/verify-otp',{passengerId:sos.data.passenger.id,code:sosCode});
   const sosCfg = await api('GET', '/emergency/config', null, sos.data.token);
   if (sosCfg.data?.callCenterPhone !== '+250788123456') violations.push(`SOS config ${JSON.stringify(sosCfg.data)}`);
   const head = await fetch(`${API}/webhooks/paypack`, { method: 'HEAD' });

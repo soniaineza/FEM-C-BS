@@ -245,7 +245,7 @@ function chargePayment(db: Db, ride: RideRec, payment: PaymentRec, now: number):
       payment.updatedAt = iso(now);
       notify(db, 'passenger', ride.passengerId, {
         title: 'Payment failed',
-        body: 'Your FEM Wallet balance is too low. Top up, or pay in cash.',
+        body: 'Your Kimu Wallet balance is too low. Top up, or pay in cash.',
         type: 'payment',
         rideId: ride.id,
         at: now,

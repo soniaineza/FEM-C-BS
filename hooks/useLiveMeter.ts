@@ -1,114 +1,96 @@
-import { useEffect, useRef, useState } from 'react';
-import * as Location from 'expo-location';
+import { useEffect, useState } from 'react';
 
+import { useDriverLocationStore } from '../stores/useDriverLocationStore';
 import { RideType, rideTypeFareFactor } from '../types/ride';
 import { tariffFare } from '../utils/tariff';
-import { useLocationPermissionStore } from '../stores/useLocationPermissionStore';
 
-// Builds the running trip meter for the driver live-meter screen: it watches
-// GPS and accumulates travelled distance (Haversine between successive fixes),
-// tracks elapsed time from when the meter was started, counts time spent
-// standing still as waiting, and prices the fare with the FEM tariff
-// (utils/tariff.ts: base fare, per-km bands, waiting charge) scaled by the
-// ride-type factor. The meter is a local instrument: the
-// authoritative final fare still comes from the backend on completion.
+// The running trip meter on the driver's trip screen: distance travelled (from
+// the driver's GPS fixes), time since the trip started, time spent standing
+// still (waiting), and the fare those add up to under the Kimu tariff
+// (utils/tariff.ts) scaled by the ride-type factor. It is a local instrument:
+// the authoritative final fare still comes from the backend on completion.
 export interface MeterParams {
+  rideId: string;
   rideType: RideType;
+  /** When the trip started (ISO); the clock runs from here, not from when the screen opened. */
+  startedAt?: string;
 }
 
+interface MeterState {
+  startMs: number;
+  distanceKm: number;
+  waitingMs: number;
+  lastTickAt: number;
+  distanceAtLastTick: number;
+  lastFix: { latitude: number; longitude: number } | null;
+}
+
+// Kept per ride outside the component, so leaving the trip screen and coming
+// back continues the same meter instead of starting again from zero.
+const meters = new Map<string, MeterState>();
+
+const MIN_STEP_KM = 0.003; // ignore GPS jitter below ~3 m
+const MAX_STEP_KM = 0.5; // ignore jumps (a lost fix, a relaunch)
+
+function meterFor(params: MeterParams): MeterState {
+  let m = meters.get(params.rideId);
+  if (!m) {
+    const now = Date.now();
+    const started = params.startedAt ? Date.parse(params.startedAt) : NaN;
+    m = { startMs: Number.isFinite(started) ? started : now, distanceKm: 0, waitingMs: 0, lastTickAt: now, distanceAtLastTick: 0, lastFix: null };
+    meters.set(params.rideId, m);
+  }
+  return m;
+}
+
+/** Pass the trip's params while it is under way, or null when no trip is running. */
 export function useLiveMeter(params: MeterParams | null) {
-  const [metering, setMetering] = useState(false);
-  const [distanceKm, setDistanceKm] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [waitingSeconds, setWaitingSeconds] = useState(0);
-  const distanceRef = useRef(0);
-  const tickDistanceRef = useRef(0);
+  const rideId = params?.rideId ?? null;
+  const [, setTick] = useState(0);
+  const fix = useDriverLocationStore((s) => s.fix);
 
-  const startRef = useRef<number>(0);
-  const lastFixRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
-  const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Watch GPS while the meter is running, accumulating distance.
+  // Distance: add each new GPS fix's step.
   useEffect(() => {
-    if (!metering) return;
+    if (!params || !fix) return;
+    const m = meterFor(params);
+    if (m.lastFix) {
+      const step = haversineKm(m.lastFix.latitude, m.lastFix.longitude, fix.latitude, fix.longitude);
+      if (step < MIN_STEP_KM) return; // keep the old anchor so slow creeping still adds up
+      if (step <= MAX_STEP_KM) m.distanceKm += step;
+    }
+    m.lastFix = { latitude: fix.latitude, longitude: fix.longitude };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rideId, fix?.latitude, fix?.longitude]);
 
-    let cancelled = false;
-    (async () => {
-      // Shared store: serialised with the driver-reporting hook, which runs at
-      // the same time during a trip.
-      const { status } = await useLocationPermissionStore.getState().request();
-      if (status !== 'granted' || cancelled) return;
-
-      subscriptionRef.current = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 5 },
-        (position) => {
-          if (cancelled) return;
-          const { latitude, longitude } = position.coords;
-          const prev = lastFixRef.current;
-          if (prev && prev.latitude !== latitude && prev.longitude !== longitude) {
-            const delta = haversineKm(prev.latitude, prev.longitude, latitude, longitude);
-            distanceRef.current += delta;
-            setDistanceKm((d) => d + delta);
-          }
-          lastFixRef.current = { latitude, longitude };
-        }
-      );
-    })();
-
-    return () => {
-      cancelled = true;
-      subscriptionRef.current?.remove();
-      subscriptionRef.current = null;
-    };
-  }, [metering]);
-
-  // One-second elapsed-time ticker while the meter runs.
+  // Clock: once a second, count the time since the last tick as waiting if the
+  // car has not moved. Uses real elapsed time, so a delayed or doubled timer
+  // cannot over-count.
   useEffect(() => {
-    if (!metering) return;
-    tickerRef.current = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startRef.current) / 1000));
-      // No movement since the last tick (< ~2 m) counts as waiting.
-      if (distanceRef.current - tickDistanceRef.current < 0.002) setWaitingSeconds((w) => w + 1);
-      tickDistanceRef.current = distanceRef.current;
+    if (!params) return;
+    const m = meterFor(params);
+    m.lastTickAt = Date.now();
+    m.distanceAtLastTick = m.distanceKm;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      if (m.distanceKm - m.distanceAtLastTick < MIN_STEP_KM) m.waitingMs += now - m.lastTickAt;
+      m.lastTickAt = now;
+      m.distanceAtLastTick = m.distanceKm;
+      setTick((n) => n + 1);
     }, 1000);
-    return () => {
-      if (tickerRef.current) clearInterval(tickerRef.current);
-      tickerRef.current = null;
-    };
-  }, [metering]);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rideId]);
 
-  function startMeter() {
-    lastFixRef.current = null;
-    startRef.current = Date.now();
-    distanceRef.current = 0;
-    tickDistanceRef.current = 0;
-    setDistanceKm(0);
-    setElapsedSeconds(0);
-    setWaitingSeconds(0);
-    setMetering(true);
-  }
-
-  function stopMeter() {
-    setMetering(false);
-  }
-
-  function resetMeter() {
-    stopMeter();
-    distanceRef.current = 0;
-    tickDistanceRef.current = 0;
-    setDistanceKm(0);
-    setElapsedSeconds(0);
-    setWaitingSeconds(0);
-  }
-
-  const factor = params ? rideTypeFareFactor(params.rideType) : 0;
-  const fare =
-    params && metering
-      ? tariffFare(distanceKm, waitingSeconds / 60).total * factor
-      : 0;
-
-  return { metering, startMeter, stopMeter, resetMeter, distanceKm, elapsedSeconds, waitingSeconds, fare };
+  if (!params) return { metering: false, distanceKm: 0, elapsedSeconds: 0, waitingSeconds: 0, fare: 0 };
+  const m = meterFor(params);
+  const waitingSeconds = Math.floor(m.waitingMs / 1000);
+  return {
+    metering: true,
+    distanceKm: m.distanceKm,
+    elapsedSeconds: Math.max(0, Math.floor((Date.now() - m.startMs) / 1000)),
+    waitingSeconds,
+    fare: tariffFare(m.distanceKm, waitingSeconds / 60).total * rideTypeFareFactor(params.rideType),
+  };
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -116,7 +98,6 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }

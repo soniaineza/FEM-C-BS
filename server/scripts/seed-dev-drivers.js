@@ -70,9 +70,10 @@ async function main() {
     );
     const driverId = rows[0].id;
     await getPool().query(
-      `INSERT INTO driver_locations (driver_id, latitude, longitude, recorded_at)
-       VALUES ($1,$2,$3, now())
-       ON CONFLICT (driver_id) DO UPDATE SET latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude`,
+      `INSERT INTO driver_locations (driver_id, latitude, longitude, measured_at, accuracy, recorded_at)
+       VALUES ($1,$2,$3, now(), 100, now())
+       ON CONFLICT (driver_id) DO UPDATE SET latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude,
+         measured_at = EXCLUDED.measured_at, accuracy = EXCLUDED.accuracy, recorded_at = now()`,
       [driverId, d.lat, d.lng]
     );
     console.log(`[seed] driver ready: ${d.fullName} (${d.phone}) password: 123456`);

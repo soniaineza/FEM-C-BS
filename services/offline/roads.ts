@@ -1,5 +1,5 @@
 // Real road geometry for the standalone build. When the phone is online it asks
-// an OSRM-compatible routing service directly (no FEM server involved) for the
+// an OSRM-compatible routing service directly (no Kimu server involved) for the
 // street-following path between two points; offline, or if the service fails,
 // callers keep the local curve from geo.ts, so nothing ever depends on it.
 //

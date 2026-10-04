@@ -1,4 +1,6 @@
 import { Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 
 import { apiClient } from './api-client';
 import { getRideDetails } from './ride-service';
@@ -30,7 +32,39 @@ export interface EmergencyResult {
 // safety screen can render the call-center number before any SOS is sent.
 export async function getSosConfig(): Promise<SosConfig> {
   const json = await apiClient.get<{ callCenterPhone: string }>('/emergency/config');
+  rememberCallCenterPhone(json.callCenterPhone);
   return { callCenterPhone: json.callCenterPhone };
+}
+
+// An SOS must be able to place a call with no data connection at all, so the
+// number never depends on a request made at that moment: the last number the
+// server gave us is kept on the device, and before any has been seen the
+// build-time number (or Rwanda's national emergency line) is used.
+const CALL_CENTER_KEY = 'kimu_call_center_phone';
+export const EMERGENCY_FALLBACK_PHONE = process.env.EXPO_PUBLIC_EMERGENCY_PHONE || '112';
+
+export function rememberCallCenterPhone(phone?: string | null): void {
+  if (phone) AsyncStorage.setItem(CALL_CENTER_KEY, phone).catch(() => {});
+}
+
+export async function getStoredCallCenterPhone(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(CALL_CENTER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Where the rider is, from the device's last fix: instant, and never prompts. */
+export async function lastKnownCoordinates(): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== Location.PermissionStatus.GRANTED) return null;
+    const fix = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000 });
+    return fix ? { latitude: fix.coords.latitude, longitude: fix.coords.longitude } : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function triggerEmergency(params: {

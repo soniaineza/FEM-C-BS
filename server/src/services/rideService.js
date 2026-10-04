@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
-const { getPool } = require('../db');
+const { getPool, transaction, afterCommit } = require('../db');
+const { requireCoordinates } = require('../utils/location');
 const { config } = require('../config');
 const { bookablePaymentMethods } = require('./payments');
 const { ApiError } = require('../utils/asyncHandler');
@@ -44,12 +45,16 @@ async function computeEstimate(vehicle, pickup, destination, rideType, quoteId) 
 /** Validates and applies an optional promotion to a fare. Returns the adjusted
  * fare (not the gross) plus the discount amount, or null discount when none. */
 async function applyPromotion(passengerId, code, grossFare) {
+  return transaction(() => applyPromotionLocked(passengerId, code, grossFare));
+}
+
+async function applyPromotionLocked(passengerId, code, grossFare) {
   if (!code) return { discountedFare: grossFare, discount: 0, promotion: null };
   const { rows } = await getPool().query(
     `SELECT * FROM promotions
       WHERE code = $1 AND active = TRUE AND uses_count < COALESCE(max_uses, 2147483647)
         AND (starts_at IS NULL OR starts_at <= now())
-        AND (ends_at IS NULL OR ends_at >= now())`,
+        AND (ends_at IS NULL OR ends_at >= now()) FOR UPDATE`,
     [String(code).trim().toUpperCase()]
   );
   const promo = rows[0];
@@ -70,18 +75,10 @@ async function applyPromotion(passengerId, code, grossFare) {
 }
 
 async function createRide(passengerId, body) {
-  const {
-    pickup,
-    destination,
-    vehicleId,
-    paymentMethodId,
-    rideType,
-    rideNote,
-    promotionCode,
-    scheduledFor,
-    quoteId,
-  } = body || {};
-
+  // Validation and the fare (a call to the routing service) happen before the
+  // transaction, so a slow router never holds a pooled connection or the
+  // passenger's row lock.
+  const { pickup, destination, vehicleId, paymentMethodId, rideType, quoteId } = body || {};
   if (
     !pickup || !destination || !vehicleId || !paymentMethodId ||
     typeof pickup.latitude !== 'number' || typeof pickup.longitude !== 'number' ||
@@ -91,6 +88,44 @@ async function createRide(passengerId, body) {
   }
   if (!bookablePaymentMethods().includes(paymentMethodId)) {
     throw new ApiError(400, 'That payment method is not available.');
+  }
+  requireCoordinates(pickup);
+  requireCoordinates(destination);
+  if (body.bookingKey != null && (typeof body.bookingKey !== 'string' || body.bookingKey.length > 100 || !body.bookingKey.trim())) throw new ApiError(400, 'Invalid booking key.');
+  const { rows: vehicleRows } = await getPool().query('SELECT * FROM vehicles WHERE id = $1', [vehicleId]);
+  const vehicle = vehicleRows[0];
+  if (!vehicle) throw new ApiError(400, 'Unknown vehicle.');
+  const estimate = await computeEstimate(vehicle, pickup, destination, rideType === 'shared' ? 'shared' : 'private', quoteId);
+
+  return transaction(async () => {
+    await getPool().query('SELECT id FROM passengers WHERE id=$1 FOR UPDATE', [passengerId]);
+    return createRideLocked(passengerId, body, vehicle, estimate);
+  });
+}
+
+async function createRideLocked(passengerId, body, vehicle, estimate) {
+  const {
+    pickup,
+    destination,
+    vehicleId,
+    paymentMethodId,
+    rideType,
+    rideNote,
+    promotionCode,
+    scheduledFor,
+  } = body;
+
+  if (body.bookingKey) {
+    const previous = await getPool().query('SELECT * FROM rides WHERE passenger_id=$1 AND booking_key=$2', [passengerId, body.bookingKey]);
+    if (previous.rows[0]) {
+      const r=previous.rows[0];
+      if (r.pickup_latitude !== pickup.latitude || r.pickup_longitude !== pickup.longitude ||
+          r.dest_latitude !== destination.latitude || r.dest_longitude !== destination.longitude ||
+          r.vehicle_id !== vehicleId || r.payment_method !== paymentMethodId || r.ride_type !== (rideType === 'shared' ? 'shared' : 'private')) {
+        throw new ApiError(409,'This booking key was already used for a different request.');
+      }
+      return r;
+    }
   }
   const type = rideType === 'shared' ? 'shared' : 'private';
 
@@ -108,19 +143,7 @@ async function createRide(passengerId, body) {
     throw new ApiError(409, 'You already have an active ride. Complete or cancel it before requesting another.');
   }
 
-  const { rows: vehicleRows } = await getPool().query('SELECT * FROM vehicles WHERE id = $1', [
-    vehicleId,
-  ]);
-  const vehicle = vehicleRows[0];
-  if (!vehicle) throw new ApiError(400, 'Unknown vehicle.');
-
-  const { distanceKm, durationMinutes, estimatedFare, fare } = await computeEstimate(
-    vehicle,
-    pickup,
-    destination,
-    type,
-    quoteId
-  );
+  const { distanceKm, durationMinutes, estimatedFare, fare } = estimate;
 
   const { discountedFare, discount, promotion } = await applyPromotion(
     passengerId,
@@ -140,8 +163,8 @@ async function createRide(passengerId, body) {
        dest_address, dest_latitude, dest_longitude,
        distance_km, duration_minutes, payment_method, estimated_fare,
        status, ride_note, promotion_id, applied_discount, scheduled_for,
-       fare_breakdown, surge_multiplier
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       fare_breakdown, surge_multiplier, booking_key
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
      RETURNING *`,
     [
       passengerId,
@@ -164,6 +187,7 @@ async function createRide(passengerId, body) {
       status === 'scheduled' ? new Date(scheduledFor).toISOString() : null,
       JSON.stringify(fare),
       fare.surgeMultiplier,
+      body.bookingKey || null,
     ]
   );
   const ride = rows[0];
@@ -174,6 +198,7 @@ async function createRide(passengerId, body) {
     [ride.id, status]
   );
 
+  afterCommit(async () => {
   await pushNotification(passengerId, {
     title: status === 'scheduled' ? 'Ride scheduled' : 'Looking for your driver',
     body:
@@ -193,6 +218,8 @@ async function createRide(passengerId, body) {
       console.error('[rides] matching failed:', err)
     );
   }
+
+  });
 
   return ride;
 }
@@ -228,15 +255,10 @@ async function matchAndAssign(rideId) {
     driverName = result.driver.full_name;
   }
 
-  try {
-    await transitionRide(rideId, 'driverAssigned', { changedBy: 'system' });
-  } catch (err) {
-    // The passenger cancelled while we were assigning: don't leave the
-    // driver marked busy for a ride that no longer exists.
-    await releaseDriver(assigned.driver_id);
-    throw err;
-  }
-  const updated = await loadRide(rideId);
+  // assignDriver() attached the driver and moved the ride to driverAssigned in
+  // one transaction, so there is nothing left to transition here (the driver
+  // may already have accepted by now).
+  const updated = (await loadRide(rideId)) || assigned;
 
   await pushNotification(ride.passenger_id, {
     title: 'Driver on the way',
@@ -266,6 +288,15 @@ async function matchAndAssign(rideId) {
 }
 
 async function cancelRide(passengerId, rideId, reason) {
+  return transaction(async (db) => {
+    await db.query('SELECT id FROM passengers WHERE id=$1 FOR UPDATE',[passengerId]);
+    // Dispatch locks the driver before the ride. A cancellation only releases
+    // the driver after commit, avoiding a reverse ride-to-driver lock order.
+    await db.query('SELECT id FROM rides WHERE id=$1 FOR UPDATE',[rideId]);
+    return cancelRideLocked(passengerId, rideId, reason);
+  });
+}
+async function cancelRideLocked(passengerId, rideId, reason) {
   const ride = await loadRide(rideId);
   if (!ride || ride.passenger_id !== passengerId) throw new ApiError(404, 'Ride not found.');
 
@@ -290,29 +321,35 @@ async function cancelRide(passengerId, rideId, reason) {
     reason: reason || null,
   });
   if (updated.driver_id) {
-    await releaseDriver(updated.driver_id);
+    afterCommit(() => releaseDriver(updated.driver_id));
     // The driver had already been assigned/en route — they need to know the
     // trip is off, not just silently lose it off their active-rides list on
     // their next poll (drivers.routes.js's GET /rides/active has no other
     // way to distinguish "cancelled" from "never existed").
-    await pushDriverNotification(updated.driver_id, {
+    afterCommit(() => pushDriverNotification(updated.driver_id, {
       title: 'Ride cancelled',
       body: 'The rider cancelled this trip. No action needed.',
       type: 'ride',
       rideId,
-    });
+    }));
   }
-  await pushNotification(passengerId, {
+  afterCommit(() => pushNotification(passengerId, {
     title: 'Ride cancelled',
     body: 'Your ride was cancelled. No fare was charged.',
     type: 'ride',
     rideId,
-  });
+  }));
   return updated;
 }
 
 /** Destination changes are allowed while the driver has not picked you up. */
 async function changeDestination(passengerId, rideId, destination) {
+  return transaction(async (db) => {
+    await db.query('SELECT id FROM rides WHERE id=$1 FOR UPDATE', [rideId]);
+    return changeDestinationLocked(passengerId, rideId, destination);
+  });
+}
+async function changeDestinationLocked(passengerId, rideId, destination) {
   const ride = await loadRide(rideId);
   if (!ride || ride.passenger_id !== passengerId) throw new ApiError(404, 'Ride not found.');
   if (!BOOKABLE_STATUSES.has(ride.status)) {
@@ -325,6 +362,7 @@ async function changeDestination(passengerId, rideId, destination) {
     throw new ApiError(400, 'Destination coordinates are required.');
   }
 
+  requireCoordinates(destination);
   const { rows: vehicleRows } = await getPool().query(
     'SELECT * FROM vehicles WHERE id = $1',
     [ride.vehicle_id]
@@ -345,7 +383,7 @@ async function changeDestination(passengerId, rideId, destination) {
        dest_address = $1, dest_latitude = $2, dest_longitude = $3,
        distance_km = $4, duration_minutes = $5, estimated_fare = $6,
        fare_breakdown = $8, surge_multiplier = $9
-     WHERE id = $7 RETURNING *`,
+     WHERE id = $7 AND status IN ('searchingDriver','driverAssigned','driverArriving','driverArrived') RETURNING *`,
     [
       destination.address || 'Changed destination',
       destination.latitude,
@@ -358,12 +396,13 @@ async function changeDestination(passengerId, rideId, destination) {
       fare.surgeMultiplier,
     ]
   );
+  if (!rows[0]) throw new ApiError(409, 'The ride has already started.');
   await getPool().query(
     `INSERT INTO ride_events (ride_id, event_type, payload)
      VALUES ($1, 'destinationChanged', $2)`,
     [rideId, JSON.stringify({ distanceKm, durationMinutes, estimatedFare })]
   );
-  publishRideEvent(rideId, { type: 'destinationChanged', rideId });
+  afterCommit(() => publishRideEvent(rideId, { type: 'destinationChanged', rideId }));
   return rows[0];
 }
 
@@ -376,7 +415,7 @@ async function generateRidePin(rideId) {
     pinHash,
     rideId,
   ]);
-  publishRideEvent(rideId, { type: 'pinGenerated', rideId });
+  afterCommit(() => publishRideEvent(rideId, { type: 'pinGenerated', rideId }));
   return pin;
 }
 

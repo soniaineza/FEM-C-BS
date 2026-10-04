@@ -93,8 +93,8 @@ function riderFromRide(row) {
   if (!row.passenger_name) return null;
   return {
     name: row.passenger_name,
-    latitude: row.passenger_latitude ?? null,
-    longitude: row.passenger_longitude ?? null,
+    latitude: ['driverAssigned','driverArriving','driverArrived'].includes(row.status) ? row.passenger_latitude ?? null : null,
+    longitude: ['driverAssigned','driverArriving','driverArrived'].includes(row.status) ? row.passenger_longitude ?? null : null,
   };
 }
 

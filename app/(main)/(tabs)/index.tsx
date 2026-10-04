@@ -97,15 +97,17 @@ export default function HomeScreen() {
         // Move the map off the default straight away using the device's last
         // known fix, then refine it once a real reading lands.
         const seed = await getSeedPlace();
-        if (seed) apply(seed);
+        if (seed && !cancelled && seed.latitude != null && seed.longitude != null) {
+          setMapCenter({ latitude: seed.latitude, longitude: seed.longitude, zoom: 15 });
+        }
 
         try {
-          apply(await getCurrentPlace());
+          apply(await getCurrentPlace({ force: true }));
         } catch {
           // Permission is granted but no fix arrived (indoors, GPS warming up).
           // The seed above may already be showing; either way manual entry and
           // dragging the map both still work, so this is not worth a dialog.
-          if (!cancelled && !seed) setLocationHint(t('couldNotReadLocationSetManual'));
+          if (!cancelled) setLocationHint(t('couldNotReadLocationSetManual'));
         }
       })();
 
@@ -222,6 +224,7 @@ export default function HomeScreen() {
             <View>
               <Button
                 title={t('findRide')}
+                variant="secondary"
                 icon="arrow-forward"
                 onPress={findRide}
                 disabled={!pickup || !destination || !canRequestRide}
@@ -247,11 +250,26 @@ export default function HomeScreen() {
               </Pressable>
             ) : null}
 
+            {/* Share ride puts the starting point at the bottom, nearest the
+                thumb, with a hint to say where the rider is starting from. */}
             <View className="rounded-2xl border border-white/30 bg-white/20 p-1">
-              <LocationField isPickup value={pickup} placeholder={t('setPickup')} onPress={() => router.push('/(main)/request/pickup')} />
-              <View className="mx-4 h-px bg-white/25" />
-              <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
+              {rideType === 'shared' ? (
+                <>
+                  <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
+                  <View className="mx-4 h-px bg-white/25" />
+                  <LocationField isPickup value={pickup} placeholder={t('setPickup')} onPress={() => router.push('/(main)/request/pickup')} />
+                </>
+              ) : (
+                <>
+                  <LocationField isPickup value={pickup} placeholder={t('setPickup')} onPress={() => router.push('/(main)/request/pickup')} />
+                  <View className="mx-4 h-px bg-white/25" />
+                  <LocationField value={destination} placeholder={t('chooseDestination')} onPress={() => router.push('/(main)/request/destination')} />
+                </>
+              )}
             </View>
+            {rideType === 'shared' ? (
+              <Text className="mt-2 text-xs font-medium text-white/80">{t('startingFromHint')}</Text>
+            ) : null}
 
             {savedPlaces.length > 0 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3" contentContainerClassName="gap-2.5">

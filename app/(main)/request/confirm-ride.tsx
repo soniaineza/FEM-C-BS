@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardFormScrollView } from '../../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
@@ -21,6 +21,8 @@ export default function ConfirmRideScreen() {
   const wizard = useRideWizardStore();
   const { pickup, destination, vehicle, fareEstimate, paymentMethod, rideType, note, setNote, reset } = wizard;
 
+  const bookingKey = useRef(`booking-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const submitting = useRef(false);
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
@@ -39,11 +41,13 @@ export default function ConfirmRideScreen() {
   const walletShort = isWalletPayment && walletBalance != null && walletBalance < fare;
 
   async function handleConfirm() {
-    if (!pickup || !destination || !vehicle || !paymentMethod) return;
+    if (submitting.current || !pickup || !destination || !vehicle || !paymentMethod) return;
+    submitting.current = true;
     setError(undefined);
     setLoading(true);
     try {
       const ride = await requestRide({
+        bookingKey: bookingKey.current,
         pickup,
         destination,
         vehicle,
@@ -57,6 +61,7 @@ export default function ConfirmRideScreen() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : undefined);
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }

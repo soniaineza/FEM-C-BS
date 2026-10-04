@@ -113,7 +113,7 @@ export default function DriverHomeScreen() {
       await setDriverStatus(next ? 'active' : 'offline');
       await refreshDriver();
     } catch (err) {
-      setToggleError(err instanceof ApiError ? err.message : t('driverStatusUpdateFailed'));
+      setToggleError(err instanceof Error ? err.message : t('driverStatusUpdateFailed'));
     } finally {
       setTogglingOnline(false);
     }
@@ -141,7 +141,7 @@ export default function DriverHomeScreen() {
       <View className="bg-primary px-5 pb-8 pt-3">
         <View className="flex-row items-center">
           <View className="h-11 w-11 items-center justify-center rounded-xl bg-surface">
-            <RNText className="text-title-1 font-bold text-primary-text">F</RNText>
+            <RNText className="text-title-1 font-bold text-primary-text">K</RNText>
           </View>
           <View className="ml-3 flex-1">
             <RNText className="text-title-2 font-bold text-white">Kimu Transport</RNText>
@@ -170,7 +170,7 @@ export default function DriverHomeScreen() {
         <Card padded={false} className="mt-3 flex-row items-stretch py-4">
           <StatColumn icon="car-outline" value={String(activeRideCount)} label={t('driverActiveRides')} small={isSmallPhone} />
           <View className="w-px bg-divider" />
-          <StatColumn icon="star" value={currentDriver?.rating != null ? currentDriver.rating.toFixed(1) : '5.0'} label={t('driverRatingLabel')} iconColor={Colors.star} small={isSmallPhone} />
+          <StatColumn icon="star" value={currentDriver?.rating != null ? currentDriver.rating.toFixed(1) : '—'} label={t('driverRatingLabel')} iconColor={Colors.star} small={isSmallPhone} />
           <View className="w-px bg-divider" />
           <StatColumn icon="wallet-outline" value={summary ? formatFare(summary.today.amount) : '—'} label={t('driverTodaysEarnings')} small={isSmallPhone} />
         </Card>
@@ -190,7 +190,7 @@ export default function DriverHomeScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('useCurrentLocation')}
               onPress={() => setRecenterToken((n) => n + 1)}
-              className="absolute bottom-3 right-3 h-11 w-11 items-center justify-center rounded-full bg-surface"
+              className="absolute bottom-3 left-3 h-11 w-11 items-center justify-center rounded-full bg-surface"
               style={Elevation[2]}
             >
               <Ionicons name="locate" size={20} color={Colors['primary-text']} />

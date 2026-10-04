@@ -35,13 +35,17 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Kimu Transport uses your location to show your pickup point on the map and match you with nearby drivers."
+          "locationWhenInUsePermission": "Kimu Transport uses your location to show your pickup point on the map and match you with nearby drivers.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Kimu Transport shares driver location during an active shift or trip, including when the screen is locked."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "FEM C@BS uses the camera to scan your driver's pairing code.",
+          "cameraPermission": "Kimu Transport uses the camera to scan your driver's pairing code.",
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": true
         }
@@ -50,7 +54,10 @@
         "expo-build-properties",
         {
           "android": {
-            "buildArchs": ["arm64-v8a", "armeabi-v7a"],
+            "buildArchs": [
+              "arm64-v8a",
+              "armeabi-v7a"
+            ],
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "enableBundleCompression": true

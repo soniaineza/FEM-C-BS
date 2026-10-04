@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, Pressable } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, ActivityIndicator, BackHandler } from 'react-native';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 
 import { Button } from '../../../components/Button';
 import { Card } from '../../../components/Card';
@@ -15,7 +13,7 @@ import { useTripMap } from '../../../hooks/useTripMap';
 import { getPaymentForRide, initiatePayment, refreshPaymentStatus } from '../../../services/payment-service';
 import { PaymentRecord, isPaymentSettled } from '../../../types/payment';
 import { formatFare } from '../../../types/ride';
-import { Colors, Elevation } from '../../../constants/theme';
+import { Colors } from '../../../constants/theme';
 
 const PADDING = { top: 90, bottom: 300, left: 50, right: 50 };
 
@@ -30,9 +28,39 @@ export default function TrackingScreen() {
   const [payLoading, setPayLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
+  // A rider mid-trip cannot go back: Android back and the iOS swipe are
+  // blocked while a trip is live. Only "back" is blocked: replaces and resets
+  // (trip completed, signed out) always go through, and a ride that has not
+  // loaded or has ended is never locked.
+  const navigation = useNavigation();
+  const locked = ride != null && ride.status !== 'completed' && ride.status !== 'cancelled';
+  const lockedRef = useRef(false);
+  lockedRef.current = locked;
   useEffect(() => {
-    if (ride && ride.status === 'completed') {
+    const removeGuard = navigation.addListener('beforeRemove', (e) => {
+      const type = e.data.action.type;
+      if (lockedRef.current && (type === 'GO_BACK' || type === 'POP' || type === 'POP_TO_TOP')) e.preventDefault();
+    });
+    // Android hardware back, explicitly (a no-op on web).
+    const backSub = BackHandler.addEventListener('hardwareBackPress', () => lockedRef.current);
+    return () => {
+      removeGuard();
+      backSub.remove();
+    };
+  }, [navigation]);
+  // The iOS swipe is off only while locked, so a ride that fails to load can
+  // still be swiped away.
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !locked });
+  }, [navigation, locked]);
+
+  useEffect(() => {
+    if (!ride) return;
+    if (ride.status === 'completed') {
       router.replace({ pathname: '/(main)/ride/completed', params: { rideId: ride.id } });
+    } else if (ride.status === 'cancelled') {
+      // Nothing left to track, and this screen has no back button.
+      router.replace('/(main)/(tabs)');
     }
   }, [ride]);
 
@@ -83,8 +111,12 @@ export default function TrackingScreen() {
   }
 
   if (!ride) {
+    // Still loading, or the ride could not be loaded: leave a way out.
     return (
-      <MapSheet collapsible={false}>
+      <MapSheet
+        collapsible={false}
+        footer={<Button title={t('back')} variant="outline" icon="arrow-back" onPress={() => router.replace('/(main)/(tabs)')} />}
+      >
         <ActivityIndicator className="my-6" color={Colors.primary} />
       </MapSheet>
     );
@@ -94,19 +126,6 @@ export default function TrackingScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Same contract as driver-accepted: back goes home, the trip keeps
-          running and stays resumable from Activity > Active. */}
-      <SafeAreaView edges={['top']} pointerEvents="box-none">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('back')}
-          onPress={() => router.replace('/(main)/(tabs)')}
-          className="ml-4 mt-2 h-11 w-11 items-center justify-center rounded-full bg-surface"
-          style={Elevation[3]}
-        >
-          <Ionicons name="arrow-back" size={22} color={Colors.fg} />
-        </Pressable>
-      </SafeAreaView>
       <MapSheet
         header={
           <View className="mb-3">

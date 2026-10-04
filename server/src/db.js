@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const { AsyncLocalStorage } = require('async_hooks');
+const transactions = new AsyncLocalStorage();
 
 const { config } = require('./config');
 
@@ -19,21 +21,22 @@ async function ensureDatabase() {
 
 /** Applies schema.sql + seeds to the database (idempotent). */
 async function applySchema(url) {
-  const client = new Pool({ connectionString: url, max: 2 });
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const sql = fs.readFileSync(schemaPath, 'utf8');
-  await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
-  await client.query(sql);
-
-  // Apply driver-side schema extensions (idempotent).
-  const driverSchemaPath = path.join(__dirname, 'driver-schema.sql');
-  if (fs.existsSync(driverSchemaPath)) {
-    const driverSql = fs.readFileSync(driverSchemaPath, 'utf8');
-    await client.query(driverSql);
-    console.log('[db] driver schema applied.');
+  const schemaPool = new Pool({ connectionString: url, max: 1 });
+  const client = await schemaPool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+    await client.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+    const driverSchemaPath = path.join(__dirname, 'driver-schema.sql');
+    if (fs.existsSync(driverSchemaPath)) await client.query(fs.readFileSync(driverSchemaPath, 'utf8'));
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+    await schemaPool.end();
   }
-
-  await client.end();
   console.log('[db] schema applied.');
 }
 
@@ -46,11 +49,39 @@ function initPool(url) {
 
 /** Returns the shared pool. Throws if `initPool` has not run yet. */
 function getPool() {
+  if (transactions.getStore()) return transactions.getStore().client;
   if (!pool) throw new Error('Database pool not initialised — call initPool() first.');
   return pool;
 }
 
-module.exports = { ensureDatabase, applySchema, initPool, getPool };
+async function transaction(work) {
+  if (transactions.getStore()) return work(getPool());
+  const client = await getPool().connect();
+  const callbacks = [];
+  let result;
+  try {
+    await client.query('BEGIN');
+    result = await transactions.run({ client, callbacks }, () => work(client));
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+  for (const callback of callbacks) {
+    try { await callback(); } catch (error) { console.error('[db] post-commit delivery failed:', error.message); }
+  }
+  return result;
+}
+
+function afterCommit(callback) {
+  const current = transactions.getStore();
+  if (current) current.callbacks.push(callback);
+  else return callback();
+}
+
+function inTransaction() { return Boolean(transactions.getStore()); }
+
+module.exports = { ensureDatabase, applySchema, initPool, getPool, transaction, afterCommit, inTransaction };
 
 // Support `node src/db.js --init-only` to just (re)create the schema.
 if (require.main === module && process.argv.includes('--init-only')) {

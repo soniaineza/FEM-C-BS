@@ -473,9 +473,9 @@ export interface VehicleRec {
 
 // Same catalogue and pricing constants the real backend seeds (schema.sql).
 export const VEHICLES: VehicleRec[] = [
-  { id: 'fem_economy', name: 'FEM Economy', description: 'Everyday rides at the best price.', capacity: 4, baseFare: 1800, farePerKm: 1080, etaMinutes: 5, perMinute: 40, minFare: 2000, bookingFee: 200 },
-  { id: 'fem_comfort', name: 'FEM Comfort', description: 'Newer cars with extra legroom.', capacity: 4, baseFare: 1800, farePerKm: 1080, etaMinutes: 6, perMinute: 60, minFare: 3000, bookingFee: 250 },
-  { id: 'fem_xl', name: 'FEM XL', description: 'Spacious vehicles for groups and luggage.', capacity: 6, baseFare: 1800, farePerKm: 1080, etaMinutes: 8, perMinute: 80, minFare: 4000, bookingFee: 300 },
+  { id: 'fem_economy', name: 'Kimu Economy', description: 'Everyday rides at the best price.', capacity: 4, baseFare: 1800, farePerKm: 1080, etaMinutes: 5, perMinute: 40, minFare: 2000, bookingFee: 200 },
+  { id: 'fem_comfort', name: 'Kimu Comfort', description: 'Newer cars with extra legroom.', capacity: 4, baseFare: 1800, farePerKm: 1080, etaMinutes: 6, perMinute: 60, minFare: 3000, bookingFee: 250 },
+  { id: 'fem_xl', name: 'Kimu XL', description: 'Spacious vehicles for groups and luggage.', capacity: 6, baseFare: 1800, farePerKm: 1080, etaMinutes: 8, perMinute: 80, minFare: 4000, bookingFee: 300 },
 ];
 
 export function walletBalance(d: Db, passengerId: string): number {

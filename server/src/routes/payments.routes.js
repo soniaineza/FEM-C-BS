@@ -8,6 +8,7 @@ const {
   createPaymentForRide,
   chargePayment,
   refreshPaymentStatus,
+  REJECTED_REASON,
 } = require('../services/payments');
 
 const router = express.Router();
@@ -51,12 +52,14 @@ router.post(
         throw new ApiError(409, 'Wait for the previous payment to fail before switching to cash.');
       }
       if (previous.provider === 'paypack') {
-        if (!previous.external_reference) {
+        if (previous.external_reference) {
+          const confirmed = await refreshPaymentStatus(previous);
+          if (confirmed.status !== 'failed') {
+            throw new ApiError(409, 'The mobile-money payment has not definitively failed.');
+          }
+        } else if (previous.metadata?.reason !== REJECTED_REASON) {
+          // No provider reference and not an outright refusal: a charge may exist.
           throw new ApiError(409, 'Payment outcome is uncertain. Contact support before paying in cash.');
-        }
-        const confirmed = await refreshPaymentStatus(previous);
-        if (confirmed.status !== 'failed') {
-          throw new ApiError(409, 'The mobile-money payment has not definitively failed.');
         }
       }
       const switched = await getPool().query(
@@ -68,12 +71,13 @@ router.post(
       return res.status(201).json({ payment: paymentToJson(cash) });
     }
     if (previous) {
-      return res.json({ payment: paymentToJson(previous) });
+      const updated = previous.status === 'pending' && !previous.external_reference ? await chargePayment(previous, ride) : previous;
+      return res.json({ payment: paymentToJson(updated) });
     }
 
     const payment = await createPaymentForRide(ride);
-    await chargePayment(payment, ride);
-    res.status(201).json({ payment: paymentToJson(payment) });
+    const charged = await chargePayment(payment, ride);
+    res.status(201).json({ payment: paymentToJson(charged) });
   })
 );
 

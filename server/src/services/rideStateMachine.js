@@ -1,4 +1,4 @@
-const { getPool } = require('../db');
+const { getPool, transaction, afterCommit, inTransaction } = require('../db');
 const { ApiError } = require('../utils/asyncHandler');
 const { publishRideEvent } = require('./rideEvents');
 
@@ -53,6 +53,9 @@ async function transitionRide(
   toStatus,
   { changedBy = 'system', reason = null, db = getPool(), publish = true } = {}
 ) {
+  if (!inTransaction() && db === getPool()) {
+    return transaction(() => transitionRide(rideId, toStatus, { changedBy, reason, db: getPool(), publish }));
+  }
   // Optimistic concurrency: the status is re-read and re-validated if a
   // concurrent change (e.g. matching vs a rider's cancel) wins the guarded
   // UPDATE, so a still-legal transition applies instead of failing.
@@ -93,7 +96,7 @@ async function transitionRide(
     [rideId, JSON.stringify({ from: ride.status, to: toStatus, by: changedBy, reason }) ]
   );
 
-  if (publish) publishRideEvent(rideId, { type: 'status', status: toStatus, rideId });
+  if (publish) afterCommit(() => publishRideEvent(rideId, { type: 'status', status: toStatus, rideId }));
   return updated;
 }
 

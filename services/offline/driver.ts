@@ -195,7 +195,8 @@ const withRider = (r: RideRec) => rideToJson(r);
 
 route('GET', '/driver/rides', 'driver', ({ db, driver }) => ({
   rides: db.rides
-    .filter((r) => r.driverId === driver!.id)
+    // A request the driver has not answered yet is not a trip.
+    .filter((r) => r.driverId === driver!.id && r.status !== 'driverAssigned')
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 100)
     .map(withRider),

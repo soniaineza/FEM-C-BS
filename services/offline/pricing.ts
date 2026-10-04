@@ -1,5 +1,5 @@
 // Upfront fares for the on-device backend. Mirrors server/src/services/pricing.js
-// (the FEM tariff in utils/tariff.ts, shared discount, rounded up to 100 RWF) so the numbers match the server-backed apps. The route
+// (the Kimu tariff in utils/tariff.ts, shared discount, rounded up to 100 RWF) so the numbers match the server-backed apps. The route
 // follows real streets when a routing service answered (roads.ts) and is a local
 // curve otherwise; there is no surge.
 

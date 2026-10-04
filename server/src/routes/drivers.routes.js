@@ -1,3 +1,4 @@
+const { queryPoint } = require('../utils/location');
 const express = require('express');
 const crypto = require('crypto');
 const { recentTrail, nowMs } = require('../services/driverTrails');
@@ -100,8 +101,7 @@ passengerFacing.get(
   '/nearby',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
+    const { latitude: lat, longitude: lng } = queryPoint(req.query, 'lat', 'lng');
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       throw new ApiError(400, 'lat and lng are required.');
     }
@@ -240,7 +240,7 @@ active.post(
 active.post('/rides/:id/confirm-cash', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
     `SELECT p.* FROM payments p JOIN rides r ON r.id = p.ride_id
-      WHERE r.id = $1 AND r.driver_id = $2 AND r.status = 'paymentPending'
+      WHERE r.id = $1 AND r.driver_id = $2 AND (r.status = 'paymentPending' OR (r.status='completed' AND p.status='succeeded'))
         AND p.method = 'cash' ORDER BY p.created_at DESC LIMIT 1`,
     [req.params.id, req.driverId]
   );

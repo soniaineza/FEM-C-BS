@@ -144,7 +144,7 @@ route('POST', '/auth/verify-otp', 'none', async ({ db, body, now }) => {
   }
   if (!passenger.verifiedAt) {
     passenger.verifiedAt = iso(now);
-    // A self-contained wallet so "pay with FEM Wallet" can be tried straight away.
+    // A self-contained wallet so "pay with Kimu Wallet" can be tried straight away.
     db.walletTxns.push({
       id: uid('wtx', db),
       passengerId: passenger.id,
@@ -155,7 +155,7 @@ route('POST', '/auth/verify-otp', 'none', async ({ db, body, now }) => {
       createdAt: iso(now),
     });
     notify(db, 'passenger', passenger.id, {
-      title: 'Welcome to FEM C@BS',
+      title: 'Welcome to Kimu Transport',
       body: `We added ${formatRwf(WELCOME_CREDIT)} of demo credit to your wallet.`,
       type: 'general',
     });
@@ -403,7 +403,7 @@ route('POST', '/wallet/topup', 'passenger', ({ db, passenger, body, now }) => {
   });
   notify(db, 'passenger', passenger!.id, {
     title: 'Wallet topped up',
-    body: `${formatRwf(amount)} was added to your FEM Wallet.`,
+    body: `${formatRwf(amount)} was added to your Kimu Wallet.`,
     type: 'payment',
   });
   return created({ topup: topupToJson(topup) });
@@ -495,7 +495,7 @@ export function openTicket(
     ticketId: ticket.id,
     senderRole: 'support',
     message:
-      'Thanks for contacting FEM C@BS. This build runs without a server, so your request is saved on this phone and no support agent will reply. For anything urgent, please call us.',
+      'Thanks for contacting Kimu Transport. This build runs without a server, so your request is saved on this phone and no support agent will reply. For anything urgent, please call us.',
     createdAt: iso(now + 1000),
   });
   return ticket;
@@ -577,7 +577,7 @@ export async function recordEmergency(ctx: Ctx, role: 'passenger' | 'driver', ow
   const texted = await sendSms(
     'sos',
     person?.emergencyContactPhone,
-    `${SMS_BRAND} SOS ${reference}: ${person?.fullName ?? 'Your contact'} sent an emergency alert from a FEM C@BS trip. Location: ${where}. Please call them now.`
+    `${SMS_BRAND} SOS ${reference}: ${person?.fullName ?? 'Your contact'} sent an emergency alert from a Kimu Transport trip. Location: ${where}. Please call them now.`
   );
   notify(db, role, ownerId, {
     title: role === 'passenger' ? 'SOS alert recorded' : 'Emergency recorded',

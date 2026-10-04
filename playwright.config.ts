@@ -7,9 +7,9 @@ import path from 'node:path';
 // react-native-web) against a running API + demo fleet:
 //
 //   1. API:  cd server && DEV_REVEAL_CODES=1 DEMO_PAYMENTS=1 DEMO_FLEET=1 \
-//              ADMIN_API_KEY=e2e-admin-key-0123456789abcdef npm start
-//   2. Web:  EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api npx expo start --web
-//   3.       npm run test:e2e
+//              ADMIN_API_KEY=e2e-admin-key-0123456789abcdef bun run dev
+//   2. Web:  EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api bunx expo start --web
+//   3.       bun run test:e2e
 //
 // Native-only behaviour (Android WebView map, keyboard, status bar, dialer)
 // needs a device/emulator run (e.g. Maestro); see tests/e2e/README.md.

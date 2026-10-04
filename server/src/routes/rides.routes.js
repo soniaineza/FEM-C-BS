@@ -1,6 +1,7 @@
 const express = require('express');
 
 const { getPool } = require('../db');
+const { locationSample, validCoordinates } = require('../utils/location');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { rideToJson, paymentToJson, receiptToJson } = require('../utils/serialize');
 const { requireAuth } = require('../middleware/auth');
@@ -49,20 +50,16 @@ router.post(
 router.post(
   '/location',
   asyncHandler(async (req, res) => {
-    const { latitude, longitude, heading } = req.body || {};
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      throw new ApiError(400, 'latitude and longitude are required.');
-    }
+    const { latitude, longitude, heading, measuredAt, accuracy } = locationSample(req.body || {});
     await getPool().query(
-      `INSERT INTO passenger_locations (passenger_id, latitude, longitude, heading, recorded_at)
-       VALUES ($1,$2,$3,$4, now())
-       ON CONFLICT (passenger_id) DO UPDATE SET
-         latitude = EXCLUDED.latitude,
-         longitude = EXCLUDED.longitude,
-         heading = EXCLUDED.heading,
-         recorded_at = now()`,
-      [req.passengerId, latitude, longitude, heading ?? null]
-    );
+      `INSERT INTO passenger_locations (passenger_id, latitude, longitude, heading, measured_at, accuracy, ride_id, recorded_at)
+       SELECT $1,$2,$3,$4,$5,$6,r.id,now() FROM rides r WHERE r.passenger_id=$1
+         AND r.status IN ('searchingDriver','driverAssigned','driverArriving','driverArrived')
+       ON CONFLICT (passenger_id) DO UPDATE SET latitude=EXCLUDED.latitude, longitude=EXCLUDED.longitude,
+         heading=EXCLUDED.heading, measured_at=EXCLUDED.measured_at, accuracy=EXCLUDED.accuracy,
+         ride_id=EXCLUDED.ride_id, recorded_at=now()
+       WHERE passenger_locations.measured_at IS NULL OR passenger_locations.measured_at < EXCLUDED.measured_at`,
+      [req.passengerId,latitude,longitude,heading ?? null,measuredAt,accuracy]);
     res.status(204).end();
   })
 );
@@ -80,8 +77,10 @@ router.get(
 );
 
 function parseLatLng(value) {
-  const [lat, lng] = String(value || '').split(',').map(Number);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const parts = String(value || '').split(',');
+  if (parts.length !== 2) return null;
+  const [lat, lng] = parts.map(Number);
+  if (!validCoordinates({ latitude: lat, longitude: lng }) || String(value).split(',').some((v) => !v.trim())) return null;
   return { latitude: lat, longitude: lng };
 }
 
@@ -157,7 +156,7 @@ router.get(
     if (!ride.driver_id) return res.json({ location: null });
     const { rows } = await getPool().query(
       `SELECT * FROM driver_locations WHERE driver_id = $1
-         AND recorded_at > now() - ($2 || ' seconds')::interval`,
+         AND measured_at > now() - ($2 || ' seconds')::interval`,
       [ride.driver_id, LOCATION_MAX_AGE_SECONDS]
     );
     const loc = rows[0];
@@ -169,7 +168,7 @@ router.get(
             latitude: loc.latitude,
             longitude: loc.longitude,
             heading: loc.heading ?? null,
-            recordedAt: loc.recorded_at,
+            recordedAt: loc.measured_at,
             trail: recentTrail(ride.driver_id, now),
           }
         : null,
@@ -261,7 +260,7 @@ router.get(
       if (current.driver_id) {
         const loc = await getPool().query(
           `SELECT * FROM driver_locations WHERE driver_id = $1
-             AND recorded_at > now() - ($2 || ' seconds')::interval`,
+             AND measured_at > now() - ($2 || ' seconds')::interval`,
           [current.driver_id, LOCATION_MAX_AGE_SECONDS]
         );
         if (loc.rows[0]) {
@@ -271,7 +270,7 @@ router.get(
               latitude: loc.rows[0].latitude,
               longitude: loc.rows[0].longitude,
               heading: loc.rows[0].heading ?? null,
-              recordedAt: loc.rows[0].recorded_at,
+              recordedAt: loc.rows[0].measured_at,
             },
           });
         }

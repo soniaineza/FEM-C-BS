@@ -33,7 +33,7 @@ export default function DriverMoreScreen() {
             ) : (
               <Badge label={t('driverNoRatingYet')} />
             )}
-            <Badge label={t('driverTripsCount', { count: currentDriver?.totalTrips ?? 0 })} />
+            <Badge label={((currentDriver?.totalTrips ?? 0) === 1 ? t('driverTripsCountOne') : t('driverTripsCount', { count: currentDriver?.totalTrips ?? 0 }))} />
           </View>
         </View>
         <Ionicons name="chevron-forward" size={18} color={Colors['fg-disabled']} />

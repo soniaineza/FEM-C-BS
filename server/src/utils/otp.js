@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { config } = require('../config');
+const { transaction, getPool } = require('../db');
+const { ApiError } = require('./asyncHandler');
 
 /**
  * Generates a cryptographically secure N-digit numeric code (default from
@@ -17,7 +19,17 @@ function generateCode(length = config.otpLength) {
  * Issues a new verification code for a passenger, invalidating any previous
  * unused code of the same purpose (single active code per purpose).
  */
-async function issueCode(pool, { passengerId, purpose }) {
+async function issueCode(pool, params) {
+  return transaction(async () => {
+    await getPool().query('SELECT id FROM passengers WHERE id=$1 FOR UPDATE', [params.passengerId]);
+    return issueCodeLocked(getPool(), params);
+  });
+}
+async function issueCodeLocked(pool, { passengerId, purpose, cooldown = false }) {
+  if (cooldown) {
+    const last = (await pool.query('SELECT created_at FROM verification_codes WHERE passenger_id=$1 AND purpose=$2 ORDER BY created_at DESC LIMIT 1', [passengerId, purpose])).rows[0];
+    if (last && Date.now() - new Date(last.created_at).getTime() < config.otpResendCooldownSeconds * 1000) throw new ApiError(429, 'Please wait before requesting a new code.');
+  }
   const code = generateCode();
   const codeHash = await hashCode(code);
   const { rows } = await pool.query(
@@ -41,12 +53,16 @@ async function issueCode(pool, { passengerId, purpose }) {
  * attempt limit is exceeded. Returns { ok, code, used } where processCode is a
  * callback to (finally) mark the code as used.
  */
-async function verifyCode(pool, { passengerId, purpose, code }) {
+async function verifyCode(pool, params) {
+  return transaction(() => verifyCodeLocked(getPool(), params));
+}
+async function verifyCodeLocked(pool, { passengerId, purpose, code, apply }) {
+  await pool.query('SELECT id FROM passengers WHERE id=$1 FOR UPDATE', [passengerId]);
   const { rows } = await pool.query(
     `SELECT id, code_hash, attempts
        FROM verification_codes
       WHERE passenger_id = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now()
-      ORDER BY created_at DESC LIMIT 1`,
+      ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
     [passengerId, purpose]
   );
   const record = rows[0];
@@ -61,19 +77,15 @@ async function verifyCode(pool, { passengerId, purpose, code }) {
       `UPDATE verification_codes
           SET attempts = attempts + 1,
               used_at = CASE WHEN attempts + 1 >= $2 THEN now() ELSE used_at END
-        WHERE id = $1`,
+        WHERE id = $1 AND used_at IS NULL AND attempts < $2`,
       [record.id, config.otpMaxAttempts]
     );
     return { ok: false, reason: 'invalid', processCode: null };
   }
 
-  const processCode = async () => {
-    await pool.query(
-      'UPDATE verification_codes SET used_at = now() WHERE id = $1',
-      [record.id]
-    );
-  };
-  return { ok: true, reason: 'ok', processCode };
+  await pool.query('UPDATE verification_codes SET used_at=now() WHERE id=$1', [record.id]);
+  if (apply) await apply(pool);
+  return { ok: true, reason: 'ok', processCode: async () => {} };
 }
 
 async function hashCode(code) {

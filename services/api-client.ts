@@ -1,3 +1,4 @@
+import { fetchResponse } from './http-response';
 import { getToken } from '../storage/session';
 import { useLocaleStore } from '../stores/useLocaleStore';
 import { tFor } from '../utils/i18n-errors';
@@ -36,15 +37,6 @@ function translatedError(kind: 'unreachable' | 'timeout' | 'failed', status?: nu
   return new ApiError(tFor(locale, key), status);
 }
 
-async function safeJson(res: Response): Promise<any> {
-  const text = await res.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {};
-  }
-}
 
 // Standalone build (EXPO_PUBLIC_OFFLINE_DEMO=1): the request is answered by the
 // on-device backend in services/offline/ instead of going over the network;
@@ -72,32 +64,20 @@ async function send<T>(
   if (OFFLINE_DEMO) return sendOffline<T>(method, path, body, auth);
   const token = auth ? await getToken() : null;
 
-  const attempt = async (): Promise<Response> => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-      return await fetch(`${BASE_URL}${path}`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-  };
+  const attempt = () => fetchResponse(`${BASE_URL}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  }, REQUEST_TIMEOUT_MS);
 
-  let res: Response;
+  let response: Awaited<ReturnType<typeof fetchResponse>>;
   try {
-    res = await attempt();
+    response = await attempt();
   } catch (err) {
     const canRetry = method === 'GET';
     if (canRetry) {
       try {
-        res = await attempt();
+        response = await attempt();
       } catch (retryErr) {
         throw toNetworkError(retryErr);
       }
@@ -106,7 +86,7 @@ async function send<T>(
     }
   }
 
-  const json = await safeJson(res);
+  const { res, json } = response;
   if (!res.ok) {
     // server/src/middleware/errorHandler.js always responds
     // { error: message } — verified live against the running backend.

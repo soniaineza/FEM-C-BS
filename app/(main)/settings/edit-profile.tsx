@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { router } from 'expo-router';
 import { View, Text } from 'react-native';
 import { KeyboardFormScrollView } from '../../../components/layout/KeyboardFormScrollView';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
@@ -43,7 +44,8 @@ export default function EditProfileScreen() {
         emergencyContactName: emergencyName.trim() || undefined,
         emergencyContactPhone: emergencyPhone.trim() || undefined,
       });
-      goBack();
+      if (useAuthStore.getState().pendingPassenger) router.replace('/(auth)/verification');
+      else goBack();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : undefined);
     } finally {

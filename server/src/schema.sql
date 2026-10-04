@@ -444,3 +444,39 @@ ALTER TABLE rides ADD COLUMN IF NOT EXISTS surge_multiplier DOUBLE PRECISION;
 
 -- Direction of travel, so maps can orient the car.
 ALTER TABLE drivers ADD COLUMN IF NOT EXISTS current_heading DOUBLE PRECISION;
+
+-- Drivers who declined or ignored an offer for a ride are not offered it again.
+CREATE TABLE IF NOT EXISTS ride_declined_drivers (
+  ride_id UUID NOT NULL REFERENCES rides(id) ON DELETE CASCADE,
+  driver_id UUID NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (ride_id, driver_id)
+);
+
+-- Accounts are anonymised, never hard-deleted: rides, receipts and driver
+-- earnings must outlive the person who took the trip.
+ALTER TABLE passengers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- Correctness constraints and location measurement provenance.
+ALTER TABLE passengers ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS booking_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rides_booking_key ON rides(passenger_id, booking_key) WHERE booking_key IS NOT NULL;
+-- Skipped with a warning when older data already breaks the rule: failing here
+-- would roll back the whole schema and stop the API from booting. Clean the
+-- duplicates up and restart to get the index.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM rides WHERE status NOT IN ('completed','cancelled') GROUP BY passenger_id HAVING count(*) > 1) THEN
+    RAISE WARNING 'idx_rides_one_live_passenger not created: some passengers have more than one live ride';
+  ELSE
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_rides_one_live_passenger ON rides(passenger_id) WHERE status NOT IN ('completed','cancelled');
+  END IF;
+END $$;
+ALTER TABLE driver_locations ADD COLUMN IF NOT EXISTS measured_at TIMESTAMPTZ;
+ALTER TABLE driver_locations ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM wallet_transactions WHERE source='ride_payment' AND type='debit' GROUP BY reference HAVING count(*) > 1) THEN
+    RAISE WARNING 'idx_wallet_ride_debit_reference not created: duplicate ride-payment debits exist';
+  ELSE
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_ride_debit_reference ON wallet_transactions(reference) WHERE source='ride_payment' AND type='debit';
+  END IF;
+END $$;

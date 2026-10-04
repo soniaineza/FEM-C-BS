@@ -45,6 +45,8 @@ interface LatLng {
 }
 
 const PIN_ZOOM = 17;
+const SAME_POINT_DEG = 1e-6; // ~0.1 m: the pin has not moved
+const HEADER_PADDING_BOTTOM = 8;
 
 /**
  * Pick a place the way Uber/Bolt do: a full-screen map under a fixed centre
@@ -69,8 +71,13 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
   const [cameraTarget, setCameraTarget] = useState<LatLng>(
     start ? { latitude: start.latitude!, longitude: start.longitude! } : locationService.MapDefaults
   );
+  const alive = useRef(true);
+  const intent = useRef(0);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; lookupId.current++; searchId.current++; intent.current++; }; }, []);
   const [cameraToken, setCameraToken] = useState(0);
   const moveCamera = useCallback((to: LatLng) => {
+    setMoving(true);
+    setResolving(true);
     setCameraTarget(to);
     setCameraToken((n) => n + 1);
   }, []);
@@ -84,17 +91,24 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
   const [moving, setMoving] = useState(false);
   const lookupId = useRef(0);
   const skipNextLookup = useRef(Boolean(start && initial)); // keep an already chosen label
+  // Where the label on screen was resolved (or chosen). The camera can settle
+  // on that same point again without the pin moving (a layout change re-centres
+  // it under the pin); looking it up again would only flicker the card.
+  const resolvedAt = useRef<LatLng | null>(null);
 
-  const resolveAddress = useDebouncedCallback(async (pos: LatLng) => {
-    const id = ++lookupId.current;
-    setResolving(true);
+  const resolveAddress = useDebouncedCallback(async (pos: LatLng, id: number) => {
+    if (!alive.current || id !== lookupId.current) return;
     try {
       const place = await locationService.reverseGeocode(pos);
       if (id !== lookupId.current) return; // a newer spot was chosen meanwhile
       const generic = !place.address || place.address === 'Current location' || place.address === 'Unknown location';
+      resolvedAt.current = pos;
       setCandidate({ ...place, ...pos, address: generic ? t('pinnedLocation') : place.address });
     } catch {
-      if (id === lookupId.current) setCandidate({ address: t('pinnedLocation'), ...pos });
+      if (id === lookupId.current) {
+        resolvedAt.current = pos;
+        setCandidate({ address: t('pinnedLocation'), ...pos });
+      }
     } finally {
       if (id === lookupId.current) setResolving(false);
     }
@@ -102,15 +116,24 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
 
   const onCenterChanged = useCallback(
     (latitude: number, longitude: number) => {
+      const id = ++lookupId.current;
       setMoving(false);
       const pos = { latitude, longitude };
       setCenter(pos);
-      if (skipNextLookup.current) {
+      const settled = resolvedAt.current;
+      const samePoint = settled != null
+        && Math.abs(settled.latitude - latitude) < SAME_POINT_DEG
+        && Math.abs(settled.longitude - longitude) < SAME_POINT_DEG;
+      if (skipNextLookup.current || samePoint) {
         skipNextLookup.current = false;
+        resolvedAt.current = pos;
+        setCandidate((c) => c ? { ...c, ...pos } : { address: t('pinnedLocation'), ...pos });
+        setResolving(false);
         return;
       }
       setCandidate((c) => (c ? { ...c, ...pos } : { address: t('findingAddress'), ...pos }));
-      resolveAddress(pos);
+      setResolving(true);
+      resolveAddress(pos, id);
     },
     [resolveAddress, t]
   );
@@ -121,6 +144,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
   // interactive: the rider tapped the locate button, so re-asking after an
   // earlier "Not now" is wanted. The automatic call on open stays passive.
   const locate = useCallback(async (interactive = false) => {
+    const generation = ++intent.current;
     setLocating(true);
     setGpsError(null);
     try {
@@ -130,16 +154,19 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
         setGpsError(t('locationNotGranted'));
         return;
       }
-      const here = await locationService.getCurrentPlace();
+      const here = await locationService.getCurrentPlace({ force: interactive });
+      if (!alive.current || generation !== intent.current) return;
       if (here.latitude == null || here.longitude == null) return;
       skipNextLookup.current = false;
       moveCamera({ latitude: here.latitude, longitude: here.longitude });
     } catch {
       // Was surfacing raw English Error messages from the service straight into
       // the UI; these are rider-facing, so they come from the dictionary.
-      setGpsError(t('couldNotReadLocationSetManual'));
+      if (alive.current && generation === intent.current) setGpsError(t('couldNotReadLocationSetManual'));
     } finally {
-      setLocating(false);
+      // Only the newest request owns the spinner: a superseded one must not
+      // clear it under a later locate().
+      if (alive.current && generation === intent.current) setLocating(false);
     }
   }, [moveCamera, ensurePermission, t]);
   useEffect(() => {
@@ -157,8 +184,8 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
   useEffect(() => {
     if (mode === 'destination') getRecentPlaces().then(setRecent).catch(() => {});
   }, [mode]);
-  const runSearch = useDebouncedCallback(async (q: string) => {
-    const id = ++searchId.current;
+  const runSearch = useDebouncedCallback(async (q: string, id: number) => {
+    if (!alive.current || id !== searchId.current) return;
     if (q.trim().length < 2) {
       setResults([]);
       setSearching(false);
@@ -176,6 +203,12 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
   }, 350);
 
   function chooseResult(place: Place) {
+    intent.current++;
+    lookupId.current++;
+    searchId.current++;
+    setLocating(false);
+    setResolving(false);
+    setSearching(false);
     Keyboard.dismiss();
     setFocused(false);
     setQuery('');
@@ -220,7 +253,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
     }),
     // padding only matters once measured; cars update the scene on their own
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cameraTarget, cameraToken, measured, cars, serverTimeOffsetMs]
+    [cameraTarget, cameraToken, headerHeight, sheetHeight, cars, serverTimeOffsetMs]
   );
 
   const pinStyle = useAnimatedStyle(() => ({
@@ -228,7 +261,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
   }));
 
   function confirm() {
-    if (!candidate || resolving || !placeHasCoordinates(candidate)) return;
+    if (!candidate || resolving || moving || locating || !placeHasCoordinates(candidate)) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     onConfirm(candidate);
   }
@@ -239,9 +272,12 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
         <LiveMap
           scene={scene}
           onCenterChanged={onCenterChanged}
-          onUserGesture={() => setMoving(true)}
+          onUserGesture={() => { skipNextLookup.current = false; intent.current++; lookupId.current++; setLocating(false); setMoving(true); setResolving(true); }}
           onPress={(latitude, longitude) => {
+            skipNextLookup.current = false; intent.current++; lookupId.current++;
+            setLocating(false);
             setMoving(true);
+            setResolving(true);
             moveCamera({ latitude, longitude });
           }}
           loadingLabel={t('mapLoading')}
@@ -266,12 +302,15 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
       ) : null}
 
       {/* Header: back + search. */}
-      <View
-        onLayout={(e: LayoutChangeEvent) => setHeaderHeight(Math.round(e.nativeEvent.layout.height))}
-        style={[styles.header, { paddingTop: insets.top + 8 }]}
-        pointerEvents="box-none"
-      >
-        <View style={styles.searchRow}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+        {/* Measured without the results list, which overlays the map: a list
+            opening or closing must not move the pin or the camera. */}
+        <View
+          style={styles.searchRow}
+          onLayout={(e: LayoutChangeEvent) =>
+            setHeaderHeight(Math.round(e.nativeEvent.layout.y + e.nativeEvent.layout.height + HEADER_PADDING_BOTTOM))
+          }
+        >
           <Pressable accessibilityRole="button" accessibilityLabel={t('back')} onPress={() => goBack()} hitSlop={8} style={styles.roundButton}>
             <Ionicons name="arrow-back" size={22} color={KimuColors.ink} />
           </Pressable>
@@ -284,7 +323,9 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
               value={query}
               onChangeText={(text) => {
                 setQuery(text);
-                runSearch(text);
+                setResults([]);
+                setSearching(text.trim().length >= 2);
+                runSearch(text, ++searchId.current);
               }}
               onFocus={() => setFocused(true)}
               returnKeyType="search"
@@ -292,7 +333,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
             />
             {searching ? <ActivityIndicator size="small" color={KimuColors.primary} /> : null}
             {query ? (
-              <Pressable hitSlop={8} onPress={() => { setQuery(''); setResults([]); }}>
+              <Pressable hitSlop={8} onPress={() => { searchId.current++; setQuery(''); setResults([]); setSearching(false); }}>
                 <Ionicons name="close-circle" size={18} color={KimuColors.muted} />
               </Pressable>
             ) : null}
@@ -331,21 +372,26 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
         collapsible={false}
         onHeightChange={setSheetHeight}
         header={
-          <Text style={styles.sheetTitle}>{mode === 'pickup' ? t('setPickup') : t('chooseDestination')}</Text>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{mode === 'pickup' ? t('setPickup') : t('chooseDestination')}</Text>
+            {mode === 'pickup' ? <Text style={styles.sheetHint}>{t('startingFromHint')}</Text> : null}
+          </View>
         }
         footer={
           <Button
             title={mode === 'pickup' ? t('confirmPickup') : t('confirmDestination')}
             onPress={confirm}
-            disabled={!candidate || resolving || moving}
+            disabled={!candidate || resolving || moving || locating}
           />
         }
       >
         <View style={styles.addressRow}>
           <View style={[styles.addressIcon, mode === 'destination' && styles.addressIconSquare]} />
-          <Text numberOfLines={2} style={styles.addressText}>
-            {moving ? t('movePinHint') : resolving || !candidate ? t('findingAddress') : candidate.address}
-          </Text>
+          <View style={styles.addressTextBox}>
+            <Text numberOfLines={2} style={styles.addressText}>
+              {moving ? t('movePinHint') : resolving || !candidate ? t('findingAddress') : candidate.address}
+            </Text>
+          </View>
         </View>
         {gpsError ? <Text style={styles.error}>{gpsError}</Text> : null}
       </MapSheet>
@@ -364,7 +410,7 @@ const shadow = {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   mapPlaceholder: { backgroundColor: '#eef0f2' },
-  header: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 8 },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: HEADER_PADDING_BOTTOM },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   roundButton: {
     width: 44,
@@ -407,10 +453,15 @@ const styles = StyleSheet.create({
   pinStem: { width: 3, height: 16, backgroundColor: KimuColors.ink, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
   pinShadow: { width: 12, height: 5, borderRadius: 6, backgroundColor: '#000', marginTop: 1 },
   locate: { position: 'absolute', right: 16 },
-  sheetTitle: { fontSize: 18, fontWeight: '700', color: KimuColors.ink, marginBottom: 10 },
+  sheetHeader: { marginBottom: 10 },
+  sheetTitle: { fontSize: 18, fontWeight: '700', color: KimuColors.ink },
+  sheetHint: { marginTop: 2, fontSize: 13, color: KimuColors.textSecondary },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   addressIcon: { width: 12, height: 12, borderRadius: 6, backgroundColor: KimuColors.ink },
   addressIconSquare: { borderRadius: 2 },
-  addressText: { flex: 1, fontSize: 15, fontWeight: '500', color: KimuColors.ink },
+  // Two lines reserved: the hint, "Finding address..." and the address differ in
+  // length, and a card that changed height with them moved the pin each time.
+  addressTextBox: { flex: 1, minHeight: 40, justifyContent: 'center' },
+  addressText: { fontSize: 15, lineHeight: 20, fontWeight: '500', color: KimuColors.ink },
   error: { marginTop: 6, fontSize: 13, color: KimuColors.error },
 });

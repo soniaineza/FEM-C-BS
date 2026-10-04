@@ -91,12 +91,8 @@ export default function DriverJourneyScreen() {
   const companions = myRides.filter((r) => r.id !== rideId && r.status !== 'driverAssigned');
   const waitingOffers = myRides.filter((r) => r.status === 'driverAssigned' && r.id !== rideId);
 
-  const meter = useLiveMeter(ride ? { rideType: ride.rideType } : null);
   const rideInTrip = !!ride && (ride.status === 'pinVerified' || ride.status === 'inProgress');
-  useEffect(() => {
-    if (rideInTrip && !meter.metering) meter.startMeter();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rideInTrip, meter.metering]);
+  const meter = useLiveMeter(ride && rideInTrip ? { rideId: ride.id, rideType: ride.rideType, startedAt: ride.startedAt } : null);
 
   const [pin, setPin] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -337,8 +333,7 @@ export default function DriverJourneyScreen() {
             <Card padded={false} className="mt-3 flex-row p-4">
               <MeterStat label={t('driverMeterDistance')} value={`${meter.distanceKm.toFixed(2)} km`} />
               <MeterStat label={t('driverMeterDuration')} value={formatClock(meter.elapsedSeconds)} />
-              <MeterStat label={t('waitingFare')} value={formatClock(meter.waitingSeconds)} />
-              <MeterStat label={t('driverMeterFare')} value={formatFare(Math.max(ride.estimatedFare, Math.round(meter.fare)))} />
+              <MeterStat label={t('driverMeterWaiting')} value={formatClock(meter.waitingSeconds)} />
             </Card>
             <View className="mt-3 gap-2">
               <Text className="mb-1 text-subhead font-semibold text-fg">{t('driverConfirmDropoffTitle')}</Text>

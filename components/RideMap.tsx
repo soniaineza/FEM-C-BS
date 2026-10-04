@@ -52,6 +52,14 @@ export const RideMap = memo(function RideMap({
   errorLabel,
   rounded = true,
 }: RideMapProps) {
+  // Callers build `markers` / `routePolyline` inline, so their identity changes
+  // on every render. Key the scene on their content instead: otherwise each
+  // re-render (a 1 s meter tick, a 4 s poll) re-sent the scene and snapped the
+  // camera back, so the map could not be panned or zoomed.
+  const markersKey = markers.map((m) => `${m.id}:${m.icon}:${m.position.latitude.toFixed(6)},${m.position.longitude.toFixed(6)}`).join('|');
+  const routeKey = routePolyline?.length
+    ? `${routePolyline.length}:${routePolyline[0].latitude},${routePolyline[0].longitude}:${routePolyline[routePolyline.length - 1].latitude},${routePolyline[routePolyline.length - 1].longitude}`
+    : '';
   const scene = useMemo<MapScene>(() => {
     const pins: MapMarker[] = [];
     const markerCars: MapCar[] = [];
@@ -72,7 +80,8 @@ export const RideMap = memo(function RideMap({
       cars: [...markerCars, ...(cars ?? [])],
       serverTimeOffsetMs,
     };
-  }, [center.latitude, center.longitude, zoom, markers, routePolyline, recenterToken, cars, serverTimeOffsetMs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center.latitude, center.longitude, zoom, markersKey, routeKey, recenterToken, cars, serverTimeOffsetMs]);
 
   return (
     <LiveMap

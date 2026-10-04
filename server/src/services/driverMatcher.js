@@ -1,7 +1,8 @@
-const { getPool } = require('../db');
+const { getPool, transaction } = require('../db');
 const { getTravelTimes } = require('./routing');
 const { haversineKm, bearingDegrees, bearingDiffDegrees } = require('../utils/distance');
 const { eligibleDriverSql } = require('./driverKyc');
+const { transitionRide } = require('./rideStateMachine');
 
 const MATCH_CANDIDATES = 8;
 const DEFAULT_MAX_MATCH_KM = 5;
@@ -45,8 +46,9 @@ async function findPoolableRide(ride) {
         AND r.vehicle_id = $1
         AND r.status = ANY($2)
         AND r.driver_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM ride_declined_drivers x WHERE x.ride_id = $3 AND x.driver_id = r.driver_id)
         AND d.verified = TRUE ${eligibleDriverSql}`,
-    [ride.vehicle_id, POOLABLE_STATUSES]
+    [ride.vehicle_id, POOLABLE_STATUSES, ride.id]
   );
   if (!candidates.length) return null;
 
@@ -124,9 +126,11 @@ async function findNearestDriver(ride) {
         AND d.status = 'active'
         AND d.current_latitude IS NOT NULL
         AND d.current_longitude IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM ride_declined_drivers x WHERE x.ride_id = $1 AND x.driver_id = d.id)
         ${eligibleDriverSql}
       ORDER BY d.rating DESC NULLS LAST
-      LIMIT 100`
+      LIMIT 100`,
+    [ride.id]
   );
 
   // Vehicle class: the requested class first; otherwise an upgrade (a
@@ -191,7 +195,21 @@ async function findNearestDriver(ride) {
  * own id — so later shared requests can find and join it; a private ride's
  * pool_group_id stays NULL.
  */
-async function assignDriver(rideId, driver, { poolGroupId = null } = {}) {
+async function assignDriver(rideId, driver, options = {}) {
+  return transaction(async (pool) => {
+    const { rows } = await pool.query(`SELECT d.* FROM drivers d WHERE d.id=$1 AND d.verified=TRUE ${eligibleDriverSql} FOR UPDATE`, [driver.id]);
+    const current = rows[0];
+    if (!current || (options.poolGroupId ? current.status !== 'busy' : current.status !== 'active')) return null;
+    if (options.poolGroupId) {
+      const active = await pool.query("SELECT id,status FROM rides WHERE pool_group_id=$1 AND status IN ('driverAssigned','driverArriving','driverArrived','pinVerified','inProgress') FOR UPDATE", [options.poolGroupId]);
+      const anchor = await pool.query("SELECT v.capacity FROM rides r JOIN vehicles v ON v.id=r.vehicle_id WHERE r.pool_group_id=$1 LIMIT 1", [options.poolGroupId]);
+      if (!anchor.rows[0] || !active.rows.length || active.rows.some((r) => !POOLABLE_STATUSES.includes(r.status)) || active.rows.length >= anchor.rows[0].capacity) return null;
+    }
+    return assignDriverLocked(rideId, current, options);
+  });
+}
+
+async function assignDriverLocked(rideId, driver, { poolGroupId = null } = {}) {
   const pool = getPool();
 
   const { rows } = await pool.query(
@@ -208,7 +226,7 @@ async function assignDriver(rideId, driver, { poolGroupId = null } = {}) {
          WHEN ride_type = 'shared' THEN id
          ELSE NULL
        END
-     WHERE id = $8 AND status = 'searchingDriver'
+     WHERE id = $8 AND status = 'searchingDriver' AND driver_id IS NULL
      RETURNING *`,
     [
       driver.id,
@@ -232,19 +250,9 @@ async function assignDriver(rideId, driver, { poolGroupId = null } = {}) {
       `UPDATE drivers SET status = 'busy' WHERE id = $1 AND status = 'active'`,
       [driver.id]
     );
-    // Fallback: persist live location even if this driver hasn't enabled the
-    // location stream yet.
-    await pool.query(
-      `INSERT INTO driver_locations (driver_id, latitude, longitude, recorded_at)
-       VALUES ($1,$2,$3, now())
-       ON CONFLICT (driver_id)
-       DO UPDATE SET latitude = EXCLUDED.latitude,
-                     longitude = EXCLUDED.longitude,
-                     recorded_at = now()`,
-      [driver.id, driver.current_latitude, driver.current_longitude]
-    );
+
   }
-  return ride;
+  return transitionRide(ride.id, 'driverAssigned', { changedBy: 'system', reason: 'driver matched' });
 }
 
 /** Assigns a ride directly onto an already-driving pool (no fresh nearest-
@@ -261,6 +269,12 @@ async function assignToPool(rideId, poolMatch) {
 /** Releases a driver back to the active pool once they have no other ride
  * still in progress (a pooled driver may still be driving a companion). */
 async function releaseDriver(driverId) {
+  return transaction(async (db) => {
+    await db.query('SELECT id FROM drivers WHERE id=$1 FOR UPDATE', [driverId]);
+    return releaseDriverLocked(driverId);
+  });
+}
+async function releaseDriverLocked(driverId) {
   const { rows } = await getPool().query(
     `SELECT 1 FROM rides WHERE driver_id = $1 AND status = ANY($2) LIMIT 1`,
     [driverId, DRIVER_ACTIVE_RIDE_STATUSES]

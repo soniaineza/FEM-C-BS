@@ -6,7 +6,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatFare } from '../../types/ride';
 import { TARIFF } from '../../utils/tariff';
 
-// Tariff information screen — the FEM rate card (utils/tariff.ts), the same
+// Tariff information screen — the Kimu rate card (utils/tariff.ts), the same
 // numbers riders are quoted and the live meter charges.
 export default function DriverTariffScreen() {
   const { t } = useTranslation();

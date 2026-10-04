@@ -2,10 +2,8 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  Easing,
   Extrapolation,
   interpolate,
-  withTiming,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -81,6 +79,10 @@ export function MapSheet({
   const [contentHeight, setContentHeight] = useState(0);
   const chromeHeight = headerHeight + footerHeight + padBottom;
   const [collapsed, setCollapsed] = useState(initiallyCollapsed);
+  // True while a drag or snap animation owns the body height. At rest the
+  // height comes from plain React state, so the sheet is always laid out
+  // correctly even if the animation thread is stalled.
+  const [animating, setAnimating] = useState(false);
   const bodyMax = Math.max(0, maxHeight - chromeHeight);
   const bodyOpen = Math.min(contentHeight, bodyMax);
   const scrolls = contentHeight > bodyMax + 1;
@@ -116,27 +118,10 @@ export function MapSheet({
     }
   }, [canCollapse, progress]);
 
-  // Entrance: our own spring to translateY 0. Reanimated's SlideInDown
-  // layout animation could leave a residual offset on Android release
-  // builds, pushing the footer button under the tab bar.
-  const enter = useSharedValue(1);
-  useEffect(() => {
-    // A timing curve, not a spring: a spring kept wobbling by sub-pixel
-    // amounts for seconds, so the sheet (and its buttons) never held still.
-    enter.value = withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) });
-    // Fail-safe: Android can pause Reanimated's frame loop (app paused by a
-    // system dialog) and leave the animation stuck mid-way — translucent and
-    // offset. Setting the value directly cancels it and lands the final state.
-    const done = setTimeout(() => {
-      enter.value = 0;
-    }, 700);
-    return () => clearTimeout(done);
-  }, [enter]);
-  const enterStyle = useAnimatedStyle(() => ({
-    // Slide only — never fade. A fading parent leaves the whole sheet
-    // translucent on Android if the animation is ever interrupted.
-    transform: [{ translateY: enter.value * 120 }],
-  }));
+  // No entrance animation: the sheet renders in place. A slide-in that
+  // started off-screen was left stranded below the tab bar whenever Android
+  // paused the animation loop (the first-launch permission dialogs do this),
+  // hiding the booking form entirely.
 
   const buzz = () => Haptics.selectionAsync().catch(() => {});
 
@@ -147,15 +132,19 @@ export function MapSheet({
       if (settleTimer.current) clearTimeout(settleTimer.current);
       settleTimer.current = setTimeout(() => {
         progress.value = expanded ? 1 : 0;
-      }, 900);
+        setAnimating(false);
+      }, 450);
     },
     [progress]
   );
-  useEffect(() => () => {
+  const cancelSettle = useCallback(() => {
     if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = null;
   }, []);
+  useEffect(() => cancelSettle, [cancelSettle]);
 
   function snap(expanded: boolean) {
+    setAnimating(true);
     progress.value = withSpring(expanded ? 1 : 0, SPRING);
     settle(expanded);
     buzz();
@@ -168,6 +157,9 @@ export function MapSheet({
     .failOffsetX([-24, 24])
     .onStart(() => {
       start.value = progress.value;
+      // A snap still settling must not land its target under the finger.
+      scheduleOnRN(cancelSettle);
+      scheduleOnRN(setAnimating, true);
     })
     .onUpdate((e) => {
       const range = Math.max(1, open.value);
@@ -231,7 +223,7 @@ export function MapSheet({
   const sheet = (
     <View style={[styles.sheet, backgroundColor ? { backgroundColor } : null, { paddingBottom: padBottom }]} collapsable={false}>
       {dragWholeSheet ? top : <GestureDetector gesture={pan}>{top}</GestureDetector>}
-      <Animated.View style={[styles.bodyClip, bodyStyle]}>
+      <Animated.View style={[styles.bodyClip, animating ? bodyStyle : { height: collapsed ? 0 : bodyOpen, opacity: collapsed ? 0 : 1 }]}>
         <ScrollView
           scrollEnabled={scrolls}
           bounces={false}
@@ -252,7 +244,7 @@ export function MapSheet({
 
   return (
     // Entrance (anchor) and drag (sheet internals) live on separate views.
-    <Animated.View style={[styles.anchor, enterStyle]} pointerEvents="box-none">
+    <Animated.View style={styles.anchor} pointerEvents="box-none">
       {floating ? (
         <View style={styles.floating} pointerEvents="box-none">
           {floating}

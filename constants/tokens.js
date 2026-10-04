@@ -1,4 +1,4 @@
-// FEM C@BS design tokens — the single source of truth for color, type,
+// Kimu Transport design tokens — the single source of truth for color, type,
 // radius and elevation. Consumed by tailwind.config.js (className utilities)
 // and constants/theme.ts (StyleSheet / icon colors), so the two can never
 // drift. CommonJS because the Tailwind config is loaded by Node directly.

@@ -525,7 +525,7 @@ describe('text messages through the SMS gateway', () => {
     assert.equal(s.devCode, undefined, 'a delivered code is not also shown on screen');
     assert.equal(lastText().to, '+250783334444');
     const code = /code is (\d{6})/.exec(lastText().text)[1];
-    assert.match(lastText().text, /^FEM CABS: your verification code is/);
+    assert.match(lastText().text, /^Kimu: your verification code is/);
     assert.equal((await call('POST', '/auth/verify-otp', { passengerId: s.passenger.id, code })).status, 200);
   });
 

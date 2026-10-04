@@ -1,3 +1,4 @@
+const { queryPoint } = require('../utils/location');
 const express = require('express');
 
 const { config } = require('../config');
@@ -119,8 +120,7 @@ router.get(
 router.get(
   '/reverse',
   asyncHandler(async (req, res) => {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
+    const { latitude: lat, longitude: lng } = queryPoint(req.query, 'lat', 'lng');
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       throw new ApiError(400, 'lat and lng are required.');
     }
@@ -178,10 +178,8 @@ async function nominatimReverse(lat, lng) {
 router.get(
   '/route',
   asyncHandler(async (req, res) => {
-    const fromLat = Number(req.query.fromLat);
-    const fromLng = Number(req.query.fromLng);
-    const toLat = Number(req.query.toLat);
-    const toLng = Number(req.query.toLng);
+    const { latitude: fromLat, longitude: fromLng } = queryPoint(req.query, 'fromLat', 'fromLng');
+    const { latitude: toLat, longitude: toLng } = queryPoint(req.query, 'toLat', 'toLng');
     if (![fromLat, fromLng, toLat, toLng].every(Number.isFinite)) {
       throw new ApiError(400, 'fromLat, fromLng, toLat and toLng are required.');
     }

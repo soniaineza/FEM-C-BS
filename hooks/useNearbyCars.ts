@@ -21,10 +21,15 @@ export function useNearbyCars(center: { latitude: number; longitude: number } | 
   const lng = center?.longitude;
 
   useEffect(() => {
-    if (!enabled || lat == null || lng == null) return;
+    if (!enabled || lat == null || lng == null) {
+      setCars([]);
+      return;
+    }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let lastServerTime: number | undefined;
+    let lastSuccess = Date.now();
+    const expiry = setInterval(() => { if (!cancelled && Date.now() - lastSuccess > 30_000) setCars([]); }, 1000);
 
     async function poll() {
       const sentAt = Date.now();
@@ -41,6 +46,7 @@ export function useNearbyCars(center: { latitude: number; longitude: number } | 
         // serverTime was taken mid-flight; smooth it so one slow response
         // doesn't make every car jump.
         const receivedAt = Date.now();
+        lastSuccess = receivedAt;
         const sample = serverTime - (sentAt + receivedAt) / 2;
         offsetRef.current = offsetRef.current == null ? sample : offsetRef.current * 0.8 + sample * 0.2;
         // Only re-render for a meaningful clock change (not every poll's jitter).
@@ -65,6 +71,7 @@ export function useNearbyCars(center: { latitude: number; longitude: number } | 
     poll();
     return () => {
       cancelled = true;
+      clearInterval(expiry);
       if (timer) clearTimeout(timer);
     };
   }, [enabled, lat, lng]);

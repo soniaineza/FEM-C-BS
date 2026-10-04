@@ -24,6 +24,7 @@ const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 // The standalone (server-free) build has to stay usable with no internet at
 // all, when the tile style cannot be fetched. Literal read so Metro inlines it.
 const OFFLINE_BUILD = process.env.EXPO_PUBLIC_OFFLINE_DEMO === '1';
+const STYLE_RECOVERY_MS = 8_000; // how often the tile-free fallback re-checks for the real style
 const STYLE_WATCHDOG_MS = 12_000; // an unreachable network errors out fast; this only catches a hung one
 
 /**
@@ -408,6 +409,8 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
   const loadedRef = useRef(false);
   const lastCameraKey = useRef('');
   const lastUserGestureAt = useRef(0);
+  // Where a 'center' camera move still in flight is heading (null once it lands).
+  const easingTo = useRef<{ latitude: number; longitude: number } | null>(null);
   const routeAnim = useRef<{ key: string; startedAt: number } | null>(null);
   const lastFollowAt = useRef(0);
   const lastZoomToken = useRef(0);
@@ -463,7 +466,10 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
       (w.__kimuMaps ??= []).push({ map, cars: () => carsRef.current });
     }
 
-    map.on('load', () => {
+    // Everything this component adds on top of a base style (3D buildings,
+    // route lines, the car layer). Runs for the first style and again whenever
+    // the base style is replaced, since replacing a style drops custom layers.
+    const decorate = () => {
       // Compact attribution starts expanded; keep it collapsed until tapped.
       container.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
       // 3D buildings (OpenMapTiles heights), under the labels. Absent on the
@@ -509,6 +515,10 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
       const layer = new CarLayer();
       carsRef.current = layer;
       map.addLayer(layer);
+    };
+
+    map.on('load', () => {
+      decorate();
       loadedRef.current = true;
       applyScene(sceneRef.current, true);
       callbacks.current.onReady?.();
@@ -517,7 +527,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     // No internet in the standalone build: swap to the tile-free style rather
     // than showing an error, once the style fetch fails or takes too long.
     let usedOfflineStyle = false;
-    const useOfflineStyle = () => {
+    const applyOfflineStyle = () => {
       if (!OFFLINE_BUILD || usedOfflineStyle || loadedRef.current) return false;
       usedOfflineStyle = true;
       const cam = sceneRef.current.camera;
@@ -528,20 +538,50 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
         }),
         { diff: false }
       );
+      startRecovery();
       return true;
     };
-    const watchdog = OFFLINE_BUILD ? setTimeout(useOfflineStyle, STYLE_WATCHDOG_MS) : null;
+    // The tile-free style is a stop-gap, not a verdict: a slow first launch
+    // (system permission dialogs, a cold connection) can trip the watchdog
+    // while the network is fine. Keep checking, and switch to the real map as
+    // soon as its style can be fetched.
+    let recovery: ReturnType<typeof setInterval> | null = null;
+    let recovering = false;
+    const startRecovery = () => {
+      if (recovery) return;
+      recovery = setInterval(async () => {
+        if (recovering) return;
+        recovering = true;
+        try {
+          const res = await fetch(STYLE_URL, { cache: 'no-store' });
+          if (!res.ok) return;
+          if (recovery) clearInterval(recovery);
+          recovery = null;
+          map.once('style.load', () => {
+            decorate();
+            applyScene(sceneRef.current, false);
+          });
+          map.setStyle(STYLE_URL, { diff: false });
+        } catch {
+          // still offline; try again on the next tick
+        } finally {
+          recovering = false;
+        }
+      }, STYLE_RECOVERY_MS);
+    };
+    const watchdog = OFFLINE_BUILD ? setTimeout(applyOfflineStyle, STYLE_WATCHDOG_MS) : null;
 
     map.on('error', (e) => {
       // Tile hiccups are routine; only a style that never loads is fatal.
       if (!loadedRef.current && !map.isStyleLoaded()) {
-        if (useOfflineStyle()) return;
+        if (applyOfflineStyle()) return;
         callbacks.current.onError?.(e.error?.message ?? 'The map could not be loaded.');
       }
     });
     map.on('click', (e) => callbacks.current.onPress?.(e.lngLat.lat, e.lngLat.lng));
     const markGesture = (e: any) => {
       if (e?.originalEvent) {
+        easingTo.current = null;
         lastUserGestureAt.current = Date.now();
         callbacks.current.onUserGesture?.();
       }
@@ -549,8 +589,14 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     map.on('dragstart', markGesture);
     map.on('zoomstart', markGesture);
     map.on('moveend', () => {
+      easingTo.current = null;
       if (sceneRef.current.reportCenter) {
-        const c = map.getCenter();
+        const padding = sceneRef.current.camera.padding;
+        const canvas = map.getCanvas();
+        const c = padding ? map.unproject([
+          padding.left + (canvas.clientWidth - padding.left - padding.right) / 2,
+          padding.top + (canvas.clientHeight - padding.top - padding.bottom) / 2,
+        ]) : map.getCenter();
         callbacks.current.onCenterChanged?.(c.lat, c.lng);
       }
     });
@@ -569,6 +615,7 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
       window.removeEventListener('unhandledrejection', onRejection);
       clearInterval(tick);
       if (watchdog) clearTimeout(watchdog);
+      if (recovery) clearInterval(recovery);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
@@ -607,11 +654,36 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     }
 
     const cam = s.camera;
-    const key = JSON.stringify([cam.mode, cam.token ?? 0, cam.center?.latitude, cam.center?.longitude, cam.zoom, cam.pitch]);
+    const key = JSON.stringify([cam.mode, cam.token ?? 0, cam.center?.latitude, cam.center?.longitude, cam.zoom, cam.pitch, cam.padding]);
     if (first || key !== lastCameraKey.current) {
+      const old = lastCameraKey.current ? JSON.parse(lastCameraKey.current) : null;
+      const sameTarget = old && JSON.stringify(old.slice(0, 6)) === JSON.stringify(JSON.parse(key).slice(0, 6));
+      let cameraScene = s;
+      // Only the padding changed (the pin picker's card or header resized).
+      if (!first && sameTarget && s.reportCenter && cam.mode === 'center') {
+        lastCameraKey.current = key;
+        if (easingTo.current && map.isEasing()) {
+          // A move the app asked for is still on its way: keep its destination.
+          // Reading the point under the pin now would cancel it half-way.
+          cameraScene = { ...s, camera: { ...cam, center: easingTo.current } };
+        } else if (map.isMoving()) {
+          // The rider is dragging the map: leave the camera to them. The centre
+          // reported when they let go is read under the pin's new position.
+          return;
+        } else {
+          // At rest: keep the selected point under the pin's new position.
+          const previousPadding = old[6];
+          const canvas = map.getCanvas();
+          const point = previousPadding ? map.unproject([
+            previousPadding.left + (canvas.clientWidth - previousPadding.left - previousPadding.right) / 2,
+            previousPadding.top + (canvas.clientHeight - previousPadding.top - previousPadding.bottom) / 2,
+          ]) : map.getCenter();
+          cameraScene = { ...s, camera: { ...cam, center: { latitude: point.lat, longitude: point.lng } } };
+        }
+      }
       lastCameraKey.current = key;
       lastUserGestureAt.current = 0;
-      applyCamera(s, !first);
+      applyCamera(cameraScene, !first);
     }
   }
 
@@ -699,10 +771,40 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     return pts;
   }
 
+  /**
+   * Padding scaled down to the canvas: on a small embedded map (or before
+   * layout) the fixed paddings left no room, MapLibre gave up ("cannot fit
+   * within canvas") and the camera never framed the route.
+   */
+  function safePadding(given: { top: number; bottom: number; left: number; right: number } | undefined, fallback: number) {
+    const canvas = mapRef.current!.getCanvas();
+    const w = canvas.clientWidth || 0;
+    const h = canvas.clientHeight || 0;
+    // No padding asked for: a margin proportional to the map, so a small
+    // embedded map is not zoomed far out just to honour a full-screen margin.
+    const p = given ?? {
+      top: Math.min(fallback, h * 0.14 || fallback),
+      bottom: Math.min(fallback, h * 0.14 || fallback),
+      left: Math.min(fallback * 0.7, w * 0.1 || fallback),
+      right: Math.min(fallback * 0.7, w * 0.1 || fallback),
+    };
+    if (!w || !h) return p; // not laid out yet: leave it, the fit is skipped as unusable
+    const kx = p.left + p.right > w * 0.8 ? (w * 0.8) / (p.left + p.right) : 1;
+    const ky = p.top + p.bottom > h * 0.8 ? (h * 0.8) / (p.top + p.bottom) : 1;
+    return { top: p.top * ky, bottom: p.bottom * ky, left: p.left * kx, right: p.right * kx };
+  }
+
+  /** cameraForBounds can return a NaN centre on a zero-sized canvas; easing to it throws and takes the page down. */
+  function usableCamera(c: ReturnType<maplibregl.Map['cameraForBounds']>): c is NonNullable<typeof c> {
+    if (!c || !c.center) return false;
+    const { lng, lat } = maplibregl.LngLat.convert(c.center as any);
+    return Number.isFinite(lng) && Number.isFinite(lat) && Number.isFinite(c.zoom as number);
+  }
+
   function applyCamera(s: MapScene, animate: boolean) {
     const map = mapRef.current!;
     const cam = s.camera;
-    const padding = cam.padding ?? { top: 60, bottom: 60, left: 40, right: 40 };
+    const padding = safePadding(cam.padding, 60);
     const duration = animate ? 800 : 0;
     if (cam.mode === 'center' && cam.center) {
       map.easeTo({
@@ -712,12 +814,14 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
         padding,
         duration,
       });
+      // Set after easeTo: starting it ends any earlier move (firing 'moveend').
+      easingTo.current = map.isEasing() ? { latitude: cam.center.latitude, longitude: cam.center.longitude } : null;
       return;
     }
     const bounds = boundsOf(interestingPoints(s));
     if (!bounds) return;
     const cameraOpts = map.cameraForBounds(bounds, { padding, maxZoom: cam.zoom ?? 16.5 });
-    if (cameraOpts) map.easeTo({ ...cameraOpts, pitch: cam.pitch ?? 0, duration });
+    if (usableCamera(cameraOpts)) map.easeTo({ ...cameraOpts, pitch: cam.pitch ?? 0, duration });
   }
 
   /** Follow mode: keep the assigned car and what's left of the route framed. */
@@ -740,10 +844,10 @@ export default function MapEngine({ scene, onReady, onError, onPress, onCenterCh
     const bounds = boundsOf(pts);
     if (!bounds) return;
     const cameraOpts = map.cameraForBounds(bounds, {
-      padding: s.camera.padding ?? { top: 80, bottom: 80, left: 50, right: 50 },
+      padding: safePadding(s.camera.padding, 80),
       maxZoom: s.camera.zoom ?? 16.5,
     });
-    if (cameraOpts) map.easeTo({ ...cameraOpts, pitch: s.camera.pitch ?? 45, duration: 1100, easing: (x) => x });
+    if (usableCamera(cameraOpts)) map.easeTo({ ...cameraOpts, pitch: s.camera.pitch ?? 45, duration: 1100, easing: (x) => x });
   }
 
   return (

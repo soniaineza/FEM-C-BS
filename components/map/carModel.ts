@@ -17,7 +17,7 @@ import { CAR_MODEL_GLB_BASE64 } from './carModelData';
 // or if they fail. Geometry/materials are shared between cars either way.
 //
 // Stylised look (both kinds): cel shading (MeshToonMaterial, 3-step ramp),
-// a soft ink outline (inverted hull on smoothed normals), a glowing FEM taxi
+// a soft ink outline (inverted hull on smoothed normals), a glowing Kimu taxi
 // sign on the roof and brake lights the engine switches on as a car slows.
 
 export const CAR_LENGTH_M = 4.4;
@@ -27,7 +27,7 @@ const BODY_COLORS: Record<string, number> = {
   fem_comfort: 0x1f2937, // graphite
   fem_xl: 0x9ca3af, // silver
 };
-const ASSIGNED_COLOR = 0x16a34a; // Kimu brand green
+const ASSIGNED_COLOR = 0xf97316; // Kimu brand orange
 
 interface Shared {
   body: THREE.BufferGeometry;
@@ -124,7 +124,7 @@ function bodyMaterial(color: number): THREE.Material {
 
 const OUTLINE_COLOR = 0x0b1220;
 const OUTLINE_M = 0.07; // outline thickness in metres (scales with the car)
-const SIGN_AVAILABLE = 0x22c55e; // FEM green: free cab
+const SIGN_AVAILABLE = 0x22c55e; // Kimu green: free cab
 const SIGN_ASSIGNED = 0xffffff; // the rider's own car
 
 let toonRamp: THREE.Texture | null = null;

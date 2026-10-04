@@ -11,7 +11,11 @@
     "db:init": "node src/db.js --init-only",
     "seed:dev": "node scripts/seed-dev-drivers.js",
     "driver": "node scripts/driver-console.js",
-    "test": "node --test test/"
+    "test": "node test/regression.cjs",
+    "test:smoke": "node test/smoke.js",
+    "test:wallet": "node test/wallet-flow.js",
+    "test:production": "node test/production-readiness.js",
+    "test:invariants": "node test/invariants.js"
   },
   "engines": {
     "node": ">=18"

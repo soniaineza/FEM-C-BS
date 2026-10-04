@@ -1,12 +1,13 @@
 import * as Location from 'expo-location';
 
 import { apiClient } from './api-client';
-import { Place } from '../types/place';
+import { Place, placeHasCoordinates } from '../types/place';
+import { usableFix, FIX_MAX_AGE_MS, FIX_MAX_ACCURACY_M } from '../utils/location-quality';
 
 // Simple in-memory cache for last known location (survives component remounts)
 let cachedPlace: Place | null = null;
 let cachedAt = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 15_000;
 
 // Direct TS port of lib/services/location_service.dart, minus its
 // dev-fallback path that called Photon directly when no backend was
@@ -51,7 +52,6 @@ export class LocationUnavailableError extends Error {
 
 // A cached fix is only worth reusing if it was good; a 2 km-accurate cell-tower
 // read should not pin the pickup marker for five minutes.
-const GOOD_ACCURACY_M = 100;
 // Age limit for the instant seed. Long enough to be useful on a warm start,
 // short enough that it is still roughly where the rider is standing.
 const SEED_MAX_AGE_MS = 2 * 60 * 1000;
@@ -62,11 +62,6 @@ export function clearCachedPlace(): void {
 }
 
 export async function getCurrentPlace(options?: { force?: boolean }): Promise<Place> {
-  const now = Date.now();
-  if (!options?.force && cachedPlace && now - cachedAt < CACHE_TTL_MS) {
-    return cachedPlace;
-  }
-
   const enabled = await isLocationServiceEnabled();
   if (!enabled) {
     throw new LocationUnavailableError(
@@ -79,6 +74,9 @@ export async function getCurrentPlace(options?: { force?: boolean }): Promise<Pl
   if (status !== Location.PermissionStatus.GRANTED) {
     throw new LocationUnavailableError('permission', 'Location permission was not granted.');
   }
+
+  if (!options?.force && cachedPlace && Date.now() - cachedAt < CACHE_TTL_MS &&
+      Date.now() - (cachedPlace.measuredAt ?? 0) < FIX_MAX_AGE_MS) return cachedPlace;
 
   const position = await acquirePosition();
   if (!position) {
@@ -99,8 +97,8 @@ export async function getSeedPlace(): Promise<Place | null> {
     if (!(await isLocationServiceEnabled())) return null;
     const { status } = await Location.getForegroundPermissionsAsync();
     if (status !== Location.PermissionStatus.GRANTED) return null;
-    const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: SEED_MAX_AGE_MS });
-    return lastKnown ? cachePlace(lastKnown) : null;
+    const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: SEED_MAX_AGE_MS, requiredAccuracy: FIX_MAX_ACCURACY_M });
+    return lastKnown && usableFix(lastKnown, SEED_MAX_AGE_MS) ? placeFromPosition(lastKnown, 'seed') : null;
   } catch {
     return null;
   }
@@ -109,56 +107,42 @@ export async function getSeedPlace(): Promise<Place | null> {
 // Escalating attempts, each individually timed out because expo-location's
 // getCurrentPositionAsync has no timeout option of its own and will otherwise
 // wait indefinitely for a fix that may never arrive indoors.
-async function acquirePosition(): Promise<Location.LocationObject | null> {
-  const attempts: Array<() => Promise<Location.LocationObject>> = [
-    () =>
-      Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-        mayShowUserSettingsDialog: true,
-      }),
-    () =>
-      Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-        mayShowUserSettingsDialog: true,
-      }),
-    () =>
-      Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Lowest,
-        mayShowUserSettingsDialog: false,
-      }),
-  ];
+export async function acquirePosition(): Promise<Location.LocationObject | null> {
+  // A temporary watch is removable: unlike timing out getCurrentPositionAsync,
+  // this does not leave native acquisition requests running after the deadline.
+  return new Promise((resolve) => {
+    let subscription: Location.LocationSubscription | undefined;
+    let finished = false;
+    const finish = (fix: Location.LocationObject | null) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      subscription?.remove();
+      resolve(fix);
+    };
+    const timer = setTimeout(() => finish(null), 15_000);
+    Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 0 },
+      (fix) => { if (usableFix(fix)) finish(fix); },
+      () => finish(null)
+    ).then((watch) => {
+      if (finished) watch.remove();
+      else subscription = watch;
+    }).catch(() => finish(null));
+  });
+}
 
-  for (const attempt of attempts) {
-    try {
-      return await withTimeout(attempt(), 6_000);
-    } catch {
-      // try the next, cheaper accuracy
-    }
-  }
-
-  // Nothing fresh available: an old fix still beats stranding the rider on the
-  // city-centre default, so accept any age here.
-  try {
-    return await Location.getLastKnownPositionAsync();
-  } catch {
-    return null;
-  }
+function placeFromPosition(position: Location.LocationObject, source: 'gps' | 'seed'): Place {
+  return { address: 'Current location', latitude: position.coords.latitude,
+    longitude: position.coords.longitude, isCurrentLocation: source === 'gps',
+    accuracyMeters: position.coords.accuracy!, measuredAt: position.timestamp, locationSource: source };
 }
 
 function cachePlace(position: Location.LocationObject): Place {
-  const { latitude, longitude, accuracy } = position.coords;
-  const place: Place = {
-    address: 'Current location',
-    latitude,
-    longitude,
-    isCurrentLocation: true,
-  };
-
-  // Only let a good fix own the cache window; a vague one is returned to the
-  // caller but re-read next time rather than held for the full TTL.
-  const isGoodFix = accuracy == null || accuracy <= GOOD_ACCURACY_M;
+  const { latitude, longitude } = position.coords;
+  const place = placeFromPosition(position, 'gps');
   cachedPlace = place;
-  cachedAt = isGoodFix ? Date.now() : 0;
+  cachedAt = Date.now();
 
   apiClient
     .get<{ address: string }>(`/locations/reverse?lat=${latitude}&lng=${longitude}`)
@@ -175,7 +159,7 @@ function cachePlace(position: Location.LocationObject): Place {
 export async function searchLocations(query: string): Promise<Place[]> {
   if (query.trim().length < 2) return [];
   const json = await apiClient.get<{ results: any[] }>(`/locations/search?q=${encodeURIComponent(query)}`);
-  return json.results.map((r) => ({ address: r.address, latitude: r.latitude, longitude: r.longitude }));
+  return json.results.filter((r) => placeHasCoordinates(r)).map((r) => ({ address: r.address, latitude: r.latitude, longitude: r.longitude }));
 }
 
 export async function reverseGeocode(params: { latitude: number; longitude: number }): Promise<Place> {
@@ -197,7 +181,7 @@ export interface RouteResult {
 }
 
 export async function getRoute(params: { from: Place; to: Place }): Promise<RouteResult | null> {
-  if (!params.from.latitude || !params.from.longitude || !params.to.latitude || !params.to.longitude) {
+  if (!placeHasCoordinates(params.from) || !placeHasCoordinates(params.to)) {
     return null;
   }
   try {
@@ -205,7 +189,7 @@ export async function getRoute(params: { from: Place; to: Place }): Promise<Rout
       `/locations/route?fromLat=${params.from.latitude}&fromLng=${params.from.longitude}` +
         `&toLat=${params.to.latitude}&toLng=${params.to.longitude}`
     );
-    if (json && Array.isArray(json.points) && json.points.length > 1) {
+    if (json && Array.isArray(json.points) && json.points.length > 1 && json.points.every((p) => placeHasCoordinates({ address: '', ...p })) && Number.isFinite(json.distanceMeters) && json.distanceMeters >= 0 && Number.isFinite(json.durationSeconds) && json.durationSeconds >= 0) {
       return json;
     }
     // Backend returned an empty route (e.g. OSRM found nothing) — fall through
@@ -219,8 +203,8 @@ export async function getRoute(params: { from: Place; to: Place }): Promise<Rout
   // Rwanda, so a booking map must never be left without any path drawn —
   // the green line is the "this is where we're going" signal the fare
   // estimate, tracking and pickup screens all rely on.
-  const [latA, lngA] = [params.from.latitude, params.from.longitude];
-  const [latB, lngB] = [params.to.latitude, params.to.longitude];
+  const [latA, lngA] = [params.from.latitude!, params.from.longitude!];
+  const [latB, lngB] = [params.to.latitude!, params.to.longitude!];
   const steps = 12;
   const points: RoutePoint[] = [];
   for (let i = 0; i <= steps; i += 1) {
@@ -243,20 +227,4 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
   const a =
     Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout')), ms);
-    promise.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(timer);
-        reject(e);
-      }
-    );
-  });
 }

@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
-const { getPool } = require('../db');
+const { getPool, transaction } = require('../db');
 const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { driverToJson, rideToJson } = require('../utils/serialize');
@@ -75,6 +75,8 @@ router.put('/status', asyncHandler(async (req, res) => {
   if (!validStatuses.includes(status)) {
     throw new ApiError(400, 'Status must be "offline" or "active".');
   }
+  const driver = await transaction(async (db) => {
+  const previousStatus = (await db.query('SELECT status FROM drivers WHERE id=$1 FOR UPDATE', [req.driverId])).rows[0]?.status;
   if (status === 'active') {
     // Only KYC-verified drivers can be matched (driverMatcher.js), so don't
     // let an unverified driver sit "online" waiting for rides that never come.
@@ -82,6 +84,8 @@ router.put('/status', asyncHandler(async (req, res) => {
     if (!me[0]?.verified) {
       throw new ApiError(403, 'Your account is still being verified. Upload your documents and we will notify you once approved.');
     }
+    const fix = await getPool().query("SELECT 1 FROM driver_locations WHERE driver_id=$1 AND measured_at > now() - interval '30 seconds' AND accuracy <= 100", [req.driverId]);
+    if (!fix.rows.length) throw new ApiError(409, 'An accurate, recent location is required to go online.');
     const missing = await missingApprovedDocuments(req.driverId);
     if (missing.length) throw new ApiError(403, `Driver documents need current in-person approval: ${missing.join(', ')}.`);
   }
@@ -95,11 +99,13 @@ router.put('/status', asyncHandler(async (req, res) => {
 
   await getPool().query(
     `INSERT INTO driver_status_history (driver_id, from_status, to_status, changed_by)
-     VALUES ($1, (SELECT status FROM drivers WHERE id = $1), $2, 'driver')`,
-    [req.driverId, status]
+     VALUES ($1, $3, $2, 'driver')`,
+    [req.driverId, status, previousStatus]
   );
 
-  res.json({ driver: driverToJson(rows[0]) });
+  return rows[0];
+  });
+  res.json({ driver: driverToJson(driver) });
 }));
 
 // ============================================================
@@ -630,7 +636,22 @@ router.post('/device-token', asyncHandler(async (req, res) => {
 
 // DELETE /api/driver/account
 router.delete('/account', asyncHandler(async (req, res) => {
-  await getPool().query('DELETE FROM drivers WHERE id = $1', [req.driverId]);
+  // Anonymised, not deleted: rides and earnings reference the driver, so a
+  // DELETE either fails outright or takes the trip records with it.
+  await transaction(async (db) => {
+    await db.query('SELECT id FROM drivers WHERE id=$1 FOR UPDATE', [req.driverId]);
+    const active = await db.query(
+      "SELECT 1 FROM rides WHERE driver_id=$1 AND status IN ('driverAssigned','driverArriving','driverArrived','pinVerified','inProgress','paymentPending') LIMIT 1",
+      [req.driverId]);
+    if (active.rows.length) throw new ApiError(409, 'Finish your current trip before deleting your account.');
+    await db.query('DELETE FROM driver_device_tokens WHERE driver_id=$1', [req.driverId]);
+    await db.query('DELETE FROM driver_locations WHERE driver_id=$1', [req.driverId]);
+    await db.query(
+      `UPDATE drivers SET full_name='Deleted driver', phone='deleted-' || id, email=NULL, password_hash=NULL,
+         photo_url=NULL, emergency_contact_name=NULL, emergency_contact_phone=NULL, license_number=NULL,
+         verified=FALSE, status='suspended', current_latitude=NULL, current_longitude=NULL, deleted_at=now()
+       WHERE id=$1`, [req.driverId]);
+  });
   res.status(204).end();
 }));
 

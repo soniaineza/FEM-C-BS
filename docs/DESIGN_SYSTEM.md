@@ -1,4 +1,4 @@
-# FEM C@BS design system
+# Kimu Transport design system
 
 One system for the rider and driver apps. It borrows proven conventions instead of inventing new ones:
 

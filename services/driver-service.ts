@@ -1,3 +1,7 @@
+import { useLocationPermissionStore } from '../stores/useLocationPermissionStore';
+import { acquirePosition } from './location-service';
+import { locationReport } from '../utils/location-quality';
+import { requestDriverBackgroundPermission, syncDriverBackgroundLocation } from './driver-background-location';
 import { driverApiClient } from './driver-api-client';
 import { fetchVehicles } from './ride-service';
 import { DEFAULT_PAYMENT_METHODS } from '../types/payment';
@@ -22,7 +26,18 @@ async function resolveOne(json: any): Promise<Ride> {
 }
 
 export async function setDriverStatus(status: DriverStatus): Promise<DriverProfile> {
-  const json = await driverApiClient.put<{ driver: any }>('/driver/status', { status });
+  if (status === 'active') {
+    if ((await useLocationPermissionStore.getState().request()).status !== 'granted') throw new Error('Location permission is required.');
+    if (!(await requestDriverBackgroundPermission())) throw new Error('Allow background location in Settings to go online.');
+    const fix = await acquirePosition();
+    if (!fix) throw new Error('An accurate location is required. Try outdoors or enable precise location.');
+    await reportDriverLocation(locationReport(fix));
+    await syncDriverBackgroundLocation(true);
+  }
+  let json: { driver: any };
+  try { json = await driverApiClient.put<{ driver: any }>('/driver/status', { status }); }
+  catch (error) { if (status === 'active') await syncDriverBackgroundLocation(false); throw error; }
+  if (status === 'offline') await syncDriverBackgroundLocation(false);
   return driverFromBackendJson(json.driver);
 }
 
@@ -30,8 +45,11 @@ export async function reportDriverLocation(params: {
   latitude: number;
   longitude: number;
   heading?: number;
+  accuracy?: number;
+  measuredAt?: number;
 }): Promise<void> {
-  await driverApiClient.post('/drivers/location', params);
+  // sentAt lets the server judge the sample's age on this device's clock.
+  await driverApiClient.post('/drivers/location', { ...params, sentAt: Date.now() });
 }
 
 /** Every ride currently assigned to this driver (a pooled trip can be more

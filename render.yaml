@@ -20,6 +20,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # One proxy hop in front of the API, so rate limits see the real client IP.
+      - key: TRUST_PROXY
+        value: "1"
       - key: DATABASE_URL
         sync: false
       - key: EXPO_PUBLIC_API_BASE_URL
@@ -53,6 +56,9 @@ services:
       - key: DEV_REVEAL_CODES
         value: "0"
       - key: DEMO_PAYMENTS
+        value: "0"
+      # Real drivers only: never run the simulated fleet on the hosted API.
+      - key: DEMO_FLEET
         value: "0"
       - key: DEV_AUTO_VERIFY_DRIVERS
         value: "0"

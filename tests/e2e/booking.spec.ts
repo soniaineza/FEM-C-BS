@@ -1,4 +1,4 @@
-import { test, expect, api, bookRide, createPassenger, createDriver, signInPassenger, waitForRide, HUYE } from './helpers';
+import { test, expect, api, bookRide, createPassenger, createDriver, signInPassenger, waitForRide, HUYE, HUYE_DEST } from './helpers';
 import type { Page } from '@playwright/test';
 
 // Rider and driver are both in Huye, outside the demo fleet's reach, so the
@@ -26,6 +26,11 @@ async function tapButton(page: Page, name: string | RegExp) {
 }
 
 test.describe('Booking a ride', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/locations/search?**', route => route.fulfill({
+      status:200,contentType:'application/json',body:JSON.stringify({results:[{address:'Huye Stadium, Ngoma',...HUYE_DEST}]})
+    }));
+  });
   test('pickup, destination, vehicle choice, fare, payment, request, trip, cash payment, rating', async ({ page, externalLinks }) => {
     const rider = await createPassenger('Booking Rider');
     const driver = await createDriver({ online: true, at: HUYE });
@@ -56,7 +61,7 @@ test.describe('Booking a ride', () => {
       await tapButton(page, 'Confirm destination');
     }
     await expect(page.getByText('Where are you going?')).toBeVisible();
-    await api('POST', '/drivers/location', { ...HUYE, heading: 0 }, driver.token);
+    await api('POST', '/drivers/location', { ...HUYE, heading: 0, accuracy: 10, measuredAt: Date.now() }, driver.token);
 
     // Vehicle choice with upfront prices and the breakdown.
     await tapButton(page, 'Find Ride');
@@ -76,7 +81,7 @@ test.describe('Booking a ride', () => {
     await tapButton(page, 'Continue');
     await expect(page.getByText('Confirm your ride')).toBeVisible();
     await page.getByLabel('Note (optional)').fill('At the main gate');
-    await api('POST', '/drivers/location', { ...HUYE, heading: 0 }, driver.token);
+    await api('POST', '/drivers/location', { ...HUYE, heading: 0, accuracy: 10, measuredAt: Date.now() }, driver.token);
     await tapButton(page, 'Request ride');
 
     // Matched with our driver.

@@ -4,10 +4,14 @@ export interface Place {
   latitude?: number;
   longitude?: number;
   isCurrentLocation?: boolean;
+  accuracyMeters?: number;
+  measuredAt?: number;
+  locationSource?: 'gps' | 'seed' | 'manual';
 }
 
 export function placeHasCoordinates(p: Place): boolean {
-  return typeof p.latitude === 'number' && typeof p.longitude === 'number';
+  return Number.isFinite(p.latitude) && Number.isFinite(p.longitude) &&
+    Math.abs(p.latitude!) <= 90 && Math.abs(p.longitude!) <= 180;
 }
 
 export function placeFromBackendJson(json: any): Place {

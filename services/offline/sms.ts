@@ -108,4 +108,4 @@ export async function sendSms(event: SmsEvent, phone: string | null | undefined,
   }
 }
 
-export const SMS_BRAND = 'FEM CABS';
+export const SMS_BRAND = 'Kimu';

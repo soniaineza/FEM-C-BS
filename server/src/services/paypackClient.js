@@ -38,7 +38,9 @@ function expiryFrom(expires) {
 async function readJson(res, what) {
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Paypack ${what} failed (${res.status}): ${text.slice(0, 300)}`);
+    const error = new Error(`Paypack ${what} failed (${res.status}): ${text.slice(0, 300)}`);
+    error.status = res.status;
+    throw error;
   }
   try {
     return text ? JSON.parse(text) : {};
@@ -130,6 +132,25 @@ async function readCharge(ref) {
 }
 
 /**
+ * True when Paypack refused the cash-in request itself (bad number or amount),
+ * so no charge exists and retrying the same request cannot succeed. Timeouts,
+ * 5xx and authentication problems are NOT this: there the outcome is unknown
+ * or temporary and the request must be retried with its idempotency key.
+ */
+function isRejectedRequest(error) {
+  return Boolean(error) && (error.status === 400 || error.status === 422);
+}
+
+/** Reject cross-reference, cash-out and partial-amount settlement. */
+function assertChargeMatches(charge, expected) {
+  if (!charge || String(charge.ref) !== String(expected.external_reference) ||
+      String(charge.kind).toUpperCase() !== 'CASHIN' ||
+      !Number.isFinite(Number(charge.amount)) || Number(charge.amount) !== Number(expected.amount)) {
+    throw new Error('Provider transaction does not match the expected cash-in.');
+  }
+}
+
+/**
  * Verifies an incoming webhook: the header must equal
  * base64(HMAC-SHA256(rawBody, PAYPACK_WEBHOOK_SECRET)). Without a configured
  * secret every delivery is rejected.
@@ -147,6 +168,8 @@ function verifyWebhookSignature(rawBody, signatureHeader) {
 
 module.exports = {
   isConfigured,
+  isRejectedRequest,
+  assertChargeMatches,
   createCharge,
   readCharge,
   verifyWebhookSignature,

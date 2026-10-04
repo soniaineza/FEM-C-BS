@@ -1,4 +1,4 @@
-// The FEM C@BS tariff — one rate card for every vehicle class and every place
+// The Kimu Transport tariff — one rate card for every vehicle class and every place
 // a fare is computed (booking quotes, the on-device backend, the driver meter).
 //
 //   base fare            1,800 RWF, covers the first 1 km

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Linking, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,6 +31,11 @@ export default function DriverAcceptedScreen() {
   const { scene, etaMinutes } = useTripMap(ride, driverLocation, serverTimeOffsetMs, PADDING);
   useMapScene(scene);
   const [accepted, setAccepted] = useState(() => !!rideId && acceptedRides.has(rideId));
+  const acceptanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setAccepted(acceptedRides.has(rideId ?? ''));
+    return () => { if (acceptanceTimer.current) clearTimeout(acceptanceTimer.current); };
+  }, [rideId]);
 
   useEffect(() => {
     if (ride && (ride.status === 'pinVerified' || ride.status === 'inProgress' || ride.status === 'arrived' || ride.status === 'paymentPending')) {
@@ -57,6 +62,28 @@ export default function DriverAcceptedScreen() {
   const initials = driver.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   const vehicleSummary = [driver.vehicleColor, driver.vehicleModel].filter(Boolean).join(' ');
 
+  const contactActions = (
+<View className="mt-3 w-full flex-row gap-3">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('call')}
+            className="flex-1 flex-row items-center justify-center rounded-xl bg-surface-muted py-3"
+            onPress={() => Linking.openURL(`tel:${driver.phone}`)}
+          >
+            <Ionicons name="call" size={18} color={Colors.fg} />
+            <Text className="ml-2 font-semibold text-fg">{t('call')}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button" accessibilityLabel={t('message')}
+            className="flex-1 flex-row items-center justify-center rounded-xl bg-surface-muted py-3"
+            onPress={() => Linking.openURL(`sms:${driver.phone}`)}
+          >
+            <Ionicons name="chatbubble" size={18} color={Colors.fg} />
+            <Text className="ml-2 font-semibold text-fg">{t('message')}</Text>
+          </Pressable>
+        </View>
+  );
+
   const offerPending = !accepted && (ride.status === 'driverAssigned' || ride.status === 'driverArriving');
   if (offerPending) {
     return (
@@ -80,10 +107,12 @@ export default function DriverAcceptedScreen() {
                 confirmedLabel={t('rideAccepted')}
                 onConfirm={() => {
                   acceptedRides.add(ride.id);
+                  if (acceptedRides.size > 20) acceptedRides.delete(acceptedRides.values().next().value!);
                   // Let the success state land before the offer gives way to the live view.
-                  setTimeout(() => setAccepted(true), 650);
+                  acceptanceTimer.current = setTimeout(() => setAccepted(true), 650);
                 }}
               />
+              <Button title={t('safety')} variant="outline" icon="shield-checkmark-outline" onPress={() => router.push({ pathname: '/(main)/ride/safety', params: { rideId: ride.id } })} />
               <Button
                 title={t('declineDriver')}
                 variant="text"
@@ -111,6 +140,7 @@ export default function DriverAcceptedScreen() {
                 <Text className="text-footnote font-bold tracking-wider text-fg">{driver.licensePlate}</Text>
               </View>
             ) : null}
+            {contactActions}
           </Card>
         </MapSheet>
       </View>
@@ -172,24 +202,7 @@ export default function DriverAcceptedScreen() {
           ) : null}
         </Card>
 
-        <View className="mt-3 flex-row gap-3">
-          <Pressable
-            accessibilityRole="button"
-            className="flex-1 flex-row items-center justify-center rounded-xl bg-surface-muted py-3"
-            onPress={() => Linking.openURL(`tel:${driver.phone}`)}
-          >
-            <Ionicons name="call" size={18} color={Colors.fg} />
-            <Text className="ml-2 font-semibold text-fg">{t('call')}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            className="flex-1 flex-row items-center justify-center rounded-xl bg-surface-muted py-3"
-            onPress={() => Linking.openURL(`sms:${driver.phone}`)}
-          >
-            <Ionicons name="chatbubble" size={18} color={Colors.fg} />
-            <Text className="ml-2 font-semibold text-fg">{t('message')}</Text>
-          </Pressable>
-        </View>
+        {contactActions}
 
         <View className="mt-3">
           <Button

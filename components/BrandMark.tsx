@@ -38,7 +38,7 @@ export const BrandMark = memo(function BrandMark({ fontSize = 28, withIcon = tru
         </Text>
         <View className="w-1.5" />
         <Text style={{ fontSize, letterSpacing: -0.5 }} className="font-bold text-primary-text">
-          Transport
+          Transportation
         </Text>
       </View>
     </View>

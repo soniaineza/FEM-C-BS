@@ -44,6 +44,7 @@ async function handleTransaction(data) {
   );
   const payment = paymentRows[0];
   if (payment) {
+    paypack.assertChargeMatches(data, payment);
     await handleRidePayment(payment, data, success);
     return;
   }
@@ -54,6 +55,7 @@ async function handleTransaction(data) {
   );
   const topup = topupRows[0];
   if (topup) {
+    paypack.assertChargeMatches(data, topup);
     if (success) {
       await creditTopup(topup.id, { webhookStatus: status });
       await pushNotification(topup.passenger_id, {

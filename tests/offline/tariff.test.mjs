@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import { tariffFare, waitingCharge } from '../../services/offline/tariff.ts';
 
-describe('the FEM tariff', () => {
+describe('the Kimu tariff', () => {
   it('charges the 1,800 RWF base fare for the first km', () => {
     assert.equal(tariffFare(0.4).total, 1800);
     assert.equal(tariffFare(1).total, 1800);

@@ -46,7 +46,7 @@ export default function DriverWelcomeScreen() {
               </Text>
               <View className="w-1" />
               <Text className="text-title-1 font-bold text-white/85" style={{ letterSpacing: -0.5 }}>
-                DRIVE
+                Drive
               </Text>
             </View>
 

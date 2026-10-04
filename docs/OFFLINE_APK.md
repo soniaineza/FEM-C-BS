@@ -1,6 +1,6 @@
 # Standalone (server-free) APK
 
-The normal builds talk to the FEM C@BS API. This build does not: every API call
+The normal builds talk to the Kimu Transport API. This build does not: every API call
 is answered **on the phone**, so the app installs and works with no server,
 no database and no internet. Both apps (passenger and driver) are inside it.
 
@@ -10,7 +10,7 @@ adb install -r fem-cabs-offline.apk
 ```
 
 (or `eas build --profile offline --platform android` for a cloud build).
-It installs as **FEM C@BS Offline** (`com.femcabs.passenger.offline`), next to
+It installs as **Kimu Transport Offline** (`com.femcabs.passenger.offline`), next to
 the server-backed app rather than over it.
 
 ## How it works
@@ -61,7 +61,7 @@ payments as simulated:
   accounts get RWF 10,000 of wallet credit; a too-small balance fails and
   offers cash, as the server does.
 - **Maps and routes**: two separate things need the internet, and neither is a
-  FEM server.
+  Kimu server.
   - *Map tiles* (streets, buildings) come from OpenFreeMap. Online you get the
     real Kigali map; with no internet the map falls back to a plain background
     with a faint grid (cars, routes and pins still draw). Reopen the app after

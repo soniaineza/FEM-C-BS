@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { clearRideSnapshots } from '../hooks/useRideTracking';
+import { clearCachedPlace } from '../services/location-service';
 
 import * as authService from '../services/auth-service';
 import { OFFLINE_DEMO } from '../services/offline/mode';
@@ -74,19 +76,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateProfile: async (passenger: Passenger) => {
     const updated = await authService.updateProfile(passenger);
-    set({ currentUser: updated });
+    set({ currentUser: updated.isVerified ? updated : null, pendingPassenger: updated.isVerified ? null : updated });
     return updated;
   },
 
   logout: async () => {
     await authService.logout();
     useRideWizardStore.getState().reset();
+    clearRideSnapshots();
+    clearCachedPlace();
     set({ currentUser: null, pendingPassenger: null });
   },
 
   deleteAccount: async () => {
     await authService.deleteAccount();
     useRideWizardStore.getState().reset();
+    clearRideSnapshots();
+    clearCachedPlace();
     set({ currentUser: null, pendingPassenger: null });
   },
 }));

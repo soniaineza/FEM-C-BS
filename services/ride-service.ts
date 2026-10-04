@@ -29,7 +29,7 @@ import {
 const AVG_SPEED_KMH = 25;
 
 export function straightLineKm(from: Place, to: Place): number {
-  if (!from.latitude || !from.longitude || !to.latitude || !to.longitude) return 0;
+  if (from.latitude == null || from.longitude == null || to.latitude == null || to.longitude == null) return 0;
   const R = 6371.0;
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(to.latitude - from.latitude);
@@ -117,6 +117,7 @@ export async function requestRide(params: {
   scheduledFor?: string;
   /** Locks the upfront price the rider was shown (from fetchTripQuote). */
   quoteId?: string;
+  bookingKey?: string;
 }): Promise<Ride> {
   const body = {
     pickup: { address: params.pickup.address, latitude: params.pickup.latitude, longitude: params.pickup.longitude },
@@ -132,6 +133,7 @@ export async function requestRide(params: {
     promotionCode: params.promotionCode,
     scheduledFor: params.scheduledFor,
     quoteId: params.quoteId,
+    bookingKey: params.bookingKey,
   };
   const json = await apiClient.post<{ ride: any }>('/rides', body);
   const catalogues = await ridesCatalogues();
@@ -210,8 +212,10 @@ export async function reportPassengerLocation(params: {
   latitude: number;
   longitude: number;
   heading?: number;
+  accuracy?: number;
+  measuredAt?: number;
 }): Promise<void> {
-  await apiClient.post('/rides/location', params);
+  await apiClient.post('/rides/location', { ...params, sentAt: Date.now() });
 }
 
 export interface NearbyDriver {

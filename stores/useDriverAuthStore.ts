@@ -1,3 +1,4 @@
+import { syncDriverBackgroundLocation } from '../services/driver-background-location';
 import { create } from 'zustand';
 import * as driverAuthService from '../services/driver-auth-service';
 import { useRideWizardStore } from './useRideWizardStore';
@@ -51,6 +52,7 @@ export const useDriverAuthStore = create<DriverAuthState>((set, get) => ({
   },
 
   logout: async () => {
+    await syncDriverBackgroundLocation(false).catch(() => {});
     await driverAuthService.driverLogout();
     useRideWizardStore.getState().reset();
     set({ currentDriver: null });

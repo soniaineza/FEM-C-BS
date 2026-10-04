@@ -11,7 +11,7 @@ const config = {
   port: Number(process.env.PORT || 3000),
 
   // A running PostgreSQL instance the API connects to, e.g.
-  // postgres://user:password@localhost:5432/kimutransport
+  // postgres://user:password@localhost:5432/femcabs
   databaseUrl: process.env.DATABASE_URL || '',
 
   // Reserved for the MongoDB migration. The current API still uses the
@@ -58,6 +58,11 @@ const config = {
   // Rate limiting (express-rate-limit): per-identity window for auth routes.
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
   rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 20),
+  // Reverse-proxy hops in front of the API (Render = 1). Without this every
+  // client shares the proxy's address, and with it one rate-limit bucket.
+  // Leave at 0 when the API is reached directly, or X-Forwarded-For could be
+  // spoofed to dodge the limits.
+  trustProxy: Number(process.env.TRUST_PROXY ?? (process.env.NODE_ENV === 'production' ? 1 : 0)),
 
   // ---- External services (all secrets stay server-side) ----
   // Maps / geocoding / routing. The server proxies these so the Flutter app

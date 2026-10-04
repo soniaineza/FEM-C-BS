@@ -6,7 +6,7 @@ const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { config } = require('../config');
 const paypack = require('../services/paypackClient');
-const { creditTopup, failTopup } = require('../services/walletTopups');
+const { creditTopup, failTopup, initiateTopup } = require('../services/walletTopups');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -68,7 +68,7 @@ router.post(
     const { phone, amount } = req.body || {};
     const value = Number(amount);
     if (!phone) throw new ApiError(400, 'A phone number is required.');
-    if (!Number.isFinite(value) || value <= 0) throw new ApiError(400, 'Enter a valid amount.');
+    if (!Number.isSafeInteger(value) || value <= 0) throw new ApiError(400, 'Enter a positive whole RWF amount.');
 
     const reference = `TOPUP-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
     const { rows } = await getPool().query(
@@ -94,23 +94,11 @@ router.post(
       return res.status(201).json({ topup: topupToJson(topup) });
     }
 
-    let charge;
-    try {
-      charge = await paypack.createCharge({
-        amount: value,
-        phone: String(phone).trim(),
-        idempotencyKey: reference,
-      });
-    } catch (err) {
-      console.error('[wallet] Paypack cashin failed:', err.message);
-      await failTopup(topup.id, { reason: 'provider_error' });
-      throw new ApiError(502, 'We could not start the mobile-money payment. Please try again.');
+    topup = await initiateTopup(topup);
+    if (topup.status === 'failed') {
+      throw new ApiError(502, 'We could not start the mobile-money payment. Check the number and try again.');
     }
-    const updated = await getPool().query(
-      `UPDATE wallet_topups SET state='processing', external_reference=$2, updated_at=now() WHERE id = $1 RETURNING *`,
-      [topup.id, String(charge.ref)]
-    );
-    res.status(201).json({ topup: topupToJson(updated.rows[0]) });
+    res.status(201).json({ topup: topupToJson(topup) });
   })
 );
 
@@ -137,11 +125,16 @@ router.post(
     );
     const topup = rows[0];
     if (!topup) throw new ApiError(404, 'Top-up not found.');
+    if (topup.status === 'pending' && !topup.external_reference) {
+      const latest = await initiateTopup(topup);
+      return res.json({ topup: topupToJson(latest) });
+    }
     if (topup.status === 'succeeded' || !topup.external_reference || !paypack.isConfigured()) {
       return res.json({ topup: topupToJson(topup) });
     }
 
     const charge = await paypack.readCharge(topup.external_reference);
+    paypack.assertChargeMatches(charge, topup);
     const chargeStatus = String(charge.status || '').toLowerCase();
 
     let latest = topup;

@@ -32,6 +32,7 @@ async function main() {
 
   const app = express();
   app.disable('x-powered-by');
+  if (config.trustProxy > 0) app.set('trust proxy', config.trustProxy);
   app.use(
     cors({
       origin: corsOrigins.includes('*') ? true : corsOrigins,
