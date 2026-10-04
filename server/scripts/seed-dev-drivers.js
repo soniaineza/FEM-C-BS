@@ -22,14 +22,26 @@ async function main() {
     console.error('Set SEED_DEV_DATA=1 to seed development drivers.');
     process.exit(1);
   }
-  const { ensureEmbeddedReady } = require('../src/config');
+  const { config, ensureEmbeddedReady } = require('../src/config');
+  // These accounts are for a developer's own database only. On a hosted
+  // database the server closes them again at startup (services/seedAccounts.js).
+  if (!config.localDatabase) {
+    console.error('Refusing to seed development drivers: DATABASE_URL is not a local database.');
+    process.exit(1);
+  }
+  // No built-in password: each developer sets their own, kept out of the repo.
+  const seedPassword = process.env.SEED_DRIVER_PASSWORD || '';
+  if (seedPassword.length < 12) {
+    console.error('Set SEED_DRIVER_PASSWORD (at least 12 characters) in server/.env.');
+    process.exit(1);
+  }
   const { ensureDatabase, applySchema, initPool, getPool } = require('../src/db');
   ensureEmbeddedReady();
   const url = await ensureDatabase();
   await applySchema(url);
   initPool(url);
 
-  const passwordHash = await bcrypt.hash('123456', 10);
+  const passwordHash = await bcrypt.hash(seedPassword, 10);
   const demoDrivers = [
     {
       fullName: 'Jean Baptiste',
@@ -63,6 +75,7 @@ async function main() {
                              status, current_vehicle_id, current_latitude, current_longitude, rating)
        VALUES ($1,$2,$3,$4,TRUE,'active',$5,$6,$7,4.9)
        ON CONFLICT (phone) DO UPDATE SET
+         password_hash = EXCLUDED.password_hash,
          verified = TRUE, status = 'active', current_vehicle_id = EXCLUDED.current_vehicle_id,
          current_latitude = EXCLUDED.current_latitude, current_longitude = EXCLUDED.current_longitude
        RETURNING id`,
@@ -75,7 +88,7 @@ async function main() {
        ON CONFLICT (driver_id) DO UPDATE SET latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude`,
       [driverId, d.lat, d.lng]
     );
-    console.log(`[seed] driver ready: ${d.fullName} (${d.phone}) password: 123456`);
+    console.log(`[seed] driver ready: ${d.fullName} (${d.phone})`);
   }
 
   // A welcome promo so the promotions module is testable immediately.
@@ -84,19 +97,6 @@ async function main() {
      VALUES ('WELCOME30', 'Welcome 30% off', '30% off your first trip.', 'percent', 30, 0, 5000)
      ON CONFLICT (code) DO NOTHING`
   );
-
-  // A demo wallet balance so wallet payments can be tested.
-  const { rows: pax } = await getPool().query(
-    "SELECT id FROM passengers ORDER BY created_at LIMIT 1"
-  );
-  if (pax[0]) {
-    await getPool().query(
-      `INSERT INTO wallets (passenger_id, balance) VALUES ($1, 20000)
-        ON CONFLICT (passenger_id) DO UPDATE SET balance = 20000`,
-      [pax[0].id]
-    );
-    console.log('[seed] demo wallet funded with RWF 20,000 for the first passenger.');
-  }
 
   console.log('[seed] done.');
   process.exit(0);

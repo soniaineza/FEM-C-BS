@@ -8,7 +8,7 @@
  *
  * Usage:
  *   node scripts/driver-console.js <phone> <password> [baseUrl]
- * e.g. node scripts/driver-console.js +250780000001 123456 http://localhost:3000
+ * e.g. node scripts/driver-console.js +250780000001 "$SEED_DRIVER_PASSWORD" http://localhost:3000
  */
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });

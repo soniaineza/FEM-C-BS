@@ -44,8 +44,17 @@ function requireDriverAuth(req, _res, next) {
   try {
     const { id, role } = verifyToken(token);
     if (role !== 'driver') throw new Error('wrong role');
-    req.driverId = id;
-    next();
+    // A token outlives a deleted or closed account by up to its lifetime, so
+    // the account is checked on every request: it must still exist and still
+    // have a password (closed accounts have none).
+    getPool()
+      .query('SELECT 1 FROM drivers WHERE id = $1 AND password_hash IS NOT NULL', [id])
+      .then(({ rows }) => {
+        if (!rows[0]) return next(new ApiError(401, 'This driver account is no longer active.'));
+        req.driverId = id;
+        next();
+      })
+      .catch(next);
   } catch (err) {
     next(new ApiError(401, 'Your driver session has expired. Please sign in again.'));
   }

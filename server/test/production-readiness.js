@@ -9,6 +9,7 @@
  * Usage: node test/production-readiness.js   (local server on :3000, started
  * with the same PAYPACK_WEBHOOK_SECRET and ADMIN_API_KEY as this process)
  */
+const { SEED_DRIVER_PASSWORD } = require('./seedPassword');
 const crypto = require('crypto');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
@@ -149,7 +150,7 @@ async function db() {
     else await sleep(1200);
   }
   check('ride matched', Boolean(assigned));
-  const dt = (await api('POST', '/drivers/login', { phone: assigned.driver.phone, password: '123456' })).data.token;
+  const dt = (await api('POST', '/drivers/login', { phone: assigned.driver.phone, password: SEED_DRIVER_PASSWORD })).data.token;
   await api('POST', `/drivers/rides/${rideId}/accept`, null, dt);
   await api('POST', `/drivers/rides/${rideId}/arrived`, null, dt);
   const pin = (await api('GET', `/rides/${rideId}`, null, token)).data.ride.pin;

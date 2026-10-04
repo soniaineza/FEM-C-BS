@@ -70,23 +70,23 @@ signup/login). All responses are JSON; errors are `{ "error": "message" }`.
 - `POST /api/support` (auth) `{ category, subject, message }`
 - `GET /api/support` (auth)
 
-## The ride simulator
+## Development switches
 
-There is no live driver fleet yet, so `src/services/rideSimulator.js` plays a
-requested ride forward through `searchingDriver → driverAssigned →
-driverArriving → inProgress → completed` using timers, picking from a small
-roster of fictional drivers. Pacing is controlled by `SIM_ACCEPT_DELAY`,
-`SIM_WAIT_AT_PICKUP` and `SIM_SECONDS_PER_KM` in `.env`. Swap this module out
-for real dispatch once there are actual drivers — every other route (history,
-cancel, rate, payments) already works against whatever is in the `rides` table
-regardless of who/what updates it.
+`DEV_REVEAL_CODES`, `DEV_AUTO_VERIFY_DRIVERS`, `DEV_ALLOW_STALE_DRIVERS`,
+`DEMO_PAYMENTS` and `DEMO_FLEET` exist so the flows can be exercised on a
+developer's machine without SMS, operator review, GPS or a payment provider.
+They take effect only when `DATABASE_URL` points at a local database
+(`localhost`). On any hosted database they are ignored with a warning,
+whatever `NODE_ENV` is, and with `NODE_ENV=production` the server refuses to
+start if one is even set.
 
-## Dev conveniences
-
-`DEV_REVEAL_CODES=1` (the default) returns OTP codes and payment references
-directly in API responses so the flows can be exercised without a real SMS/
-payment provider. Set it to `0` before shipping — codes must go out over real
-SMS and payment references must come from the real provider webhook instead.
+The same rule protects against development accounts. `npm run seed:dev`
+creates three test drivers; it needs `SEED_DEV_DATA=1`, a local database and
+your own `SEED_DRIVER_PASSWORD` in `server/.env` (there is no built-in
+password). On a hosted database the server closes those accounts, and any
+simulated-fleet accounts, at every startup: no password, unverified,
+suspended. Without an SMS provider a hosted server fails to send a login code
+rather than writing it to the log.
 
 ## Going to production
 
@@ -246,7 +246,7 @@ own npm script (each exits non-zero on failure):
 | `npm run test:invariants` | Only PostgreSQL (`INV_DATABASE_URL`). Starts its own production-mode API, fake Paypack and SMS gateway, and a fresh database. Optional args: `-- <seed> <steps>`. |
 | `npm run test:places` | API on `:3000` and `TYPESAFE_API_KEY`; TypeSafe's Jev judges whether place search returns the place a rider meant. |
 
-The smoke, wallet and money tests need the seeded dev drivers online: run `SEED_DEV_DATA=1 npm run seed:dev` first, and `node scripts/reset-dev-rides.js` after a crashed run (it cancels stuck rides and clears test commission debt).
+The smoke, wallet and money tests need the seeded dev drivers online: set `SEED_DRIVER_PASSWORD` in `server/.env`, run `SEED_DEV_DATA=1 npm run seed:dev` first, and `node scripts/reset-dev-rides.js` after a crashed run (it cancels stuck rides and clears test commission debt).
 
 ## Wiring up the app
 

@@ -6,6 +6,7 @@ const { config, corsOrigins, ensureEmbeddedReady } = require('./config');
 const { ensureDatabase, applySchema, initPool } = require('./db');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { startScheduler } = require('./services/scheduler');
+const { retireSeedAccounts } = require('./services/seedAccounts');
 
 const authRoutes = require('./routes/auth.routes');
 const vehiclesRoutes = require('./routes/vehicles.routes');
@@ -96,6 +97,7 @@ async function main() {
   app.listen(config.port, () => {
     console.log(`[server] Kimu Transport API listening on port ${config.port}`);
   });
+  await retireSeedAccounts();
   startScheduler();
   if (config.demoFleet) {
     require('./services/demoFleet')

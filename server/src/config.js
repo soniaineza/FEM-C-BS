@@ -1,6 +1,15 @@
 require('dotenv').config();
 const crypto = require('crypto');
 
+/** True when DATABASE_URL points at this machine — a developer's database. */
+function isLocalDatabase(url) {
+  try {
+    return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 // App-wide server configuration. Every value can be overridden with an
 // environment variable (see .env.example). Secrets must never be committed —
 // missing ones cause the server to refuse to start in production rather than
@@ -13,6 +22,10 @@ const config = {
   // A running PostgreSQL instance the API connects to, e.g.
   // postgres://user:password@localhost:5432/kimutransport
   databaseUrl: process.env.DATABASE_URL || '',
+  // Development and demo switches are honoured only against a local
+  // database. On any hosted database they are ignored, whatever NODE_ENV
+  // says — see lockDownHostedServer() below.
+  localDatabase: isLocalDatabase(process.env.DATABASE_URL || ''),
 
   // Reserved for the MongoDB migration. The current API still uses the
   // PostgreSQL data layer in src/db.js and requires DATABASE_URL.
@@ -134,17 +147,39 @@ const config = {
   // long, so the rider can retry or pay cash instead of waiting forever.
   paymentExpirySeconds: Number(process.env.PAYMENT_EXPIRY_SECONDS || 180),
 
-  // Dependency-free development simulator. Replaced entirely by the real
-  // driver-matching service — kept only for local UI previews.
-  simEnabled: process.env.SIM_ENABLED === '1' && process.env.NODE_ENV !== 'production',
-
   // Demo fleet (services/demoFleet.js): simulated drivers driving real
   // Kigali roads and serving rides end to end. Refused in production.
   demoFleet: process.env.DEMO_FLEET === '1',
   demoFleetSize: Number(process.env.DEMO_FLEET_SIZE || 32),
-  simAcceptDelaySeconds: Number(process.env.SIM_ACCEPT_DELAY || 3),
-  simWaitAtPickupSeconds: Number(process.env.SIM_WAIT_AT_PICKUP || 5),
 };
+
+// The switches that reveal login codes, approve drivers without review, fake
+// payments, simulate drivers or match drivers with no GPS.
+const DEV_SWITCHES = {
+  devRevealCodes: 'DEV_REVEAL_CODES',
+  devAutoVerifyDrivers: 'DEV_AUTO_VERIFY_DRIVERS',
+  devAllowStaleDrivers: 'DEV_ALLOW_STALE_DRIVERS',
+  demoPayments: 'DEMO_PAYMENTS',
+  demoFleet: 'DEMO_FLEET',
+};
+const requestedDevSwitches = Object.keys(DEV_SWITCHES).filter((key) => config[key]);
+
+/**
+ * A server on a hosted database serves real people, so none of the
+ * development switches may take effect there — even when NODE_ENV was never
+ * set to production or a switch was left on by mistake.
+ */
+function lockDownHostedServer() {
+  if (config.localDatabase) return;
+  for (const key of requestedDevSwitches) config[key] = false;
+  if (requestedDevSwitches.length) {
+    console.warn(
+      `[security] ignored on a hosted database: ${requestedDevSwitches.map((k) => DEV_SWITCHES[k]).join(', ')}. ` +
+        'Remove these variables from the server environment.'
+    );
+  }
+}
+lockDownHostedServer();
 
 // CORS origins allowed by the API.
 const corsOrigins = (process.env.CORS_ORIGINS || '*')
@@ -159,11 +194,8 @@ function ensureConfig() {
   const isProduction = config.env === 'production';
   if (isProduction) {
     if (!config.jwtSecret) problems.push('JWT_SECRET');
-    if (config.devRevealCodes) problems.push('DEV_REVEAL_CODES (must be "0")');
-    if (config.devAutoVerifyDrivers) problems.push('DEV_AUTO_VERIFY_DRIVERS (must be "0")');
-    if (config.demoPayments) problems.push('DEMO_PAYMENTS (must be "0")');
-    if (config.demoFleet) problems.push('DEMO_FLEET (must be "0")');
-    if (config.devAllowStaleDrivers) problems.push('DEV_ALLOW_STALE_DRIVERS (must be "0")');
+    // Checked as requested, not as in effect: production must not even ask.
+    for (const key of requestedDevSwitches) problems.push(`${DEV_SWITCHES[key]} (must be "0")`);
     if (!process.env.OSRM_URL || /router\.project-osrm\.org/.test(config.osrmUrl)) problems.push('OSRM_URL (private capacity)');
     if (!process.env.PHOTON_URL || /photon\.komoot\.io/.test(config.photonUrl)) problems.push('PHOTON_URL (private capacity)');
     if (!process.env.PHOTON_REVERSE_URL || /photon\.komoot\.io/.test(config.photonReverseUrl)) problems.push('PHOTON_REVERSE_URL (private capacity)');
@@ -196,6 +228,10 @@ function ensureConfig() {
       `[config] Missing or invalid environment variable${problems.length > 1 ? 's' : ''}: ` +
         [...problems, 'See server/.env.example.'].join(', ')
     );
+    process.exit(1);
+  }
+  if (!config.jwtSecret && !config.localDatabase) {
+    console.error('[config] JWT_SECRET is required on a hosted database.');
     process.exit(1);
   }
   if (!config.jwtSecret) {

@@ -1,4 +1,5 @@
 /* End-to-end smoke test against the running Kimu Transport API. */
+const { SEED_DRIVER_PASSWORD } = require('./seedPassword');
 const BASE = 'http://localhost:3000/api';
 let passed = 0, failed = 0;
 
@@ -102,7 +103,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // 10. driver auth + ride progress
   const loginAsAssignedDriver = async (rideJson) => {
-    const dlogin = await api('POST', '/drivers/login', { phone: rideJson.driver.phone, password: '123456' });
+    const dlogin = await api('POST', '/drivers/login', { phone: rideJson.driver.phone, password: SEED_DRIVER_PASSWORD });
     check(`driver login (${rideJson.driver.name})`, dlogin.status === 200 && dlogin.data.token, `status=${dlogin.status}`);
     return dlogin.data.token;
   };
@@ -341,7 +342,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     JSON.stringify(companions.data));
 
   const poolDriverLogin = await api('POST', '/drivers/login', {
-    phone: poolAAssigned.driver.phone, password: '123456',
+    phone: poolAAssigned.driver.phone, password: SEED_DRIVER_PASSWORD,
   });
   const poolDt = poolDriverLogin.data.token;
 

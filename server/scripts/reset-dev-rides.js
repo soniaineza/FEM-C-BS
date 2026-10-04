@@ -8,10 +8,15 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const { ensureEmbeddedReady } = require('../src/config');
+const { config, ensureEmbeddedReady } = require('../src/config');
 const { ensureDatabase, applySchema, initPool, getPool } = require('../src/db');
 
 async function main() {
+  // This cancels every open ride and moves every driver: local databases only.
+  if (!config.localDatabase) {
+    console.error('Refusing to reset rides: DATABASE_URL is not a local database.');
+    process.exit(1);
+  }
   ensureEmbeddedReady();
   const url = await ensureDatabase();
   await applySchema(url);
