@@ -97,7 +97,7 @@ const config = {
   mapGeocodingProvider: (process.env.MAP_GEOCODING_PROVIDER || 'photon').toLowerCase(),
   mapRoutingApiKey: process.env.MAP_ROUTING_API_KEY || '',
   mapGeocodingApiKey: process.env.MAP_GEOCODING_API_KEY || process.env.MAP_ROUTING_API_KEY || '',
-  mapProviderTimeoutMs: Number(process.env.MAP_PROVIDER_TIMEOUT_MS || 6000),
+  mapProviderTimeoutMs: Number(process.env.MAP_PROVIDER_TIMEOUT_MS || 8000),
   // The MapLibre style the apps draw the map with, served to them by
   // GET /api/maps/config so it can change without an app release.
   mapStyleUrl: process.env.MAP_TILE_URL || 'https://tiles.openfreemap.org/styles/positron',
