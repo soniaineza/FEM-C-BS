@@ -95,8 +95,13 @@ async function main() {
   const webBuildPath = path.join(__dirname, '..', '..', 'dist');
   app.use(express.static(webBuildPath));
 
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(webBuildPath, 'index.html'));
+  // The web app handles its own routes; an unknown /api path, or any path
+  // when no web build has been deployed, is a plain 404 rather than an error.
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(webBuildPath, 'index.html'), (err) => {
+      if (err) next();
+    });
   });
 
   app.use(notFound);
