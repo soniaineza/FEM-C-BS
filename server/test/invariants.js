@@ -130,12 +130,19 @@ function startMock() {
         if (key) mock.byIdemKey.set(key, txn.ref);
         return send(200, { amount: txn.amount, created_at: txn.created_at, kind: 'CASHIN', ref: txn.ref, status: 'pending' });
       }
-      if (req.method === 'GET' && url.startsWith('/api/transactions/find/')) {
+      // Status polling reads the event log, like the real API: a processed
+      // event exists only once the transaction has succeeded or failed.
+      if (req.method === 'GET' && url.startsWith('/api/events/transactions')) {
         mock.counts.find++;
         if (!authed()) return send(401, { error: 'unauthorized' });
-        const txn = mock.txns.get(decodeURIComponent(url.split('/').pop()));
-        if (!txn) return send(404, { error: 'not found' });
-        return send(200, { ...txn, timestamp: txn.created_at });
+        const ref = new URL(url, 'http://mock').searchParams.get('ref');
+        const txn = mock.txns.get(ref);
+        const transactions = [];
+        if (txn) {
+          transactions.push({ event_kind: 'transaction:created', data: { ...txn, status: 'pending' } });
+          if (txn.status !== 'pending') transactions.push({ event_kind: 'transaction:processed', data: { ...txn } });
+        }
+        return send(200, { ref, limit: 20, total: transactions.length, transactions });
       }
       send(404, { error: `mock: no route ${req.method} ${url}` });
     });
@@ -450,7 +457,13 @@ async function newDriver() {
   world.drivers.push(d);
   const on = await api('PUT', '/driver/status', { status: 'active' }, d.token);
   if (on.status !== 403) violations.push(`unverified driver going online returned ${on.status}, expected 403`);
-  await api('POST', '/driver/documents', { docType: 'license', fileUrl: 'https://x/l.jpg' }, d.token);
+  // Verification needs all four core documents approved in person.
+  d.docIds = [];
+  for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
+    const doc = await api('POST', '/driver/documents', { docType, fileName: `${docType}.jpg` }, d.token);
+    if (doc.status !== 201) violations.push(`document submit ${doc.status}`);
+    else d.docIds.push(doc.data.document.id);
+  }
   note(`driver ${phone} registered (unverified)`);
 }
 
@@ -459,6 +472,17 @@ async function adminAction() {
   if (!d) return;
   const [row] = await q('SELECT verified, status FROM drivers WHERE id = $1', [d.id]);
   if (!row.verified || row.status === 'suspended') {
+    if (!d.docsApproved) {
+      const early = await admin('POST', `/drivers/${d.id}/verify`);
+      if (early.status !== 409) violations.push(`verify without approved documents returned ${early.status}, expected 409`);
+      for (const docId of d.docIds) {
+        const review = await admin('POST', `/documents/${docId}/review`, {
+          status: 'approved', reviewer: 'invariants', method: 'in_person', evidenceReference: `inspection-${docId.slice(0, 8)}`,
+        });
+        if (review.status !== 200) violations.push(`document review ${review.status}`);
+      }
+      d.docsApproved = true;
+    }
     const r = await admin('POST', `/drivers/${d.id}/verify`);
     if (r.status !== 200) violations.push(`admin verify ${r.status}`);
     await api('POST', '/drivers/location', { latitude: -1.9441 + rand() * 0.01, longitude: 30.0619 + rand() * 0.01 }, d.token);
@@ -608,28 +632,47 @@ async function main() {
     ADMIN_API_KEY: ADMIN_KEY,
     RATE_LIMIT_MAX: '100000',
     OTP_RESEND_COOLDOWN: '0',
-    ...(process.env.OSRM_URL ? { OSRM_URL: process.env.OSRM_URL } : {}),
+    // Production refuses the public map services and every demo switch.
+    // The server also loads server/.env, so the switches are pinned off here
+    // rather than left to a developer's local values. Routing points at the
+    // mock (which has no such route), so fares use the straight-line fallback.
+    OSRM_URL: process.env.OSRM_URL || `http://localhost:${MOCK_PORT}/route/v1/driving`,
+    PHOTON_URL: `http://localhost:${MOCK_PORT}/photon/api/`,
+    PHOTON_REVERSE_URL: `http://localhost:${MOCK_PORT}/photon/reverse`,
+    DEV_REVEAL_CODES: '0',
+    DEV_AUTO_VERIFY_DRIVERS: '0',
+    DEMO_PAYMENTS: '0',
+    DEMO_FLEET: '0',
+    // Windows needs these for DNS/sockets in the child process.
+    ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
   };
   const server = spawn(process.execPath, ['src/index.js'], { cwd: path.join(__dirname, '..'), env });
   let serverLog = '';
   server.stdout.on('data', (d) => { serverLog += d; });
   server.stderr.on('data', (d) => { serverLog += d; });
-  for (let i = 0; i < 60; i++) {
-    try { if ((await fetch(`${API}/health`)).ok) break; } catch { /* booting */ }
-    await sleep(250);
+  let up = false;
+  for (let i = 0; i < 240 && !up; i++) {
+    try { up = (await fetch(`${API}/health`)).ok; } catch { /* booting */ }
+    if (!up) await sleep(250);
+  }
+  if (!up) {
+    server.kill();
+    mockServer.close();
+    throw new Error(`API did not start:
+${serverLog.slice(-1500)}`);
   }
   db = new Pool({ connectionString: DB_URL });
 
   // Production-mode surface checks.
-  const sos = await api('POST', '/auth/signup', { fullName: 'x', phone: uniquePhone(), email: `sos${SEED}@e.com`, password: 'secret123' });
-  const sosCfg = await api('GET', '/emergency/config', null, sos.data.token);
-  if (sosCfg.data?.callCenterPhone !== '+250788123456') violations.push(`SOS config ${JSON.stringify(sosCfg.data)}`);
   const head = await fetch(`${API}/webhooks/paypack`, { method: 'HEAD' });
   if (head.status !== 200) violations.push(`webhook HEAD ${head.status}`);
   if ((await api('GET', '/admin/drivers', null, null, { 'X-Admin-Key': ADMIN_KEY.slice(0, -1) + 'x' })).status !== 401) violations.push('admin accepted a wrong key');
 
   console.log(`seed=${SEED} steps=${STEPS} db=${DB_NAME}`);
   for (let i = 0; i < 3; i++) await newPassenger();
+  // Needs a phone-verified rider, like every authenticated rider route.
+  const sosCfg = await api('GET', '/emergency/config', null, world.passengers[0].token);
+  if (sosCfg.data?.callCenterPhone !== '+250788123456') violations.push(`SOS config ${JSON.stringify(sosCfg.data)}`);
   for (let i = 0; i < 2; i++) await newDriver();
 
   const actions = [

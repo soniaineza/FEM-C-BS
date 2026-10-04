@@ -106,6 +106,8 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   check('signup', signup.status === 201 && signup.data.token, `status=${signup.status}`);
   const token = signup.data.token;
   const passengerId = signup.data.passenger.id;
+  // Wallet and booking routes require a verified phone.
+  await api('POST', '/auth/verify-otp', { passengerId, code: signup.data.devCode });
 
   // ---- 7. wallet payment, happy path ----
   await creditWalletDirectly(passengerId, 50000, 'test_seed_topup');
@@ -147,10 +149,10 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   // ---- 8. insufficient balance ----
   await creditWalletDirectly(passengerId, 500, 'test_seed_low');
   const low = await runRideToPayment(token, { paymentMethodId: 'wallet' });
-  // complete-trip itself answers 400 (chargePayment throws) but the ride was
-  // already moved to paymentPending first — verified in the probe.
-  check('low-balance complete-trip rejected with 400', Boolean(low.done?.error || low.error?.status === 400 || low.done === undefined),
-    JSON.stringify(low.done?.ride?.status || low.error?.data || ''));
+  // complete-trip succeeds (the trip did end); the failed charge leaves the
+  // ride at paymentPending instead of completed.
+  check('low-balance complete-trip leaves ride paymentPending', low.done?.ride?.status === 'paymentPending',
+    JSON.stringify(low.done?.ride?.status || low.done || ''));
 
   // chargePayment failed the payment, NOT completed the ride.
   const lowRide = await api('GET', `/rides/${low.rideId}`, null, token);
@@ -163,9 +165,17 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   const walletLow = await api('GET', '/wallet', null, token);
   check('insufficient balance: wallet NOT debited', walletLow.data.wallet.balance === 500, `balance=${walletLow.data.wallet.balance}`);
 
-  // passenger can cancel the stuck ride to escape (the fix from this session)
+  // A finished trip must still be paid: it cannot be cancelled, but the
+  // rider can fall back to cash, which the driver then confirms.
   const cancelStuck = await api('POST', `/rides/${low.rideId}/cancel`, { reason: 'cannot pay' }, token);
-  check('paymentPending ride cancellable when payment failed', cancelStuck.status === 200, `status=${cancelStuck.status} ${JSON.stringify(cancelStuck.data)}`);
+  check('unpaid finished ride cannot be cancelled', cancelStuck.status === 400, `status=${cancelStuck.status}`);
+  const toCash = await api('POST', '/payments', { rideId: low.rideId, method: 'cash' }, token);
+  check('failed wallet payment can switch to cash', toCash.status === 201 && toCash.data.payment?.method === 'cash',
+    `status=${toCash.status} ${JSON.stringify(toCash.data)}`);
+  const cashConfirm = await api('POST', `/drivers/rides/${low.rideId}/confirm-cash`, null, low.dt);
+  const lowSettled = await api('GET', `/rides/${low.rideId}`, null, token);
+  check('driver cash confirmation completes the ride', cashConfirm.status === 200 && lowSettled.data.ride.status === 'completed',
+    `confirm=${cashConfirm.status} status=${lowSettled.data.ride.status}`);
 
   // ---- 5. active-ride restore contract at every state ----
   // New ride, check GET /rides/current at each step of the lifecycle.
@@ -198,7 +208,7 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   check('restore: current at inProgress', cur.data.ride?.status === 'inProgress', `status=${cur.data.ride?.status}`);
 
   await api('POST', `/drivers/rides/${restoreRideId}/complete-trip`, null, dtR);
-  await api('POST', `/rides/${restoreRideId}/pay-cash`, null, token);
+  await api('POST', `/drivers/rides/${restoreRideId}/confirm-cash`, null, dtR);
   cur = await api('GET', '/rides/current', null, token);
   check('restore: current is null after completion', cur.data.ride === null, `got=${JSON.stringify(cur.data.ride)?.slice(0, 80)}`);
 
@@ -209,9 +219,9 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   const paidRide = mine.find((x) => x.id === happy.rideId);
   check('completed wallet ride has real fare in history', paidRide.status === 'completed' && paidRide.finalFare === fare,
     `status=${paidRide.status} finalFare=${paidRide.finalFare}`);
-  const cancelledRide = mine.find((x) => x.id === low.rideId);
-  check('cancelled ride shows cancelledBy passenger in history', cancelledRide.status === 'cancelled' && cancelledRide.cancelledBy === 'passenger',
-    `status=${cancelledRide.status} by=${cancelledRide.cancelledBy}`);
+  const cashFallbackRide = mine.find((x) => x.id === low.rideId);
+  check('cash-fallback ride shows completed in history', cashFallbackRide.status === 'completed',
+    `status=${cashFallbackRide.status}`);
 
   console.log(`\nWALLET-FLOW: ${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

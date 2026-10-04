@@ -18,6 +18,7 @@ const {
   getActiveRide,
   getActiveRides,
   updateDriverLocation,
+  getStopPlan,
   acceptRide,
   declineRide,
   markArrived,
@@ -160,6 +161,15 @@ active.get(
   asyncHandler(async (req, res) => {
     const rides = await getActiveRides(req.driverId);
     res.json({ rides: rides.map(rideToJson) });
+  })
+);
+
+// GET /api/drivers/rides/stops — the remaining pickups and drop-offs across
+// every active ride, in the order to drive them.
+active.get(
+  '/rides/stops',
+  asyncHandler(async (req, res) => {
+    res.json(await getStopPlan(req.driverId));
   })
 );
 

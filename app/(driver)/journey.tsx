@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../components/SafeAreaViewPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,9 @@ import { Input } from '../../components/Input';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { BackHeader } from '../../components/BackHeader';
 import { RideMap, RideMapMarker } from '../../components/RideMap';
+import { StopList } from '../../components/driver/StopList';
 import { useDriverRideDetails } from '../../hooks/useDriverRideDetails';
+import { useDriverStops } from '../../hooks/useDriverStops';
 import { useTranslation } from '../../hooks/useTranslation';
 import { markDriverArrived, verifyDriverRidePin, completeDriverTrip, confirmDriverCashPayment, cancelDriverRide } from '../../services/driver-service';
 import { formatFare, RoutePoint } from '../../types/ride';
@@ -36,6 +38,10 @@ export default function DriverJourneyScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const { ride } = useDriverRideDetails(rideId ?? null);
+  // A shared trip carries more than one rider: show every remaining stop in
+  // driving order so the driver is not left juggling separate trip screens.
+  const stops = useDriverStops(!!rideId);
+  const isSharedTrip = new Set(stops.map((s) => s.rideId)).size > 1;
   // The cancel-reason bottom sheet lives in a transparent Modal (no automatic
   // SafeArea) — pad its bottom by the system inset so the action list stays
   // clear of the gesture bar / 3-button nav.
@@ -210,15 +216,28 @@ export default function DriverJourneyScreen() {
         />
       </View>
 
-      <View className="flex-1 px-6 pt-2">
+      <ScrollView className="flex-1" contentContainerClassName="px-6 pt-2 pb-8" keyboardShouldPersistTaps="handled">
         <BackHeader onBack={() => router.replace('/(driver)/(tabs)' as any)} />
+
+        {isSharedTrip ? (
+          <StopList
+            stops={stops}
+            currentRideId={ride.id}
+            onSelectRide={(id) => {
+              if (id !== ride.id) router.replace({ pathname: '/(driver)/journey', params: { rideId: id } } as any);
+            }}
+          />
+        ) : null}
 
         <View
           className="mt-3 flex-row items-center justify-between rounded-2xl border border-border bg-white p-4"
           style={{ shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 }}
         >
           <View className="flex-1">
-            <Text className="text-base font-bold text-ink">{ride.rider?.name ?? t('driver')}</Text>
+            <Text className="text-base font-bold text-ink">
+              {ride.rider?.name ?? t('driver')}
+              {ride.seats > 1 ? ` · ${t('seatsLabel', { count: ride.seats })}` : ''}
+            </Text>
             <Text className="mt-0.5 text-[13px] text-text-secondary" numberOfLines={1}>
               {awaitingPin || inTrip ? ride.destination.address : ride.pickup.address}
             </Text>
@@ -266,7 +285,7 @@ export default function DriverJourneyScreen() {
             <Text className="text-sm font-semibold text-error">{t('driverCancelTrip')}</Text>
           </Pressable>
         ) : null}
-      </View>
+      </ScrollView>
 
       <Modal visible={cancelSheetOpen} transparent animationType="slide" onRequestClose={() => setCancelSheetOpen(false)}>
         <View className="flex-1 justify-end bg-black/40">

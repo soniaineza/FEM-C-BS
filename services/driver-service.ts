@@ -42,6 +42,26 @@ export async function getActiveDriverRides(): Promise<Ride[]> {
   return json.rides.map((r) => resolveRideFromBackendJson(r, catalogues));
 }
 
+/** One pickup or drop-off in the driver's ordered stop plan. */
+export interface DriverStop {
+  type: 'pickup' | 'dropoff';
+  rideId: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  etaMinutes: number;
+  passengerName: string;
+  seats: number;
+  rideStatus: string;
+}
+
+/** Every remaining pickup and drop-off across the driver's active rides, in
+ * the order to drive them (server/src/services/poolPlanner.js). */
+export async function getDriverStops(): Promise<DriverStop[]> {
+  const json = await driverApiClient.get<{ stops: DriverStop[] }>('/drivers/rides/stops');
+  return json.stops;
+}
+
 export async function acceptDriverRide(rideId: string): Promise<void> {
   await driverApiClient.post(`/drivers/rides/${rideId}/accept`);
 }

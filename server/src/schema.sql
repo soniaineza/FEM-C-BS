@@ -139,6 +139,8 @@ ALTER TABLE rides ADD COLUMN IF NOT EXISTS applied_discount DOUBLE PRECISION;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS pool_group_id UUID;
 CREATE INDEX IF NOT EXISTS idx_rides_pool_group ON rides (pool_group_id)
   WHERE pool_group_id IS NOT NULL;
+-- Seats this booking takes in a shared vehicle (1 or 2). Private rides are 1.
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS seats INTEGER NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS ride_status_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

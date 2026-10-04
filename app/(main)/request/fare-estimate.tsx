@@ -28,6 +28,7 @@ export default function FareEstimateScreen() {
   const destination = useRideWizardStore((s) => s.destination);
   const vehicle = useRideWizardStore((s) => s.vehicle);
   const rideType = useRideWizardStore((s) => s.rideType);
+  const seats = useRideWizardStore((s) => s.seats);
   const locked = useRideWizardStore((s) => s.fareEstimate);
   const setFareEstimate = useRideWizardStore((s) => s.setFareEstimate);
 
@@ -46,7 +47,7 @@ export default function FareEstimateScreen() {
     if (locked?.quoteId) return;
     setLoading(true);
     setLoadError(undefined);
-    Promise.all([fetchServerEstimate({ pickup, destination, vehicle, rideType }), getRoute({ from: pickup, to: destination })])
+    Promise.all([fetchServerEstimate({ pickup, destination, vehicle, rideType, seats }), getRoute({ from: pickup, to: destination })])
       .then(([serverEstimate, route]) => {
         const next: FareEstimate = {
           ...serverEstimate,
@@ -58,7 +59,7 @@ export default function FareEstimateScreen() {
       .catch((err) => setLoadError(err instanceof Error ? err.message : t('requestFailed')))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickup, destination, vehicle, rideType, isFocused]);
+  }, [pickup, destination, vehicle, rideType, seats, isFocused]);
 
   useEffect(() => {
     load();

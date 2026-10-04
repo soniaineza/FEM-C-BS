@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const { getPool } = require('../db');
 const { config } = require('../config');
 const { ApiError } = require('../utils/asyncHandler');
-const { fareForRide } = require('./pricing');
+const { fareForRide, normalizeSeats } = require('./pricing');
 const { transitionRide, loadRide } = require('./rideStateMachine');
 const {
   findNearestDriver,
@@ -29,13 +29,14 @@ const BOOKABLE_STATUSES = new Set([
  * services/pricing.js). The client never supplies fares — only coordinates,
  * vehicle, ride type and optionally the id of a quote it was shown.
  */
-async function computeEstimate(vehicle, pickup, destination, rideType, quoteId) {
+async function computeEstimate(vehicle, pickup, destination, rideType, quoteId, seats = 1) {
   const { distanceKm, durationMinutes, fare } = await fareForRide(
     vehicle,
     pickup,
     destination,
     rideType,
-    quoteId
+    quoteId,
+    seats
   );
   return { distanceKm, durationMinutes, estimatedFare: fare.total, fare };
 }
@@ -79,6 +80,7 @@ async function createRide(passengerId, body) {
     promotionCode,
     scheduledFor,
     quoteId,
+    seats: requestedSeats,
   } = body || {};
 
   if (
@@ -89,6 +91,7 @@ async function createRide(passengerId, body) {
     throw new ApiError(400, 'Pickup, destination (with coordinates), vehicle and payment method are required.');
   }
   const type = rideType === 'shared' ? 'shared' : 'private';
+  const seats = normalizeSeats(type, requestedSeats);
 
   // Duplicate-request guard: a passenger with a live (non terminal) ride
   // must not be able to stack another booking — the driver matcher, simulator
@@ -115,7 +118,8 @@ async function createRide(passengerId, body) {
     pickup,
     destination,
     type,
-    quoteId
+    quoteId,
+    seats
   );
 
   const { discountedFare, discount, promotion } = await applyPromotion(
@@ -136,8 +140,8 @@ async function createRide(passengerId, body) {
        dest_address, dest_latitude, dest_longitude,
        distance_km, duration_minutes, payment_method, estimated_fare,
        status, ride_note, promotion_id, applied_discount, scheduled_for,
-       fare_breakdown, surge_multiplier
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       fare_breakdown, surge_multiplier, seats
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
      RETURNING *`,
     [
       passengerId,
@@ -160,6 +164,7 @@ async function createRide(passengerId, body) {
       status === 'scheduled' ? new Date(scheduledFor).toISOString() : null,
       JSON.stringify(fare),
       fare.surgeMultiplier,
+      seats,
     ]
   );
   const ride = rows[0];
@@ -243,18 +248,26 @@ async function matchAndAssign(rideId) {
     rideId: ride.id,
   });
 
-  // Let the passenger already in the vehicle know they now have company.
+  // Rides are auto-assigned, so this push is the driver's only alert when the
+  // app is backgrounded (the in-app feed is a poll, see useDriverActiveRide).
+  await pushDriverNotification(assigned.driver_id, {
+    title: pooled ? 'New shared pickup' : 'New ride request',
+    body: `Pickup: ${ride.pickup_address}`,
+    type: 'ride',
+    rideId: ride.id,
+  });
+
+  // Let everyone already sharing the vehicle know they now have company.
   if (pooled) {
-    await pushNotification(poolMatch.anchorRide.passenger_id, {
-      title: 'Another passenger joined your ride',
-      body: 'Your driver is picking up another passenger heading the same way.',
-      type: 'ride',
-      rideId: poolMatch.anchorRide.id,
-    });
-    publishRideEvent(poolMatch.anchorRide.id, {
-      type: 'poolJoined',
-      rideId: poolMatch.anchorRide.id,
-    });
+    for (const member of poolMatch.members) {
+      await pushNotification(member.passenger_id, {
+        title: 'Another passenger joined your ride',
+        body: 'Your driver is picking up another passenger heading the same way.',
+        type: 'ride',
+        rideId: member.id,
+      });
+      publishRideEvent(member.id, { type: 'poolJoined', rideId: member.id });
+    }
   }
 
   publishRideEvent(ride.id, { type: 'driverAssigned', rideId: ride.id });
@@ -329,7 +342,9 @@ async function changeDestination(passengerId, rideId, destination) {
     vehicleRows[0],
     { latitude: ride.pickup_latitude, longitude: ride.pickup_longitude },
     destination,
-    ride.ride_type
+    ride.ride_type,
+    null,
+    ride.seats
   );
 
   // A previously applied promotion keeps the ride's own discount; it is not

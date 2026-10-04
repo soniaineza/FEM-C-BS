@@ -46,7 +46,10 @@ signup/login). All responses are JSON; errors are `{ "error": "message" }`.
 - `POST /api/places/saved` (auth) `{ type, name, address, latitude?, longitude? }`
 - `DELETE /api/places/saved/:id` (auth)
 
-- `POST /api/rides` (auth) `{ pickup: {address, latitude, longitude}, destination: {...}, vehicleId, paymentMethodId }`
+- `GET /api/rides/quote?pickup=lat,lng&destination=lat,lng&rideType=private|shared&seats=1|2`
+  — upfront price for every vehicle class. A shared quote also returns
+  `shared: { maxAddedMinutes, maxSeats, seats }`.
+- `POST /api/rides` (auth) `{ pickup: {address, latitude, longitude}, destination: {...}, vehicleId, paymentMethodId, rideType?, seats?, quoteId? }`
   — distance/duration/fare are always computed server-side. Kicks off a simulated
   driver-matching lifecycle (see below).
 - `GET /api/rides` (auth) — ride history
@@ -147,6 +150,34 @@ reference through `POST /api/admin/payment-exceptions/:id/resolve` with
 `{"resolution":"refunded","reference":"provider-refund-id"}` (or
 `resolution: "no_refund_due"` with an investigation reference).
 
+**Driver money.** Each driver has a running balance derived from the
+ledgers: the net fare of rides paid digitally, minus the commission on cash
+rides (the driver kept the whole fare), minus payouts, plus commission they
+have paid in. A driver who owes more than `DRIVER_MAX_COMMISSION_DEBT`
+(default RWF 5,000) is taken offline and cannot go online until it is paid:
+from the app by mobile money (`POST /api/driver/balance/settle`), or in person
+and recorded by an operator. Drivers request payouts of a positive balance in
+the app (`POST /api/driver/payouts`, minimum `DRIVER_MIN_PAYOUT`); an operator
+approves each one:
+
+```
+curl -H "$H" "$API/payouts?status=pending"
+curl -H "$H" -X POST "$API/payouts/<payoutId>/approve" \
+     -H 'Content-Type: application/json' -d '{"reviewer":"operator-id"}'
+     # without Paypack configured: pay by hand, then add "reference":"transfer-id"
+curl -H "$H" -X POST "$API/payouts/<payoutId>/reject" \
+     -H 'Content-Type: application/json' -d '{"reviewer":"operator-id","reason":"Wrong number"}'
+curl -H "$H" "$API/drivers/<driverId>/balance"
+curl -H "$H" -X POST "$API/drivers/<driverId>/settlements" \
+     -H 'Content-Type: application/json' \
+     -d '{"amount":3000,"reference":"office-receipt-id","recordedBy":"operator-id"}'
+```
+
+With Paypack configured, approval sends the money by mobile-money cash-out
+(the Paypack account needs cash-out enabled and a funded balance) and the
+payout completes when the `transaction:processed` webhook or the scheduler's
+poll confirms it. A failed or rejected payout returns to the driver's balance.
+
 **Demo switches.** `DEV_REVEAL_CODES`, `DEMO_PAYMENTS` and
 `DEV_AUTO_VERIFY_DRIVERS` must be `0`.
 
@@ -165,6 +196,16 @@ the route geometry and pickup ETAs by road; each option's `quoteId` locks its
 price for 5 minutes when passed to `POST /api/rides`. Per-class rates live in
 the `vehicles` table (`per_minute`, `min_fare`, `booking_fee`).
 
+**Shared rides** (`src/services/poolPlanner.js`, `driverMatcher.js`): a shared
+booking takes 1 or 2 seats (the second adds 25%) and costs 70% of the private
+fare whether or not anyone joins. A new shared request joins a vehicle already
+carrying shared riders of the same class when there are enough free seats and
+the best stop order, timed by road, delays no rider (the newcomer included) by
+more than 8 minutes and reaches the newcomer within 15. Otherwise it gets its
+own car and becomes a pool others can join. Each rider keeps their own PIN,
+fare and payment. `GET /api/drivers/rides/stops` returns the driver's remaining
+pickups and drop-offs in driving order.
+
 **Routing** (`src/services/routing.js`) goes through OSRM. The public
 `router.project-osrm.org` demo is for non-commercial use at up to 1
 request/second, so production must self-host: `osrm/build-rwanda.sh` builds a
@@ -180,11 +221,20 @@ through the same code paths as the driver app. `FLEET_DEBUG=1` logs each
 car's decisions. Nearby cars and the assigned driver are served with the
 last ~12 s of their trail so the app can animate them along the road.
 
-**Tests**: `test/invariants.js` (production mode, fake Paypack/SMS, random
-walk with money/state invariants after every step), `test/smoke.js`,
-`test/wallet-flow.js`, `test/production-readiness.js`, and
-`test/jev-place-search.js`, where TypeSafe's Jev judges whether place search
-returns the place a rider meant (needs `TYPESAFE_API_KEY`).
+**Tests** are plain scripts with different prerequisites, so each has its
+own npm script (each exits non-zero on failure):
+
+| Command | Needs |
+| --- | --- |
+| `npm test` | Runs `test:smoke` then `test:wallet`. |
+| `npm run test:smoke` | API on `:3000` started with `DEV_REVEAL_CODES=1 DEV_AUTO_VERIFY_DRIVERS=1`; add `DEMO_PAYMENTS=1` to both the server and the test to cover demo settlement. |
+| `npm run test:wallet` | Same local API as the smoke test. |
+| `npm run test:money` | Same local API started with `DEMO_PAYMENTS=1` and an `ADMIN_API_KEY` (pass the same key to the test). Covers shared-ride seats, the stop plan, cash commission, commission settlement and payouts; start the API with `DRIVER_MAX_COMMISSION_DEBT=100` to also cover the going-online block. |
+| `npm run test:readiness` | API on `:3000` started with the same `PAYPACK_WEBHOOK_SECRET` and `ADMIN_API_KEY` as in `server/.env`. |
+| `npm run test:invariants` | Only PostgreSQL (`INV_DATABASE_URL`). Starts its own production-mode API, fake Paypack and SMS gateway, and a fresh database. Optional args: `-- <seed> <steps>`. |
+| `npm run test:places` | API on `:3000` and `TYPESAFE_API_KEY`; TypeSafe's Jev judges whether place search returns the place a rider meant. |
+
+The smoke, wallet and money tests need the seeded dev drivers online: run `SEED_DEV_DATA=1 npm run seed:dev` first, and `node scripts/reset-dev-rides.js` after a crashed run (it cancels stuck rides and clears test commission debt).
 
 ## Wiring up the app
 

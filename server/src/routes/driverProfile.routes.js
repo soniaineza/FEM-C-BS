@@ -11,6 +11,13 @@ const { signDriverToken } = require('../utils/jwt');
 const { apiLimiter } = require('../middleware/rateLimit');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
+const {
+  getDriverBalance,
+  requestPayout,
+  startSettlement,
+  payoutToJson,
+  settlementToJson,
+} = require('../services/driverBalance');
 
 const router = express.Router();
 router.use(requireDriverAuth);
@@ -84,6 +91,12 @@ router.put('/status', asyncHandler(async (req, res) => {
     }
     const missing = await missingApprovedDocuments(req.driverId);
     if (missing.length) throw new ApiError(403, `Driver documents need current in-person approval: ${missing.join(', ')}.`);
+    if (!config.demoFleet) {
+      const balance = await getDriverBalance(req.driverId);
+      if (balance.blocked) {
+        throw new ApiError(403, `You owe RWF ${Math.ceil(balance.owed).toLocaleString()} in commission on cash trips. Pay it to go online.`);
+      }
+    }
   }
 
   const { rows } = await getPool().query(
@@ -296,6 +309,7 @@ router.get('/earnings', asyncHandler(async (req, res) => {
         rides: totalRes.rows[0].rides,
       },
       pendingBalance: Number(pendingRes.rows[0].total),
+      balance: await getDriverBalance(driverId),
       rating: ratingRes.rows[0]?.rating == null ? null : Number(ratingRes.rows[0].rating),
       totalTrips: ratingRes.rows[0]?.total_trips || 0,
     },
@@ -341,17 +355,31 @@ router.get('/payouts', asyncHandler(async (req, res) => {
     'SELECT * FROM driver_payouts WHERE driver_id = $1 ORDER BY created_at DESC LIMIT 50',
     [req.driverId]
   );
-  res.json({
-    payouts: rows.map((r) => ({
-      id: r.id,
-      amount: Number(r.amount),
-      method: r.method,
-      status: r.status,
-      reference: r.reference,
-      createdAt: r.created_at,
-      processedAt: r.processed_at,
-    })),
-  });
+  res.json({ payouts: rows.map(payoutToJson), balance: await getDriverBalance(req.driverId) });
+}));
+
+// POST /api/driver/payouts { amount } — ask for available balance to be
+// paid out to the driver's mobile money. An operator approves it.
+router.post('/payouts', asyncHandler(async (req, res) => {
+  const payout = await requestPayout(req.driverId, req.body?.amount);
+  res.status(201).json({ payout: payoutToJson(payout), balance: await getDriverBalance(req.driverId) });
+}));
+
+// GET /api/driver/balance — what the platform owes the driver, or the
+// cash-trip commission the driver owes, with recent commission payments.
+router.get('/balance', asyncHandler(async (req, res) => {
+  const { rows } = await getPool().query(
+    'SELECT * FROM driver_settlements WHERE driver_id = $1 ORDER BY created_at DESC LIMIT 20',
+    [req.driverId]
+  );
+  res.json({ balance: await getDriverBalance(req.driverId), settlements: rows.map(settlementToJson) });
+}));
+
+// POST /api/driver/balance/settle { amount? } — pay owed commission from the
+// driver's mobile money (defaults to everything owed).
+router.post('/balance/settle', asyncHandler(async (req, res) => {
+  const settlement = await startSettlement(req.driverId, req.body?.amount);
+  res.status(201).json({ settlement: settlementToJson(settlement), balance: await getDriverBalance(req.driverId) });
 }));
 
 // ============================================================

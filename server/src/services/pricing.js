@@ -4,12 +4,13 @@ const { getPool } = require('../db');
 const { haversineKm } = require('../utils/distance');
 const { getRoadRoute, getTravelTimes, estimateSeconds } = require('./routing');
 const { eligibleDriverSql } = require('./driverKyc');
+const { MAX_ADDED_MINUTES } = require('./poolPlanner');
 
 // Upfront, server-authoritative pricing in the style of Uber's upfront fares:
 //
 //   subtotal = base + perKm * roadKm + perMinute * roadMinutes
 //   fare     = max(minimumFare, subtotal * surge) + bookingFee
-//   shared   = fare * 0.7
+//   shared   = fare * 0.7 (a second seat adds 25% of that)
 //   rounded UP to the nearest 100 RWF
 //
 // Distance and duration come from the real road route (OSRM), not the
@@ -18,6 +19,10 @@ const { eligibleDriverSql } = require('./driverKyc');
 // charged, even if surge moves while the rider decides.
 
 const SHARED_FACTOR = 0.7;
+// A shared booking may take a second seat. It is priced well under two
+// fares so two people sharing still pay less than a private car.
+const MAX_SHARED_SEATS = 2;
+const SHARED_EXTRA_SEAT_FACTOR = 1.25;
 const ROUND_TO = 100;
 const SURGE_RADIUS_KM = 3;
 const MAX_SURGE = 2.0;
@@ -101,7 +106,7 @@ async function pickupEtas(point) {
 }
 
 /** Itemised fare for one vehicle class over a known road route. */
-function priceFor(vehicle, { distanceKm, durationMinutes }, rideType, surge) {
+function priceFor(vehicle, { distanceKm, durationMinutes }, rideType, surge, seats = 1) {
   const base = Number(vehicle.base_fare);
   const distanceFare = distanceKm * Number(vehicle.fare_per_km);
   const timeFare = durationMinutes * Number(vehicle.per_minute || 0);
@@ -111,7 +116,10 @@ function priceFor(vehicle, { distanceKm, durationMinutes }, rideType, surge) {
   const surged = subtotal * surge;
   const minimumApplied = surged < minimumFare;
   let total = Math.max(minimumFare, surged) + bookingFee;
-  if (rideType === 'shared') total *= SHARED_FACTOR;
+  if (rideType === 'shared') {
+    total *= SHARED_FACTOR;
+    if (seats > 1) total *= SHARED_EXTRA_SEAT_FACTOR;
+  }
   const rounded = roundUp(total);
   return {
     currency: 'RWF',
@@ -123,6 +131,7 @@ function priceFor(vehicle, { distanceKm, durationMinutes }, rideType, surge) {
     minimumFare: Math.round(minimumFare),
     minimumApplied,
     sharedDiscountPercent: rideType === 'shared' ? Math.round((1 - SHARED_FACTOR) * 100) : 0,
+    seats,
     total: rounded,
   };
 }
@@ -134,9 +143,16 @@ function routeSummary(route) {
   };
 }
 
-function quoteKey(pickup, destination, vehicleId, rideType) {
+/** Seats a booking takes: 1 or 2 on a shared ride; a private ride is the whole car. */
+function normalizeSeats(rideType, seats) {
+  if (rideType !== 'shared') return 1;
+  const n = Math.round(Number(seats));
+  return Number.isFinite(n) ? Math.min(MAX_SHARED_SEATS, Math.max(1, n)) : 1;
+}
+
+function quoteKey(pickup, destination, vehicleId, rideType, seats) {
   const r = (n) => Number(n).toFixed(4);
-  return `${r(pickup.latitude)},${r(pickup.longitude)}|${r(destination.latitude)},${r(destination.longitude)}|${vehicleId}|${rideType}`;
+  return `${r(pickup.latitude)},${r(pickup.longitude)}|${r(destination.latitude)},${r(destination.longitude)}|${vehicleId}|${rideType}|${seats}`;
 }
 
 function pruneQuotes() {
@@ -148,7 +164,8 @@ function pruneQuotes() {
  * Prices every vehicle class for a trip in one go (one route lookup), for the
  * vehicle-choice screen. Each quote carries a quoteId that locks its price.
  */
-async function quoteTrip(pickup, destination, rideType = 'private') {
+async function quoteTrip(pickup, destination, rideType = 'private', seats = 1) {
+  seats = normalizeSeats(rideType, seats);
   const [route, surge, etas, { rows: vehicles }] = await Promise.all([
     getRoadRoute(pickup, destination),
     surgeAt(pickup),
@@ -159,11 +176,11 @@ async function quoteTrip(pickup, destination, rideType = 'private') {
   pruneQuotes();
   const expiresAt = Date.now() + QUOTE_TTL_MS;
   const options = vehicles.map((vehicle) => {
-    const fare = priceFor(vehicle, trip, rideType, surge.multiplier);
+    const fare = priceFor(vehicle, trip, rideType, surge.multiplier, seats);
     const quoteId = crypto.randomBytes(9).toString('base64url');
     quotes.set(quoteId, {
       expiresAt,
-      key: quoteKey(pickup, destination, vehicle.id, rideType),
+      key: quoteKey(pickup, destination, vehicle.id, rideType, seats),
       fare,
       trip,
     });
@@ -181,6 +198,9 @@ async function quoteTrip(pickup, destination, rideType = 'private') {
     route: { coordinates: route.coordinates, source: route.source, ...trip },
     surge,
     expiresAt: new Date(expiresAt).toISOString(),
+    // What a shared rider is promised: the most other riders may add to
+    // their trip, and how many seats one booking may take.
+    shared: rideType === 'shared' ? { maxAddedMinutes: MAX_ADDED_MINUTES, maxSeats: MAX_SHARED_SEATS, seats } : null,
     options,
   };
 }
@@ -189,18 +209,19 @@ async function quoteTrip(pickup, destination, rideType = 'private') {
  * The fare to charge for a new ride: the locked quote when a valid one for
  * exactly this trip is supplied, otherwise a fresh upfront price.
  */
-async function fareForRide(vehicle, pickup, destination, rideType, quoteId) {
+async function fareForRide(vehicle, pickup, destination, rideType, quoteId, seats = 1) {
+  seats = normalizeSeats(rideType, seats);
   const locked = quoteId ? quotes.get(quoteId) : null;
   if (
     locked &&
     locked.expiresAt > Date.now() &&
-    locked.key === quoteKey(pickup, destination, vehicle.id, rideType)
+    locked.key === quoteKey(pickup, destination, vehicle.id, rideType, seats)
   ) {
     return { ...locked.trip, fare: locked.fare, locked: true };
   }
   const [route, surge] = await Promise.all([getRoadRoute(pickup, destination), surgeAt(pickup)]);
   const trip = routeSummary(route);
-  return { ...trip, fare: priceFor(vehicle, trip, rideType, surge.multiplier), locked: false };
+  return { ...trip, fare: priceFor(vehicle, trip, rideType, surge.multiplier, seats), locked: false };
 }
 
-module.exports = { quoteTrip, fareForRide, priceFor, surgeAt, roundUp, QUOTE_TTL_MS };
+module.exports = { quoteTrip, fareForRide, priceFor, surgeAt, roundUp, normalizeSeats, QUOTE_TTL_MS };

@@ -1,7 +1,8 @@
 const { getPool } = require('../db');
 const { getTravelTimes } = require('./routing');
-const { haversineKm, bearingDegrees, bearingDiffDegrees } = require('../utils/distance');
+const { haversineKm } = require('../utils/distance');
 const { eligibleDriverSql } = require('./driverKyc');
+const { evaluatePoolJoin } = require('./poolPlanner');
 
 const MATCH_CANDIDATES = 8;
 const DEFAULT_MAX_MATCH_KM = 5;
@@ -17,27 +18,27 @@ const DRIVER_ACTIVE_RIDE_STATUSES = [
   'inProgress',
 ];
 
-// A shared ride may only join an existing pool while the driver has not yet
-// reached anyone's pickup point — once they have, adding a new stop would
-// mean turning back, which defeats the point of pooling.
-const POOLABLE_STATUSES = ['driverAssigned', 'driverArriving'];
+// Statuses in which a shared ride still occupies seats in its vehicle, and
+// so can be joined by another shared booking. Whether joining is acceptable
+// is decided by the added travel time, not by how far along the trip is.
+const POOLABLE_STATUSES = ['driverAssigned', 'driverArriving', 'driverArrived', 'pinVerified', 'inProgress'];
 
-// How far out of the way a pooled pickup is allowed to be, and how close the
-// two trips' overall directions must be, to count as "going the same way".
-const POOL_MAX_PICKUP_DETOUR_KM = 3;
-const POOL_MAX_BEARING_DIFF_DEGREES = 45;
+// Only the few pools nearest the new pickup are timed by road.
+const POOL_CANDIDATES = 3;
 
 /**
- * Finds an existing shared-ride pool this new ride can join: another shared
- * ride, in the same vehicle class, whose driver hasn't reached a pickup yet,
- * with a free seat, heading the same general direction and not too far out
- * of the way. Returns { driver, poolGroupId, distanceKm } or null.
+ * Finds an existing shared-ride pool this new ride can join: a vehicle of
+ * the same class already carrying shared riders, with enough free seats,
+ * where serving this rider keeps everyone (them included) within the
+ * promised extra travel time by road — see poolPlanner.evaluatePoolJoin.
+ * Returns { driverId, poolGroupId, members, pickupSeconds } or null.
  */
 async function findPoolableRide(ride) {
   if (ride.ride_type !== 'shared') return null;
 
   const { rows: candidates } = await getPool().query(
-    `SELECT r.*, v.capacity AS vehicle_capacity
+    `SELECT r.*, v.capacity AS vehicle_capacity,
+            d.current_latitude AS driver_latitude, d.current_longitude AS driver_longitude
        FROM rides r
        JOIN vehicles v ON v.id = r.vehicle_id
        JOIN drivers d ON d.id = r.driver_id
@@ -45,65 +46,50 @@ async function findPoolableRide(ride) {
         AND r.vehicle_id = $1
         AND r.status = ANY($2)
         AND r.driver_id IS NOT NULL
-        AND d.verified = TRUE ${eligibleDriverSql}`,
-    [ride.vehicle_id, POOLABLE_STATUSES]
+        AND r.passenger_id != $3
+        AND d.current_latitude IS NOT NULL
+        AND d.current_longitude IS NOT NULL
+        AND d.verified = TRUE ${eligibleDriverSql}
+      ORDER BY r.created_at ASC`,
+    [ride.vehicle_id, POOLABLE_STATUSES, ride.passenger_id]
   );
   if (!candidates.length) return null;
 
-  // Group candidates by pool (a pool may already have more than one member)
-  // and drop any pool that's already full.
+  // One pool per vehicle: every shared ride a driver is currently serving.
   const pools = new Map();
   for (const c of candidates) {
-    const groupId = c.pool_group_id || c.id;
-    if (!pools.has(groupId)) pools.set(groupId, []);
-    pools.get(groupId).push(c);
+    if (!pools.has(c.driver_id)) pools.set(c.driver_id, []);
+    pools.get(c.driver_id).push(c);
   }
 
-  const newBearing = bearingDegrees(
-    ride.pickup_latitude,
-    ride.pickup_longitude,
-    ride.dest_latitude,
-    ride.dest_longitude
-  );
+  const seats = ride.seats || 1;
+  const nearby = [];
+  for (const [driverId, members] of pools) {
+    const capacity = members[0].vehicle_capacity || 4;
+    const taken = members.reduce((sum, m) => sum + (m.seats || 1), 0);
+    if (taken + seats > capacity) continue;
+    const position = { latitude: members[0].driver_latitude, longitude: members[0].driver_longitude };
+    const km = haversineKm(ride.pickup_latitude, ride.pickup_longitude, position.latitude, position.longitude);
+    if (km > DEFAULT_MAX_MATCH_KM) continue;
+    nearby.push({ driverId, members, position, km });
+  }
+  nearby.sort((a, b) => a.km - b.km);
 
   let best = null;
-  let bestDistance = Infinity;
-  for (const [groupId, members] of pools) {
-    const capacity = members[0].vehicle_capacity || 4;
-    if (members.length >= capacity) continue;
-
-    for (const member of members) {
-      const pickupDetourKm = haversineKm(
-        ride.pickup_latitude,
-        ride.pickup_longitude,
-        member.pickup_latitude,
-        member.pickup_longitude
-      );
-      if (pickupDetourKm > POOL_MAX_PICKUP_DETOUR_KM) continue;
-
-      const memberBearing = bearingDegrees(
-        member.pickup_latitude,
-        member.pickup_longitude,
-        member.dest_latitude,
-        member.dest_longitude
-      );
-      if (bearingDiffDegrees(newBearing, memberBearing) > POOL_MAX_BEARING_DIFF_DEGREES) {
-        continue;
-      }
-
-      if (pickupDetourKm < bestDistance) {
-        bestDistance = pickupDetourKm;
-        best = { member, groupId };
-      }
+  for (const pool of nearby.slice(0, POOL_CANDIDATES)) {
+    const verdict = await evaluatePoolJoin(pool.position, pool.members, ride);
+    if (!verdict.ok) continue;
+    if (!best || verdict.pickupSeconds < best.pickupSeconds) {
+      best = { ...pool, pickupSeconds: verdict.pickupSeconds };
     }
   }
-
   if (!best) return null;
+
   return {
-    driverId: best.member.driver_id,
-    poolGroupId: best.groupId,
-    distanceKm: bestDistance,
-    anchorRide: best.member,
+    driverId: best.driverId,
+    poolGroupId: best.members[0].pool_group_id || best.members[0].id,
+    members: best.members,
+    pickupSeconds: best.pickupSeconds,
   };
 }
 

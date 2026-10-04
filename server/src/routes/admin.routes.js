@@ -7,6 +7,14 @@ const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { driverToJson } = require('../utils/serialize');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
+const {
+  getDriverBalance,
+  approvePayout,
+  rejectPayout,
+  recordOperatorSettlement,
+  payoutToJson,
+  settlementToJson,
+} = require('../services/driverBalance');
 
 // Operator-only routes for driver KYC review. Authenticated with the
 // ADMIN_API_KEY shared secret in the X-Admin-Key header; disabled entirely
@@ -248,5 +256,44 @@ router.post(
     res.json({ driver: driverToJson(rows[0]) });
   })
 );
+
+// GET /api/admin/payouts?status=pending — driver payout requests to review.
+router.get('/payouts', asyncHandler(async (req, res) => {
+  const status = String(req.query.status || 'pending');
+  const { rows } = await getPool().query(
+    `SELECT p.*, d.full_name AS driver_name FROM driver_payouts p
+       JOIN drivers d ON d.id = p.driver_id
+      WHERE p.status = $1 ORDER BY p.created_at ASC LIMIT 200`,
+    [status]
+  );
+  res.json({ payouts: rows.map((r) => ({ ...payoutToJson(r), driverName: r.driver_name })) });
+}));
+
+// POST /api/admin/payouts/:id/approve { reviewer, reference? } — sends the
+// money by mobile money, or records a manual transfer by its reference.
+router.post('/payouts/:id/approve', asyncHandler(async (req, res) => {
+  const payout = await approvePayout(req.params.id, req.body || {});
+  res.json({ payout: payoutToJson(payout) });
+}));
+
+// POST /api/admin/payouts/:id/reject { reviewer, reason }
+router.post('/payouts/:id/reject', asyncHandler(async (req, res) => {
+  const payout = await rejectPayout(req.params.id, req.body || {});
+  res.json({ payout: payoutToJson(payout) });
+}));
+
+// GET /api/admin/drivers/:id/balance
+router.get('/drivers/:id/balance', asyncHandler(async (req, res) => {
+  const driver = await loadDriver(req.params.id);
+  res.json({ balance: await getDriverBalance(driver.id) });
+}));
+
+// POST /api/admin/drivers/:id/settlements { amount, reference, recordedBy }
+// — commission the driver paid in person or by transfer.
+router.post('/drivers/:id/settlements', asyncHandler(async (req, res) => {
+  const driver = await loadDriver(req.params.id);
+  const settlement = await recordOperatorSettlement(driver.id, req.body || {});
+  res.status(201).json({ settlement: settlementToJson(settlement), balance: await getDriverBalance(driver.id) });
+}));
 
 module.exports = router;

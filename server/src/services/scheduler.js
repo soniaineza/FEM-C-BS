@@ -7,6 +7,7 @@ const driverMatcher = require('./driverMatcher');
 const { retryEmergencies } = require('./emergencyDispatch');
 const { reconcilePendingPayments } = require('./payments');
 const { reconcilePendingTopups } = require('./walletTopups');
+const { reconcileDriverMoney } = require('./driverBalance');
 const { LOCATION_MAX_AGE_SECONDS } = require('./driverKyc');
 
 let timer = null;
@@ -124,7 +125,7 @@ async function sweepStaleOnlineDrivers() {
 function startScheduler() {
   if (timer) return;
   timer = setInterval(() => {
-    Promise.all([sweepDueScheduledRides(), sweepStaleAssignments(), sweepExpiredSearches(), sweepStaleOnlineDrivers(), retryEmergencies(), reconcilePendingPayments(), reconcilePendingTopups()]).catch((err) =>
+    Promise.all([sweepDueScheduledRides(), sweepStaleAssignments(), sweepExpiredSearches(), sweepStaleOnlineDrivers(), retryEmergencies(), reconcilePendingPayments(), reconcilePendingTopups(), reconcileDriverMoney()]).catch((err) =>
       console.error('[scheduler] sweep failed:', err)
     );
   }, RUN_EVERY_MS);

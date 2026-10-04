@@ -17,7 +17,7 @@ import { ApiError } from '../../../services/api-client';
 export default function ConfirmRideScreen() {
   const { t } = useTranslation();
   const wizard = useRideWizardStore();
-  const { pickup, destination, vehicle, fareEstimate, paymentMethod, rideType, note, setNote, reset } = wizard;
+  const { pickup, destination, vehicle, fareEstimate, paymentMethod, rideType, seats, note, setNote, reset } = wizard;
 
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
@@ -47,6 +47,7 @@ export default function ConfirmRideScreen() {
         vehicle,
         paymentMethod,
         rideType,
+        seats,
         note: note.trim() || undefined,
         quoteId: fareEstimate?.quoteId,
       });

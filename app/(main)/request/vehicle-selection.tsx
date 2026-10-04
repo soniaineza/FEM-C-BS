@@ -31,6 +31,8 @@ export default function VehicleSelectionScreen() {
   const pickup = useRideWizardStore((s) => s.pickup);
   const destination = useRideWizardStore((s) => s.destination);
   const rideType = useRideWizardStore((s) => s.rideType);
+  const seats = useRideWizardStore((s) => s.seats);
+  const setSeats = useRideWizardStore((s) => s.setSeats);
   const setVehicle = useRideWizardStore((s) => s.setVehicle);
   const setFareEstimate = useRideWizardStore((s) => s.setFareEstimate);
 
@@ -49,7 +51,7 @@ export default function VehicleSelectionScreen() {
     if (!ready) return;
     setLoading(true);
     setLoadError(undefined);
-    Promise.all([fetchTripQuote({ pickup: pickup!, destination: destination!, rideType }), fetchVehicles()])
+    Promise.all([fetchTripQuote({ pickup: pickup!, destination: destination!, rideType, seats }), fetchVehicles()])
       .then(([q, list]) => {
         setQuote(q);
         setVehicles(list);
@@ -60,7 +62,7 @@ export default function VehicleSelectionScreen() {
       .catch((err) => setLoadError(err?.message ?? t('requestFailed')))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickup, destination, rideType]);
+  }, [pickup, destination, rideType, seats]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -174,6 +176,31 @@ export default function VehicleSelectionScreen() {
               <View className="mb-2 flex-row items-center rounded-xl bg-warning/10 px-3 py-2">
                 <Ionicons name="flash" size={16} color="#F97316" />
                 <Text className="ml-2 flex-1 text-xs text-warning">{t('surgeNotice')}</Text>
+              </View>
+            ) : null}
+            {quote.shared ? (
+              <View className="mb-2 rounded-xl bg-primary/5 px-3 py-2.5">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-[13px] font-semibold text-ink">{t('sharedSeatsLabel')}</Text>
+                  <View className="flex-row gap-2" accessibilityRole="radiogroup">
+                    {Array.from({ length: quote.shared.maxSeats }, (_, i) => i + 1).map((n) => (
+                      <Pressable
+                        key={n}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: seats === n }}
+                        aria-checked={seats === n}
+                        accessibilityLabel={t(n === 1 ? 'sharedSeatsOne' : 'seatsLabel', { count: n })}
+                        onPress={() => setSeats(n)}
+                        className={`h-11 min-w-[44px] items-center justify-center rounded-full border px-3 ${seats === n ? 'border-primary bg-primary' : 'border-border bg-white'}`}
+                      >
+                        <Text className={seats === n ? 'text-sm font-bold text-white' : 'text-sm font-semibold text-ink'}>{n}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+                <Text className="mt-1.5 text-xs text-text-secondary">
+                  {t('sharedDetourNotice', { minutes: quote.shared.maxAddedMinutes })}
+                </Text>
               </View>
             ) : null}
             {quote.route.source === 'estimate' ? (

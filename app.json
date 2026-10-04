@@ -32,10 +32,22 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-font",
+      "expo-task-manager",
+      [
+        "expo-notifications",
+        {
+          "color": "#0E7C4A",
+          "defaultChannel": "rides"
+        }
+      ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Kimu Transport uses your location to show your pickup point on the map and match you with nearby drivers."
+          "locationWhenInUsePermission": "Kimu Transport uses your location to show your pickup point on the map and match you with nearby drivers.",
+          "locationAlwaysAndWhenInUsePermission": "Kimu Transport uses your location to match riders with nearby drivers. Drivers who allow it all the time keep receiving rides while the phone is locked.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true
         }
       ],
       [

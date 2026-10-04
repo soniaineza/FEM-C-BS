@@ -2,7 +2,9 @@ import { driverApiClient } from './driver-api-client';
 import {
   DriverDocument,
   DriverEarningEntry,
+  DriverBalance,
   DriverEarningsSummary,
+  DriverSettlement,
   DriverPayout,
   DriverRating,
   DriverRatingSummary,
@@ -67,9 +69,21 @@ export async function getDriverEarningsHistory(): Promise<DriverEarningEntry[]> 
 }
 
 // ---- Payouts ----
-export async function getDriverPayouts(): Promise<DriverPayout[]> {
-  const json = await driverApiClient.get<{ payouts: DriverPayout[] }>('/driver/payouts');
-  return json.payouts;
+export async function getDriverPayouts(): Promise<{ payouts: DriverPayout[]; balance: DriverBalance }> {
+  return driverApiClient.get<{ payouts: DriverPayout[]; balance: DriverBalance }>('/driver/payouts');
+}
+
+/** Asks for [amount] of the available balance to be paid out; an operator
+ * approves it before the money is sent. */
+export async function requestDriverPayout(amount: number): Promise<DriverPayout> {
+  const json = await driverApiClient.post<{ payout: DriverPayout }>('/driver/payouts', { amount });
+  return json.payout;
+}
+
+/** Pays the commission owed on cash trips from the driver's mobile money. */
+export async function settleDriverCommission(): Promise<DriverSettlement> {
+  const json = await driverApiClient.post<{ settlement: DriverSettlement }>('/driver/balance/settle', {});
+  return json.settlement;
 }
 
 // ---- Ratings ----

@@ -1,9 +1,11 @@
 /**
  * Notification writer for drivers. Mirrors the passenger notification
- * service but targets driver_notifications + driver_device_tokens.
+ * service but targets driver_notifications + driver_device_tokens. The
+ * driver client registers Expo push tokens (hooks/useDriverPushRegistration.ts),
+ * so delivery goes through Expo's push service like notify.js. Never throws.
  */
 const { getPool } = require('../db');
-const { config } = require('../config');
+const { sendExpoPush } = require('./expoPush');
 
 async function pushDriverNotification(driverId, { title, body, type = 'general', rideId = null }) {
   try {
@@ -16,30 +18,11 @@ async function pushDriverNotification(driverId, { title, body, type = 'general',
     console.error('[driverNotify] failed to persist notification:', err);
   }
 
-  if (!config.fcmServerKey) return;
-  try {
-    const { rows } = await getPool().query(
-      'SELECT token FROM driver_device_tokens WHERE driver_id = $1',
-      [driverId]
-    );
-    for (const { token } of rows) {
-      if (!token) continue;
-      await fetch('https://fcm.googleapis.com/fcm/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `key=${config.fcmServerKey}`,
-        },
-        body: JSON.stringify({
-          to: token,
-          notification: { title, body },
-          data: { type, rideId: rideId ? String(rideId) : '', click_action: 'FLUTTER_NOTIFICATION_CLICK' },
-        }),
-      }).catch((err) => console.error('[driverNotify] FCM send failed:', err.message));
-    }
-  } catch (err) {
-    console.error('[driverNotify] FCM delivery failed:', err);
-  }
+  await sendExpoPush('driver_device_tokens', 'driver_id', driverId, {
+    title,
+    body,
+    data: { type, rideId: rideId ? String(rideId) : '', audience: 'driver' },
+  });
 }
 
 module.exports = { pushDriverNotification };

@@ -4,6 +4,7 @@ const { getPool } = require('../db');
 const { settleSucceededPayment } = require('../services/payments');
 const { creditTopup, failTopup } = require('../services/walletTopups');
 const paypack = require('../services/paypackClient');
+const { handleProviderTransaction } = require('../services/driverBalance');
 const { pushNotification } = require('../services/notify');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 
@@ -15,7 +16,7 @@ router.head('/paypack', (_req, res) => res.sendStatus(200));
 
 // POST /api/webhooks/paypack — Paypack `transaction:processed` webhook:
 //   { event_id, kind: 'transaction:processed', created_at,
-//     data: { ref, kind: 'CASHIN', status: 'successful'|'failed', amount, client, ... } }
+//     data: { ref, kind: 'CASHIN'|'CASHOUT', status: 'successful'|'failed', amount, client, ... } }
 // This router MUST be mounted with express.raw({ type: 'application/json' })
 // so the raw body is available to verify x-paypack-signature.
 router.post('/paypack', asyncHandler(async (req, res) => {
@@ -71,6 +72,9 @@ async function handleTransaction(data) {
     }
     return;
   }
+
+  // Driver payouts (cash-out) and commission settlements (cash-in).
+  if (await handleProviderTransaction(ref, success)) return;
 
   // The webhook may beat the API's external_reference update. Retry later.
   throw new ApiError(503, 'Payment reference is not recorded yet.');

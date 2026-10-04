@@ -130,3 +130,30 @@ CREATE TABLE IF NOT EXISTS passenger_locations (
   heading DOUBLE PRECISION,
   recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Payout requests: who it is paid to, the provider transfer and its outcome.
+ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS external_reference TEXT;
+ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS failure_reason TEXT;
+ALTER TABLE driver_payouts ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+CREATE INDEX IF NOT EXISTS idx_driver_payouts_external ON driver_payouts(external_reference)
+  WHERE external_reference IS NOT NULL;
+
+-- Commission a driver pays in to the platform (owed on cash trips, where the
+-- driver collected the whole fare): by mobile money, or recorded by an
+-- operator when paid in person.
+CREATE TABLE IF NOT EXISTS driver_settlements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  driver_id UUID NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+  amount DOUBLE PRECISION NOT NULL,
+  method TEXT NOT NULL DEFAULT 'mobile_money' CHECK (method IN ('mobile_money', 'operator')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'succeeded', 'failed')),
+  reference TEXT,
+  external_reference TEXT,
+  recorded_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_driver_settlements_driver ON driver_settlements(driver_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_driver_settlements_external ON driver_settlements(external_reference)
+  WHERE external_reference IS NOT NULL;

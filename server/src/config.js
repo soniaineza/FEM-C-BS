@@ -80,11 +80,6 @@ const config = {
   // Shared secret used to authenticate Paypack webhook deliveries.
   paypackWebhookSecret: process.env.PAYPACK_WEBHOOK_SECRET || '',
 
-  // Firebase Cloud Messaging (push notifications).
-  fcmServerKey: process.env.FCM_SERVER_KEY || '',
-  fcmProjectId: process.env.FCM_PROJECT_ID || '',
-  fcmSenderId: process.env.FCM_SENDER_ID || '',
-
   // SMS delivery for OTP codes (services/otpSender.js): 'pindo',
   // 'africastalking' or 'generic' (JSON POST to SMS_GATEWAY_URL). Unset means
   // codes are only logged — development only.
@@ -122,6 +117,10 @@ const config = {
   // driver's earnings ledger (server/src/services/payments.js's
   // settleSucceededPayment()). 0.15 = 15%, a typical rideshare take rate.
   driverCommissionRate: Number(process.env.DRIVER_COMMISSION_RATE || 0.15),
+  // Unpaid cash-trip commission (RWF) a driver may owe before they must pay
+  // it to go online again, and the smallest payout a driver can request.
+  driverMaxCommissionDebt: Number(process.env.DRIVER_MAX_COMMISSION_DEBT || 5000),
+  driverMinPayout: Number(process.env.DRIVER_MIN_PAYOUT || 1000),
 
   // Dependency-free development simulator. Replaced entirely by the real
   // driver-matching service — kept only for local UI previews.

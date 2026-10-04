@@ -6,7 +6,8 @@ const { config } = require('../config');
  *   POST /api/auth/agents/authorize     { client_id, client_secret } -> { access, refresh, expires }
  *   GET  /api/auth/agents/refresh/:tok  -> same shape
  *   POST /api/transactions/cashin       { amount, number } -> { ref, status: 'pending', ... }
- *   GET  /api/transactions/find/:ref    -> { ref, status, amount, client, ... }
+ *   POST /api/transactions/cashout      { amount, number } -> { ref, status: 'pending', ... }
+ *   GET  /api/events/transactions?ref=  -> { transactions: [{ event_kind, data: { ref, status, ... } }] }
  * Webhooks carry `x-paypack-signature`: base64(HMAC-SHA256(rawBody, webhookSecret)).
  *
  * Credentials live only in server env vars, never in the app.
@@ -119,14 +120,51 @@ async function createCharge({ amount, phone, idempotencyKey }) {
   return charge;
 }
 
-/** Reads a transaction's current status by its Paypack ref. */
+/**
+ * Sends money from the merchant account to a mobile-money number (driver
+ * payouts). Same contract as createCharge; the outcome arrives by webhook
+ * (data.kind 'CASHOUT') or readCharge.
+ */
+async function createCashout({ amount, phone, idempotencyKey }) {
+  const access = await getAccessToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    Authorization: `Bearer ${access}`,
+  };
+  if (idempotencyKey) headers['Idempotency-Key'] = String(idempotencyKey).slice(0, 32);
+  const res = await fetch(apiUrl('/transactions/cashout'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      amount: Math.round(Number(amount)),
+      number: toNationalNumber(phone),
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const transfer = await readJson(res, 'cashout');
+  if (!transfer.ref) throw new Error('Paypack cashout returned no transaction ref.');
+  return transfer;
+}
+
+/**
+ * Reads a transaction's current status by its Paypack ref, from its event
+ * log: { ref, status: 'pending' | 'successful' | 'failed', ...event data }.
+ * (GET /transactions/find/:ref is no use for this — it only knows successful
+ * transactions and carries no status, so a failure looks like "not found".)
+ * A ref with no `transaction:processed` event yet is still pending.
+ */
 async function readCharge(ref) {
   const access = await getAccessToken();
-  const res = await fetch(apiUrl(`/transactions/find/${encodeURIComponent(ref)}`), {
+  const res = await fetch(apiUrl(`/events/transactions?ref=${encodeURIComponent(ref)}`), {
     headers: { Accept: 'application/json', Authorization: `Bearer ${access}` },
     signal: AbortSignal.timeout(10000),
   });
-  return readJson(res, 'transaction lookup');
+  const body = await readJson(res, 'transaction lookup');
+  const events = Array.isArray(body.transactions) ? body.transactions : [];
+  const processed = events.find((e) => e.event_kind === 'transaction:processed' && e.data);
+  if (!processed) return { ref, status: 'pending' };
+  return { ...processed.data, ref, status: String(processed.data.status || '').toLowerCase() };
 }
 
 /**
@@ -148,6 +186,7 @@ function verifyWebhookSignature(rawBody, signatureHeader) {
 module.exports = {
   isConfigured,
   createCharge,
+  createCashout,
   readCharge,
   verifyWebhookSignature,
   toNationalNumber,

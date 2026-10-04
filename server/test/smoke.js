@@ -129,10 +129,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const accept = await api('POST', `/drivers/rides/${rideId}/accept`, null, dt);
   check('driver accepts ride', accept.status === 200, `status=${accept.status}`);
   const arrived = await api('POST', `/drivers/rides/${rideId}/arrived`, null, dt);
-  check('driver arrived + pin', arrived.status === 200 && arrived.data.pin, `status=${arrived.status}`);
-  const pin = arrived.data.pin;
+  // The PIN is only ever shown to the rider, who reads it out to the driver.
+  check('driver arrived (PIN not leaked to driver)', arrived.status === 200 && !arrived.data.pin, `status=${arrived.status}`);
   const ridePinCheck = await api('GET', `/rides/${rideId}`, null, token);
-  check('passenger sees ride pin', ridePinCheck.data.ride.pin === pin, `got=${ridePinCheck.data.ride.pin} exp=${pin}`);
+  const pin = ridePinCheck.data.ride.pin;
+  check('passenger sees ride pin', /^\d+$/.test(String(pin || '')), `got=${pin}`);
 
   // driver starts trip by verifying pin
   const vpin = await api('POST', `/drivers/rides/${rideId}/verify-pin`, { pin }, dt);
@@ -194,7 +195,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       `status=${ride1Check.data.ride.status}`);
   }
 
-  // switch to cash route: create a NEW cash ride and settle it via pay-cash.
+  // switch to cash route: create a NEW cash ride and settle it via the driver confirm-cash.
   // (In honest mode rideId is cancelled first — a passenger can hold only one
   // active ride. Demo mode: the ride is already completed, passenger is free.)
   if (!DEMO) {
@@ -223,7 +224,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pin2 = (await api('GET', `/rides/${ride2Id}`, null, token)).data.ride.pin;
   await api('POST', `/drivers/rides/${ride2Id}/verify-pin`, { pin: pin2 }, dt2);
   const done2 = await api('POST', `/drivers/rides/${ride2Id}/complete-trip`, null, dt2);
-  const cashSettle = await api('POST', `/rides/${ride2Id}/pay-cash`, null, token);
+  const cashSettle = await api('POST', `/drivers/rides/${ride2Id}/confirm-cash`, null, dt2);
   check('cash payment settles -> completed', cashSettle.status === 200 && done2.data.ride.id === ride2Id &&
     (await api('GET', `/rides/${ride2Id}`, null, token)).data.ride.status === 'completed',
     `status=${cashSettle.status}`);
@@ -272,7 +273,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // applies to ACTIVE rides, so use ride2Id (completed? no — completed also
   // rejected). Create a fresh active ride for the share check.
   const sos = await api('POST', '/emergency', { rideId, latitude: -1.9441, longitude: 30.0619, address: 'KN 5 Rd', details: 'Passenger needs help' }, token);
-  check('emergency event', sos.status === 201 && sos.data.emergency.status === 'pending', `status=${sos.status}`);
+  check('emergency event', sos.status === 201 && sos.data.emergency.status === 'dispatched' && !!sos.data.emergency.reference, `status=${sos.status}`);
 
   // free the passenger (ride2 completed at this point — terminal, fine), then
   // book a throwaway ride to share.
@@ -312,12 +313,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     fullName: 'Second Rider', phone: `+250${rnd().slice(1)}`, email: `u2${ts}@example.com`, password: 'secret123',
   });
   const token2 = signup2.data.token;
+  // Booking requires a verified phone.
+  await api('POST', '/auth/verify-otp', { passengerId: signup2.data.passenger.id, code: signup2.data.devCode });
 
   const poolB = await api('POST', '/rides', {
     pickup: { address: 'Near KN 5 Rd', latitude: -1.9455, longitude: 30.0600 },
     destination: { address: 'Near Nyamirambo', latitude: -1.9570, longitude: 30.0230 },
     vehicleId: 'fem_economy', paymentMethodId: 'cash', rideType: 'shared',
   }, token2);
+  check('pool ride B created', poolB.status === 201, `status=${poolB.status} ${JSON.stringify(poolB.data).slice(0, 200)} signup2=${signup2.status}`);
   const poolBId = poolB.data.ride.id;
   let poolBAssigned = null;
   for (let i = 0; i < 12; i++) {
@@ -355,19 +359,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // Drop off passenger A first; the driver must still be able to serve B.
   const arrivedA = await api('POST', `/drivers/rides/${poolAId}/arrived`, null, poolDt);
-  const pinA = arrivedA.data.pin;
+  check('driver arrived at pooled pickup A', arrivedA.status === 200, `status=${arrivedA.status}`);
+  const pinA = (await api('GET', `/rides/${poolAId}`, null, token)).data.ride.pin;
   await api('POST', `/drivers/rides/${poolAId}/verify-pin`, { pin: pinA }, poolDt);
   const completeA = await api('POST', `/drivers/rides/${poolAId}/complete-trip`, null, poolDt);
-  await api('POST', `/rides/${poolAId}/pay-cash`, null, token);
+  await api('POST', `/drivers/rides/${poolAId}/confirm-cash`, null, poolDt);
 
   const arrivedB = await api('POST', `/drivers/rides/${poolBId}/arrived`, null, poolDt);
   check('driver still assigned to B after completing A (not released mid-pool)',
     completeA.status === 200 && arrivedB.status === 200,
     `completeA=${completeA.status} arrivedB=${arrivedB.status}`);
-  const pinB = arrivedB.data.pin;
+  const pinB = (await api('GET', `/rides/${poolBId}`, null, token2)).data.ride.pin;
   await api('POST', `/drivers/rides/${poolBId}/verify-pin`, { pin: pinB }, poolDt);
   const completeB = await api('POST', `/drivers/rides/${poolBId}/complete-trip`, null, poolDt);
-  const payB = await api('POST', `/rides/${poolBId}/pay-cash`, null, token2);
+  const payB = await api('POST', `/drivers/rides/${poolBId}/confirm-cash`, null, poolDt);
   check('pool ride B completes independently', completeB.status === 200 && payB.status === 200,
     `completeB=${completeB.status} payB=${payB.status}`);
 

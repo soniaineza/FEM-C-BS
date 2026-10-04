@@ -8,6 +8,7 @@ const { pushNotification } = require('./notify');
 const { createPaymentForRide, chargePayment } = require('./payments');
 const { recordSample } = require('./driverTrails');
 const { releaseDriver } = require('./driverMatcher');
+const { planStops } = require('./poolPlanner');
 
 const DRIVER_ACTIVE_RIDE_STATUSES = [
   'driverAssigned',
@@ -67,6 +68,42 @@ async function getActiveRideById(driverId, rideId) {
     [rideId, driverId, DRIVER_ACTIVE_RIDE_STATUSES]
   );
   return rows[0] || null;
+}
+
+/**
+ * The driver's remaining stops in the order to serve them — every pickup and
+ * drop-off across all rides they are carrying. A private trip is simply its
+ * own two stops; a shared trip interleaves riders by road time.
+ */
+async function getStopPlan(driverId) {
+  const rides = (await getActiveRides(driverId)).filter((r) => r.status !== 'paymentPending');
+  if (!rides.length) return { stops: [], totalSeconds: 0 };
+  const { rows } = await getPool().query(
+    'SELECT current_latitude, current_longitude FROM drivers WHERE id = $1',
+    [driverId]
+  );
+  const here = rows[0]?.current_latitude != null
+    ? { latitude: rows[0].current_latitude, longitude: rows[0].current_longitude }
+    : { latitude: rides[0].pickup_latitude, longitude: rides[0].pickup_longitude };
+  const plan = await planStops(here, rides);
+  const byId = new Map(rides.map((r) => [r.id, r]));
+  return {
+    totalSeconds: plan.totalSeconds,
+    stops: plan.stops.map((stop) => {
+      const ride = byId.get(stop.rideId);
+      return {
+        type: stop.type,
+        rideId: stop.rideId,
+        address: stop.address,
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+        etaMinutes: Math.max(1, Math.round(stop.etaSeconds / 60)),
+        passengerName: ride.passenger_name,
+        seats: ride.seats || 1,
+        rideStatus: ride.status,
+      };
+    }),
+  };
 }
 
 async function updateDriverLocation(driverId, { latitude, longitude, heading }) {
@@ -260,6 +297,7 @@ module.exports = {
   getActiveRides,
   getActiveRideById,
   poolCompanions,
+  getStopPlan,
   updateDriverLocation,
   acceptRide,
   declineRide,

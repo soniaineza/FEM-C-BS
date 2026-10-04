@@ -133,6 +133,7 @@ function rideToJson(row, { passengerView = false } = {}) {
     appliedDiscount: row.applied_discount == null ? null : Number(row.applied_discount),
     poolGroupId: row.pool_group_id || null,
     isPooled: !!row.pool_group_id,
+    seats: row.seats || 1,
     createdAt: row.created_at,
     acceptedAt: row.accepted_at,
     arrivedAt: row.arrived_at,

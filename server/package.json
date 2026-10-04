@@ -11,7 +11,13 @@
     "db:init": "node src/db.js --init-only",
     "seed:dev": "node scripts/seed-dev-drivers.js",
     "driver": "node scripts/driver-console.js",
-    "test": "node --test test/"
+    "test": "node test/smoke.js && node test/wallet-flow.js",
+    "test:smoke": "node test/smoke.js",
+    "test:wallet": "node test/wallet-flow.js",
+    "test:money": "node test/driver-money.js",
+    "test:readiness": "node test/production-readiness.js",
+    "test:invariants": "node test/invariants.js",
+    "test:places": "node test/jev-place-search.js"
   },
   "engines": {
     "node": ">=18"

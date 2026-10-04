@@ -149,6 +149,7 @@ export interface Ride {
   scheduledFor?: string;
   appliedDiscount?: number;
   isPooled: boolean;
+  seats: number;
   cancellationReason?: string;
   cancelledBy?: string;
 }
@@ -216,6 +217,7 @@ export function rideFromBackendJson(
     scheduledFor: json.scheduledFor ?? undefined,
     appliedDiscount: json.appliedDiscount ?? undefined,
     isPooled: Boolean(json.isPooled),
+    seats: json.seats ?? 1,
     cancellationReason: json.cancellationReason ?? undefined,
     cancelledBy: json.cancelledBy ?? undefined,
   };

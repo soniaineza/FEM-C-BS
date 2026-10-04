@@ -85,7 +85,7 @@ function parseLatLng(value) {
   return { latitude: lat, longitude: lng };
 }
 
-// GET /api/rides/quote?pickup=lat,lng&destination=lat,lng&rideType=private
+// GET /api/rides/quote?pickup=lat,lng&destination=lat,lng&rideType=private&seats=1
 // Upfront prices for every vehicle class over the real road route, with the
 // route geometry, surge and per-class pickup ETA (the vehicle-choice sheet).
 router.get(
@@ -95,7 +95,7 @@ router.get(
     const destination = parseLatLng(req.query.destination);
     if (!pickup || !destination) throw new ApiError(400, 'pickup and destination are required as lat,lng.');
     const rideType = req.query.rideType === 'shared' ? 'shared' : 'private';
-    res.json({ quote: await quoteTrip(pickup, destination, rideType) });
+    res.json({ quote: await quoteTrip(pickup, destination, rideType, req.query.seats) });
   })
 );
 
@@ -103,7 +103,7 @@ router.get(
 router.get(
   '/estimate',
   asyncHandler(async (req, res) => {
-    const { vehicleId, rideType, quoteId } = req.query;
+    const { vehicleId, rideType, quoteId, seats } = req.query;
     const pickup = parseLatLng(req.query.pickup);
     const destination = parseLatLng(req.query.destination);
     if (!pickup || !destination) throw new ApiError(400, 'pickup and destination are required as lat,lng.');
@@ -118,7 +118,8 @@ router.get(
       pickup,
       destination,
       rideType === 'shared' ? 'shared' : 'private',
-      quoteId
+      quoteId,
+      seats
     );
     res.json({ estimate });
   })

@@ -7,6 +7,7 @@ const { publishRideEvent } = require('./rideEvents');
 const { releaseDriver } = require('./driverMatcher');
 const { pushNotification } = require('./notify');
 const paypack = require('./paypackClient');
+const { enforceDebtLimit } = require('./driverBalance');
 
 const PROVIDER_METHODS = new Set(['mtn_momo', 'airtel_money']);
 
@@ -287,7 +288,11 @@ async function settleSucceededPayment(payment, ride) {
   }
 
   publishRideEvent(ride.id, { type: 'status', status: 'completed', rideId: ride.id });
-  if (ride.driver_id) await releaseDriver(ride.driver_id);
+  if (ride.driver_id) {
+    await releaseDriver(ride.driver_id);
+    // The driver kept the whole cash fare, so they now owe its commission.
+    if (paid.method === 'cash') await enforceDebtLimit(ride.driver_id);
+  }
   await pushNotification(ride.passenger_id, {
     title: 'Trip completed',
     body: `Your trip is complete. Fare: RWF ${Number(paid.amount).toLocaleString()}.`,

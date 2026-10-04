@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useTranslation } from '../../../hooks/useTranslation';
@@ -21,11 +21,10 @@ function earningStatusKey(status: string): string {
   return map[status] ?? status;
 }
 
-// Earnings + payouts — the driver-app counterpart to the rider Wallet tab,
-// matching the reference driver app's WalletScreen balance hero +
-// bucketed summary + transaction ledger (top-up/withdraw are not included:
-// The reference app gates going online on a prepaid balance our backend has no concept
-// of — see the migration report).
+// Earnings + payouts — the driver-app counterpart to the rider Wallet tab:
+// a balance hero (money to withdraw, or commission owed on cash trips), a
+// bucketed earnings summary and the per-trip ledger. Withdrawing and paying
+// commission happen on the payouts screen.
 export default function DriverWalletScreen() {
   const { t } = useTranslation();
   const [summary, setSummary] = useState<DriverEarningsSummary | null>(null);
@@ -45,7 +44,11 @@ export default function DriverWalletScreen() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, []);
+  // Reload on focus so the balance reflects a payout or commission payment
+  // just made on the payouts screen.
+  useFocusEffect(useCallback(() => { load(); }, []));
+
+  const owed = summary?.balance?.owed ?? 0;
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
@@ -66,14 +69,23 @@ export default function DriverWalletScreen() {
             className="rounded-2xl bg-primary p-5"
             style={{ shadowColor: '#0E7C4A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
           >
-            <Text className="text-xs font-medium text-white/80">{t('driverPendingBalance')}</Text>
-            <Text className="mt-1 text-3xl font-bold text-white">{formatFare(summary?.pendingBalance ?? 0)}</Text>
+            <Text className="text-xs font-medium text-white/80">
+              {t(owed > 0 ? 'driverCommissionOwed' : 'driverAvailableBalance')}
+            </Text>
+            <Text className="mt-1 text-3xl font-bold text-white">
+              {formatFare(owed > 0 ? Math.ceil(owed) : Math.floor(summary?.balance?.available ?? 0))}
+            </Text>
+            {summary?.balance?.blocked ? (
+              <Text className="mt-1 text-xs font-medium text-white">
+                {t('driverCommissionBlocked', { limit: formatFare(summary.balance.debtLimit) })}
+              </Text>
+            ) : null}
             <Pressable
               className="mt-4 flex-row items-center justify-center rounded-xl bg-white/15 py-2.5"
               onPress={() => router.push('/(driver)/wallet/payouts' as any)}
             >
               <Ionicons name="cash-outline" size={16} color="#fff" />
-              <Text className="ml-2 font-semibold text-white">{t('driverViewPayouts')}</Text>
+              <Text className="ml-2 font-semibold text-white">{t(owed > 0 ? 'driverPayCommission' : 'driverViewPayouts')}</Text>
             </Pressable>
           </View>
 

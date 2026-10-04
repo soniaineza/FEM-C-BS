@@ -67,10 +67,11 @@ export async function fetchServerEstimate(params: {
   destination: Place;
   vehicle: Vehicle;
   rideType: RideType;
+  seats?: number;
 }): Promise<FareEstimate> {
-  const { pickup, destination, vehicle, rideType } = params;
+  const { pickup, destination, vehicle, rideType, seats = 1 } = params;
   const json = await apiClient.get<{ estimate: { distanceKm: number; durationMinutes: number; estimatedFare: number } }>(
-    `/rides/estimate?vehicleId=${vehicle.id}&rideType=${rideType}` +
+    `/rides/estimate?vehicleId=${vehicle.id}&rideType=${rideType}&seats=${seats}` +
       `&pickup=${pickup.latitude},${pickup.longitude}&destination=${destination.latitude},${destination.longitude}`
   );
   return {
@@ -112,6 +113,8 @@ export async function requestRide(params: {
   vehicle: Vehicle;
   paymentMethod: PaymentMethod;
   rideType: RideType;
+  /** Seats to book on a shared ride (1 or 2). */
+  seats?: number;
   note?: string;
   promotionCode?: string;
   scheduledFor?: string;
@@ -128,6 +131,7 @@ export async function requestRide(params: {
     vehicleId: params.vehicle.id,
     paymentMethodId: params.paymentMethod.id,
     rideType: params.rideType,
+    seats: params.seats,
     rideNote: params.note,
     promotionCode: params.promotionCode,
     scheduledFor: params.scheduledFor,
@@ -260,6 +264,8 @@ export interface TripQuote {
   };
   surge: { multiplier: number; demand: number; supply: number };
   expiresAt: string;
+  /** Shared rides only: the longest other riders may add to this trip. */
+  shared: { maxAddedMinutes: number; maxSeats: number; seats: number } | null;
   options: TripQuoteOption[];
 }
 
@@ -268,10 +274,10 @@ export interface TripQuote {
  * route geometry, surge and pickup ETAs — one request for the whole
  * vehicle-choice sheet. Each option's quoteId locks its price when booking.
  */
-export async function fetchTripQuote(params: { pickup: Place; destination: Place; rideType: RideType }): Promise<TripQuote> {
-  const { pickup, destination, rideType } = params;
+export async function fetchTripQuote(params: { pickup: Place; destination: Place; rideType: RideType; seats?: number }): Promise<TripQuote> {
+  const { pickup, destination, rideType, seats = 1 } = params;
   const json = await apiClient.get<{ quote: TripQuote }>(
-    `/rides/quote?rideType=${rideType}` +
+    `/rides/quote?rideType=${rideType}&seats=${seats}` +
       `&pickup=${pickup.latitude},${pickup.longitude}&destination=${destination.latitude},${destination.longitude}`
   );
   return json.quote;

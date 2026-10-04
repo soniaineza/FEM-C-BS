@@ -1,6 +1,6 @@
 /**
  * Dev-only cleanup: cancels any non-terminal rides and releases drivers back
- * to 'active' near the smoke-test pickup point. Used between test runs so a
+ * to 'active' near the smoke-test pickup point, clear of commission debt. Used between test runs so a
  * crashed run doesn't leave the matching pipeline wedged.
  *
  * Usage: node scripts/reset-dev-rides.js
@@ -30,6 +30,20 @@ async function main() {
   }
 
   await getPool().query("UPDATE drivers SET status = 'active' WHERE status = 'busy'");
+  // Clear commission owed on cash test trips, so repeated test runs do not
+  // push a dev driver past the debt limit and take them offline mid-suite.
+  const { getDriverBalance } = require('../src/services/driverBalance');
+  const { rows: allDrivers } = await getPool().query('SELECT id FROM drivers');
+  for (const d of allDrivers) {
+    const { owed } = await getDriverBalance(d.id);
+    if (owed > 0) {
+      await getPool().query(
+        `INSERT INTO driver_settlements (driver_id, amount, method, status, reference, recorded_by)
+         VALUES ($1, $2, 'operator', 'succeeded', 'dev-reset', 'reset-dev-rides')`,
+        [d.id, owed]
+      );
+    }
+  }
   await getPool().query('UPDATE drivers SET current_latitude = -1.9441, current_longitude = 30.0619');
   const { rows: drivers } = await getPool().query('SELECT full_name, status, current_latitude FROM drivers');
   for (const d of drivers) console.log(`  driver ${d.full_name}: ${d.status} @ ${d.current_latitude}`);

@@ -90,6 +90,7 @@ export interface DriverEarningsSummary {
   month: { amount: number; rides: number };
   total: { amount: number; rides: number };
   pendingBalance: number;
+  balance: DriverBalance;
   rating: number | null;
   totalTrips: number;
 }
@@ -110,11 +111,34 @@ export interface DriverEarningEntry {
   settledAt?: string;
 }
 
+// The driver's account with the platform (server/src/services/driverBalance.js):
+// `available` can be withdrawn; `owed` is commission due on cash trips, and
+// past `debtLimit` the driver is `blocked` from going online until it is paid.
+export interface DriverBalance {
+  balance: number;
+  available: number;
+  owed: number;
+  debtLimit: number;
+  minPayout: number;
+  blocked: boolean;
+}
+
+export interface DriverSettlement {
+  id: string;
+  amount: number;
+  method: 'mobile_money' | 'operator';
+  status: 'pending' | 'succeeded' | 'failed';
+  reference?: string;
+  createdAt: string;
+}
+
 export interface DriverPayout {
   id: string;
   amount: number;
   method: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'reversed';
+  phone?: string;
+  failureReason?: string;
   reference?: string;
   createdAt: string;
   processedAt?: string;

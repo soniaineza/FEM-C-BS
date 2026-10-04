@@ -16,6 +16,8 @@ interface RideWizardState {
   pickup: Place | null;
   destination: Place | null;
   rideType: RideType;
+  /** Seats this booking takes on a shared ride (1 or 2). */
+  seats: number;
   vehicle: Vehicle | null;
   fareEstimate: FareEstimate | null;
   paymentMethod: PaymentMethod | null;
@@ -23,6 +25,7 @@ interface RideWizardState {
   setPickup: (p: Place) => void;
   setDestination: (p: Place) => void;
   setRideType: (t: RideType) => void;
+  setSeats: (n: number) => void;
   setVehicle: (v: Vehicle) => void;
   setFareEstimate: (e: FareEstimate) => void;
   setPaymentMethod: (m: PaymentMethod) => void;
@@ -34,6 +37,7 @@ const initial = {
   pickup: null,
   destination: null,
   rideType: 'private' as RideType,
+  seats: 1,
   vehicle: null,
   fareEstimate: null,
   paymentMethod: null,
@@ -44,7 +48,9 @@ export const useRideWizardStore = create<RideWizardState>((set) => ({
   ...initial,
   setPickup: (p) => set({ pickup: p }),
   setDestination: (p) => set({ destination: p }),
-  setRideType: (t) => set({ rideType: t }),
+  // A private ride is the whole car, so the seat choice only survives on Share.
+  setRideType: (t) => set((s) => ({ rideType: t, seats: t === 'shared' ? s.seats : 1 })),
+  setSeats: (n) => set({ seats: n }),
   setVehicle: (v) => set({ vehicle: v }),
   setFareEstimate: (e) => set({ fareEstimate: e }),
   setPaymentMethod: (m) => set({ paymentMethod: m }),

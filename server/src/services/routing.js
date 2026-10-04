@@ -101,10 +101,34 @@ async function getTravelTimes(origins, destination, { timeoutMs = 4000 } = {}) {
   }
 }
 
+/**
+ * Road travel time (seconds) between every pair of [points], as a square
+ * matrix, from one OSRM table request. Cells OSRM cannot answer — or the
+ * whole matrix when OSRM is unavailable — use the straight-line estimate, so
+ * callers always get a complete matrix.
+ */
+async function getTravelMatrix(points, { timeoutMs = 4000 } = {}) {
+  const fallback = () => points.map((a) => points.map((b) => (a === b ? 0 : estimateSeconds(a, b))));
+  if (points.length < 2) return fallback();
+  try {
+    const coords = points.map((p) => `${p.longitude},${p.latitude}`).join(';');
+    const url = `${config.osrmUrl.replace('/route/', '/table/')}/${coords}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) throw new Error(`OSRM table ${res.status}`);
+    const data = await res.json();
+    if (data.code !== 'Ok' || !Array.isArray(data.durations)) throw new Error('bad table');
+    return data.durations.map((row, i) =>
+      row.map((v, j) => (Number.isFinite(v) ? v : estimateSeconds(points[i], points[j])))
+    );
+  } catch {
+    return fallback();
+  }
+}
+
 /** Straight-line fallback for a travel time, in seconds. */
 function estimateSeconds(from, to) {
   const km = haversineKm(from.latitude, from.longitude, to.latitude, to.longitude) * ROAD_DETOUR_FACTOR;
   return (km / FALLBACK_SPEED_KMH) * 3600;
 }
 
-module.exports = { getRoadRoute, getTravelTimes, estimateSeconds };
+module.exports = { getRoadRoute, getTravelTimes, getTravelMatrix, estimateSeconds };

@@ -26,8 +26,13 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLocaleStore } from '../stores/useLocaleStore';
 import { useAppModeStore } from '../stores/useAppModeStore';
 import { useDriverAuthStore } from '../stores/useDriverAuthStore';
+import { configureNotificationHandler } from '../utils/notifications';
+// Registers the driver's background location task at module scope, so the OS
+// can run it when it wakes the app without any screen mounted.
+import '../utils/driver-background-location';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+configureNotificationHandler();
 
 // Set Inter as the native body family. Large screen titles explicitly use
 // Poppins through the font-display utility; controls and body text use Inter.
