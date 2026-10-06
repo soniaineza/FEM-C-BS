@@ -501,7 +501,76 @@ async function newDriver() {
     if (doc.status !== 201) violations.push(`document submit ${doc.status}`);
     else d.docIds.push(doc.data.document.id);
   }
+  const pending = await admin('GET', '/drivers?verified=false');
+  if (pending.status !== 200 || !pending.data.drivers?.some((candidate) => candidate.id === d.id)) {
+    throw new Error(`new driver signup was missing from the operator approval queue (${pending.status})`);
+  }
   note(`driver ${phone} registered (unverified)`);
+}
+
+async function exerciseDriverEmergencyQueue() {
+  const driver = world.drivers[0];
+  if (!driver) throw new Error('No driver available for emergency queue test.');
+  for (const docId of driver.docIds) {
+    const reviewed = await admin('POST', `/documents/${docId}/review`, {
+      status: 'approved',
+      reviewer: 'emergency-test',
+      method: 'in_person',
+      evidenceReference: `emergency-inspection-${docId.slice(0, 8)}`,
+    });
+    if (reviewed.status !== 200) throw new Error(`driver emergency KYC review ${reviewed.status}`);
+  }
+  const verified = await admin('POST', `/drivers/${driver.id}/verify`);
+  if (verified.status !== 200) throw new Error(`driver emergency KYC verify ${verified.status}`);
+  driver.docsApproved = true;
+
+  const sos = await api('POST', '/driver/emergency', {
+    latitude: -1.9441,
+    longitude: 30.0619,
+    address: 'Kigali test location',
+    details: 'Automated driver SOS integration test',
+  }, driver.token);
+  if (sos.status !== 201 || sos.data.emergency?.status !== 'dispatched' || !sos.data.emergency.reference) {
+    throw new Error(`driver emergency dispatch failed: ${sos.status} ${JSON.stringify(sos.data)}`);
+  }
+  const alert = mock.sms.find((message) => message.message.includes(sos.data.emergency.reference));
+  if (!alert || !alert.message.includes(driver.phone)) {
+    throw new Error('driver emergency did not send a call-center SMS with its real phone and reference');
+  }
+  const queue = await admin('GET', '/emergencies');
+  const listed = queue.data.emergencies?.find((event) => event.id === sos.data.emergency.id);
+  if (queue.status !== 200 || listed?.contact_role !== 'Driver' || listed?.contact_phone !== driver.phone) {
+    throw new Error(`operator emergency queue omitted the driver SOS: ${JSON.stringify(listed)}`);
+  }
+  const resolved = await admin('POST', `/emergencies/${sos.data.emergency.id}/resolve`);
+  if (resolved.status !== 200) throw new Error(`operator could not resolve driver emergency: ${resolved.status}`);
+  const afterResolve = await admin('GET', '/emergencies');
+  if (afterResolve.data.emergencies?.some((event) => event.id === sos.data.emergency.id)) {
+    throw new Error('resolved driver emergency remained in the operator queue');
+  }
+  console.log('  ok   driver SOS is dispatched and appears in the operator queue');
+}
+
+async function exercisePassengerEmergencyQueue() {
+  const passenger = world.passengers[0];
+  if (!passenger) throw new Error('No passenger available for emergency queue test.');
+  const sos = await api('POST', '/emergency', {
+    latitude: -1.9441,
+    longitude: 30.0619,
+    address: 'Kigali test location',
+    details: 'Automated passenger SOS integration test',
+  }, passenger.token);
+  if (sos.status !== 201 || sos.data.emergency?.status !== 'dispatched' || !sos.data.emergency.reference) {
+    throw new Error(`passenger emergency dispatch failed: ${sos.status} ${JSON.stringify(sos.data)}`);
+  }
+  const queue = await admin('GET', '/emergencies');
+  const listed = queue.data.emergencies?.find((event) => event.id === sos.data.emergency.id);
+  if (queue.status !== 200 || listed?.contact_role !== 'Rider' || listed?.contact_phone !== passenger.phone) {
+    throw new Error(`operator emergency queue omitted the passenger SOS: ${JSON.stringify(listed)}`);
+  }
+  const resolved = await admin('POST', `/emergencies/${sos.data.emergency.id}/resolve`);
+  if (resolved.status !== 200) throw new Error(`operator could not resolve passenger emergency: ${resolved.status}`);
+  console.log('  ok   passenger SOS is dispatched and appears in the operator queue');
 }
 
 async function adminAction() {
@@ -924,8 +993,7 @@ async function scenarios() {
   const balanceOf = async (d) => (await api('GET', '/driver/balance', null, d.token)).data.balance;
   const cashouts = () => [...mock.txns.values()].filter((x) => x.kind === 'CASHOUT');
   for (const [network, phone] of [['mtn', '+250788900002'], ['airtel', '+250728900003']]) {
-    const reg = await api('POST', '/drivers/register', { fullName: `Payout ${network}`, phone, password: 'secret123', licenseNumber: `PO${network}` });
-    const d = { id: reg.data.driver.id, token: reg.data.token };
+    const d = await onlineDriver(phone);
     await admin('POST', `/drivers/${d.id}/settlements`, { amount: 3000, reference: `seed-${network}`, recordedBy: 'invariants' });
     const quote = await api('GET', '/driver/payouts/quote?amount=1000', null, d.token);
     expect(`${network}: payout quote shows a 2.3% fee and the amount received`,
@@ -1345,7 +1413,17 @@ ${serverLog.slice(-1500)}`);
   // Needs a phone-verified rider, like every authenticated rider route.
   const sosCfg = await api('GET', '/emergency/config', null, world.passengers[0].token);
   if (sosCfg.data?.callCenterPhone !== '+250788123456') violations.push(`SOS config ${JSON.stringify(sosCfg.data)}`);
+  try {
+    await exercisePassengerEmergencyQueue();
+  } catch (err) {
+    violations.push(`passenger emergency flow: ${err.message}`);
+  }
   for (let i = 0; i < 2; i++) await newDriver();
+  try {
+    await exerciseDriverEmergencyQueue();
+  } catch (err) {
+    violations.push(`driver emergency flow: ${err.message}`);
+  }
 
   const actions = [
     [newPassenger, 1], [newDriver, 1], [adminAction, 3], [topup, 5], [ride, 6],

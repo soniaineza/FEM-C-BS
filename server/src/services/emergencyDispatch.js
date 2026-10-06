@@ -13,10 +13,19 @@ async function dispatchEmergency(id) {
   );
   const event = rows[0];
   if (!event) return false;
-  const passenger = await getPool().query('SELECT phone FROM passengers WHERE id=$1', [event.passenger_id]);
+  const [passenger, driver] = await Promise.all([
+    event.passenger_id
+      ? getPool().query('SELECT phone FROM passengers WHERE id=$1', [event.passenger_id])
+      : Promise.resolve({ rows: [] }),
+    event.driver_id
+      ? getPool().query('SELECT phone FROM drivers WHERE id=$1', [event.driver_id])
+      : Promise.resolve({ rows: [] }),
+  ]);
+  const contactRole = event.driver_id ? 'Driver' : 'Rider';
+  const contactPhone = driver.rows[0]?.phone || passenger.rows[0]?.phone || 'unknown';
   const location = event.latitude != null && event.longitude != null
     ? `${event.latitude},${event.longitude}` : 'location unavailable';
-  const message = `Kimu Transport SOS ${event.reference}. Rider ${passenger.rows[0]?.phone || 'unknown'}, ride ${event.ride_id || 'none'}, location ${location}. Open the operator emergency queue now.`;
+  const message = `Kimu Transport SOS ${event.reference}. ${contactRole} ${contactPhone}, ride ${event.ride_id || 'none'}, location ${location}. Open the operator emergency queue now.`;
   try {
     await sendSms(config.emergencyCallCenterPhone, message);
     await getPool().query(

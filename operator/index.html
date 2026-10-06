@@ -79,6 +79,7 @@
   var REQUIRED = ['license', 'national_id', 'vehicle_registration', 'insurance'];
   var DOC_NAMES = { license: 'Driving licence', national_id: 'National ID', vehicle_registration: 'Vehicle registration', insurance: 'Insurance', profile_photo: 'Profile photo', vehicle_photo: 'Vehicle photo', other: 'Other' };
   var tab = 'drivers';
+  var refreshTimer = null;
   var $ = function (id) { return document.getElementById(id); };
 
   // Everything shown comes from riders and drivers, so it is only ever put
@@ -213,7 +214,7 @@
     data.emergencies.forEach(function (e) {
       var card = el('div', null, 'card');
       card.appendChild(el('h2', 'SOS ' + (e.reference || '')));
-      card.appendChild(el('p', 'Rider ' + (e.passenger_phone || 'unknown') + ' · ' + when(e.created_at), 'muted'));
+      card.appendChild(el('p', (e.contact_role || 'Rider') + ' ' + (e.contact_name || '') + ' · ' + (e.contact_phone || 'unknown') + ' · ' + when(e.created_at), 'muted'));
       if (e.latitude != null && e.longitude != null) card.appendChild(el('p', 'Location: ' + e.latitude + ', ' + e.longitude + (e.address ? ' (' + e.address + ')' : '')));
       if (e.details) card.appendChild(el('p', e.details));
       var row = el('div', null, 'row');
@@ -239,7 +240,22 @@
     return call('GET', TABS[tab].path).then(function (data) {
       setStatus('Updated ' + new Date().toLocaleTimeString());
       TABS[tab].render(data);
-    }).catch(function (err) { setStatus('Could not load: ' + err.message); throw err; });
+    }).catch(function (err) { setStatus('Could not load: ' + err.message); throw err; })
+      .finally(scheduleRefresh);
+  }
+
+  function stopRefresh() {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+
+  function scheduleRefresh() {
+    stopRefresh();
+    if (!token() || document.hidden) return;
+    refreshTimer = setTimeout(function () {
+      refreshTimer = null;
+      load().catch(function () {});
+    }, 15000);
   }
 
   function show(signedIn) {
@@ -273,12 +289,17 @@
     });
   });
   $('signout').addEventListener('click', function () {
+    stopRefresh();
     sessionStorage.removeItem('kimuOperatorToken');
     sessionStorage.removeItem('kimuOperatorName');
     $('password').value = '';
     show(false);
   });
   $('reload').addEventListener('click', function () { load().catch(function () {}); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stopRefresh();
+    else if (token()) load().catch(function () {});
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
     b.addEventListener('click', function () {
       tab = b.getAttribute('data-tab');

@@ -89,8 +89,12 @@ function documentToJson(d) {
 // failures. Sending an SMS alone is not an incident workflow.
 router.get('/emergencies', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
-    `SELECT e.*, p.phone AS passenger_phone FROM emergency_events e
-       JOIN passengers p ON p.id=e.passenger_id
+    `SELECT e.*, COALESCE(p.phone, d.phone) AS contact_phone,
+            COALESCE(p.full_name, d.full_name) AS contact_name,
+            CASE WHEN e.driver_id IS NOT NULL THEN 'Driver' ELSE 'Rider' END AS contact_role
+       FROM emergency_events e
+       LEFT JOIN passengers p ON p.id=e.passenger_id
+       LEFT JOIN drivers d ON d.id=e.driver_id
        WHERE e.status != 'resolved' ORDER BY e.created_at DESC LIMIT 200`
   );
   res.json({ emergencies: rows });

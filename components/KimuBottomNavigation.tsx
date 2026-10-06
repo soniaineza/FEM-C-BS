@@ -13,7 +13,6 @@ const ICONS: Record<string, { active: IconName; inactive: IconName }> = {
   index: { active: 'home', inactive: 'home-outline' },
   wallet: { active: 'wallet', inactive: 'wallet-outline' },
   profile: { active: 'person', inactive: 'person-outline' },
-  activity: { active: 'time', inactive: 'time-outline' }, // passenger My Rides
   trips: { active: 'time', inactive: 'time-outline' }, // driver My Rides
   more: { active: 'grid', inactive: 'grid-outline' },
 };

@@ -34,6 +34,11 @@ directory is needed. The static operator page is in `operator/index.html`;
 Render API at `https://fem-cabs-api.onrender.com`. The API and database remain
 on Render.
 
+The operator queue refreshes automatically every 15 seconds while its browser
+tab is visible. New driver applications, unresolved Paypack/cash exceptions,
+and passenger or driver SOS events are loaded from the API database; they are
+not sample records.
+
 Before using the Vercel URL, set `ADMIN_USERNAME` and a strong
 `ADMIN_PASSWORD` (at least 12 characters) in the Render service's environment
 and redeploy the API. Do not put operator credentials in Vercel or in this

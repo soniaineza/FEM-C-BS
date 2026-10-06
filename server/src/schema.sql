@@ -354,6 +354,8 @@ ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ;
 ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS dispatch_started_at TIMESTAMPTZ;
 ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS dispatch_attempts INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS dispatch_error TEXT;
+ALTER TABLE emergency_events ALTER COLUMN passenger_id DROP NOT NULL;
+ALTER TABLE emergency_events ADD COLUMN IF NOT EXISTS driver_id UUID REFERENCES drivers(id) ON DELETE SET NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_emergency_reference ON emergency_events(reference);
 
 -- Provider charges that succeeded after a ride was settled another way need

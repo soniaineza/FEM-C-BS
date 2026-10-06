@@ -12,6 +12,7 @@ const { apiLimiter } = require('../middleware/rateLimit');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
 const { closeDriverAccount } = require('../services/accountClosure');
+const { dispatchEmergency } = require('../services/emergencyDispatch');
 const {
   getDriverBalance,
   quotePayout,
@@ -627,12 +628,25 @@ router.post('/support/:id/messages', asyncHandler(async (req, res) => {
 
 router.post('/emergency', asyncHandler(async (req, res) => {
   const { rideId, latitude, longitude, address, details } = req.body || {};
+  if (rideId) {
+    const ride = await getPool().query('SELECT id FROM rides WHERE id=$1 AND driver_id=$2', [rideId, req.driverId]);
+    if (!ride.rows[0]) throw new ApiError(404, 'Ride not found.');
+  }
+  const reference = `EM-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
   const { rows } = await getPool().query(
-    `INSERT INTO emergency_events (ride_id, passenger_id, driver_id, latitude, longitude, address, details, status)
-     VALUES ($1, NULL, $2, $3, $4, $5, $6, 'pending') RETURNING *`,
-    [rideId || null, req.driverId, latitude ?? null, longitude ?? null, address ?? null, details ?? null]
+    `INSERT INTO emergency_events
+       (ride_id, passenger_id, driver_id, latitude, longitude, address, details, status, reference)
+     VALUES ($1, NULL, $2, $3, $4, $5, $6, 'pending', $7) RETURNING *`,
+    [rideId || null, req.driverId, latitude ?? null, longitude ?? null, address ?? null, details ?? null, reference]
   );
   const event = rows[0];
+
+  try {
+    await dispatchEmergency(event.id);
+  } catch (err) {
+    console.error('[emergency] driver dispatch failed:', event.id, err.message);
+    throw new ApiError(502, 'SOS was recorded but the operator alert has not been delivered. Please call the center now.');
+  }
 
   await pushDriverNotification(req.driverId, {
     title: 'Emergency recorded',
@@ -644,9 +658,9 @@ router.post('/emergency', asyncHandler(async (req, res) => {
   res.status(201).json({
     emergency: {
       id: event.id,
-      status: event.status,
+      status: 'dispatched',
       createdAt: event.created_at,
-      reference: `EM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+      reference,
       callCenterPhone: config.emergencyCallCenterPhone || null,
     },
   });
