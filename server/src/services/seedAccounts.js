@@ -1,12 +1,10 @@
 const { getPool } = require('../db');
-const { config } = require('../config');
 
 // Records created by development tooling. They are useful on a developer's
 // own database and must never be usable on a real one:
 //  - scripts/seed-dev-drivers.js creates three drivers on fixed phone numbers
 //    (their password used to be a published default) and a sample promotion
-//  - the simulated fleet (services/demoFleet.js) creates drivers on
-//    +25078999NNNN with licence numbers DL-1NNN
+//  - the retired demo fleet used +25078999NNNN with licence numbers DL-1NNN
 const SEED_DRIVER_PHONES = ['+250780000001', '+250780000002', '+250780000003'];
 const FLEET_PHONE_PATTERN = '+25078999____';
 const FLEET_LICENSE_REGEX = '^DL-1[0-9]{3}$';
@@ -15,8 +13,8 @@ const FLEET_LICENSE_REGEX = '^DL-1[0-9]{3}$';
 const SEED_PROMOTION = { code: 'WELCOME30', title: 'Welcome 30% off' };
 
 /**
- * On a real (non-local) database, permanently closes every development
- * driver account — no password (so nobody can sign in), unverified and
+ * On every database, permanently closes every development driver account —
+ * no password (so nobody can sign in), unverified and
  * suspended (so it is never shown to riders or offered a ride), no push
  * devices — and switches off the sample promotion. Rows and their ride
  * history are kept for the record: nothing is deleted. Runs at every startup
@@ -24,20 +22,22 @@ const SEED_PROMOTION = { code: 'WELCOME30', title: 'Welcome 30% off' };
  * again on the next boot.
  */
 async function retireSeedAccounts() {
-  if (config.localDatabase) return;
   const { rows } = await getPool().query(
     `UPDATE drivers
-        SET password_hash = NULL, verified = FALSE,
-            status = CASE WHEN status = 'busy' THEN status ELSE 'suspended' END
+        SET password_hash = NULL, verified = FALSE, status = 'suspended'
       WHERE (phone = ANY($1) OR (phone LIKE $2 AND license_number ~ $3))
-        AND (password_hash IS NOT NULL OR verified = TRUE OR status NOT IN ('suspended', 'busy'))
+        AND (password_hash IS NOT NULL OR verified = TRUE OR status <> 'suspended')
       RETURNING id, phone`,
     [SEED_DRIVER_PHONES, FLEET_PHONE_PATTERN, FLEET_LICENSE_REGEX]
   );
+  await getPool().query(
+    `DELETE FROM driver_device_tokens t
+       USING drivers d
+      WHERE t.driver_id = d.id
+        AND (d.phone = ANY($1) OR (d.phone LIKE $2 AND d.license_number ~ $3))`,
+    [SEED_DRIVER_PHONES, FLEET_PHONE_PATTERN, FLEET_LICENSE_REGEX]
+  );
   if (rows.length) {
-    await getPool().query('DELETE FROM driver_device_tokens WHERE driver_id = ANY($1)', [
-      rows.map((r) => r.id),
-    ]);
     console.warn(`[security] closed ${rows.length} development driver account(s): ${rows.map((r) => r.phone).join(', ')}`);
   }
 

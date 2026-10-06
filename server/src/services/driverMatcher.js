@@ -219,11 +219,9 @@ async function assignDriver(rideId, driver, { poolGroupId = null } = {}) {
       `UPDATE drivers SET status = 'busy' WHERE id = $1 AND status = 'active'`,
       [driver.id]
     );
-    // Local test drivers and the simulated fleet never report GPS, so their
-    // parked position is recorded as their location. On a real server a
-    // driver is only matched while their phone is reporting, and nothing is
-    // ever written here on its behalf.
-    if (config.devAllowStaleDrivers || config.demoFleet) await pool.query(
+    // Local tests may use a parked position; real drivers must report GPS
+    // from their own device before they can be matched.
+    if (config.devAllowStaleDrivers) await pool.query(
       `INSERT INTO driver_locations (driver_id, latitude, longitude, recorded_at)
        VALUES ($1,$2,$3, now())
        ON CONFLICT (driver_id)

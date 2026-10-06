@@ -25,6 +25,20 @@ driver experiences, and a Node.js + Express + PostgreSQL API in `server/`.
 
 `EXPO_PUBLIC_API_BASE_URL` (in `.env`) must point at the API, ending in `/api`.
 
+## Host the operator page on Vercel
+
+Create a Vercel project from this repository and set its **Root Directory** to
+`operator` and **Framework Preset** to **Other**. No build command or output
+directory is needed. The static operator page is in `operator/index.html`;
+`operator/vercel.json` proxies its `/api/admin/*` requests to the existing
+Render API at `https://fem-cabs-api.onrender.com`. The API and database remain
+on Render.
+
+Before using the Vercel URL, set `ADMIN_USERNAME` and a strong
+`ADMIN_PASSWORD` (at least 12 characters) in the Render service's environment
+and redeploy the API. Do not put operator credentials in Vercel or in this
+repository. The existing `/operator` page on the API remains available.
+
 Push notifications and driver background location need native code, so they
 do not work in Expo Go or on web: build the app with EAS (`eas build -p android
 --profile preview`) and install that build.

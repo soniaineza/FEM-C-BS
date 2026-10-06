@@ -108,11 +108,9 @@ router.put('/status', asyncHandler(async (req, res) => {
     }
     const missing = await missingApprovedDocuments(req.driverId);
     if (missing.length) throw new ApiError(403, `Driver documents need current in-person approval: ${missing.join(', ')}.`);
-    if (!config.demoFleet) {
-      const balance = await getDriverBalance(req.driverId);
-      if (balance.blocked) {
-        throw new ApiError(403, `You owe RWF ${Math.ceil(balance.owed).toLocaleString()} in commission on cash trips. Pay it to go online.`);
-      }
+    const balance = await getDriverBalance(req.driverId);
+    if (balance.blocked) {
+      throw new ApiError(403, `You owe RWF ${Math.ceil(balance.owed).toLocaleString()} in commission on cash trips. Pay it to go online.`);
     }
   }
 

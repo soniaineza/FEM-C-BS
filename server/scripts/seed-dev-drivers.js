@@ -23,8 +23,8 @@ async function main() {
     process.exit(1);
   }
   const { config, ensureEmbeddedReady } = require('../src/config');
-  // These accounts are for a developer's own database only. On a hosted
-  // database the server closes them again at startup (services/seedAccounts.js).
+  // These accounts are only for a developer's own database. The server
+  // retires them at startup, so seed them after the local API is running.
   if (!config.localDatabase) {
     console.error('Refusing to seed development drivers: DATABASE_URL is not a local database.');
     process.exit(1);

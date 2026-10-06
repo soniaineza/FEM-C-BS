@@ -108,7 +108,7 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   const token = signup.data.token;
   const passengerId = signup.data.passenger.id;
   // Wallet and booking routes require a verified phone.
-  await api('POST', '/auth/verify-otp', { passengerId, code: signup.data.devCode });
+  await api('POST', '/auth/verify-otp', { passengerId, code: signup.data.devCode }, token);
 
   // ---- 7. wallet payment, happy path ----
   await creditWalletDirectly(passengerId, 50000, 'test_seed_topup');

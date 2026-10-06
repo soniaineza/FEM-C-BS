@@ -55,22 +55,10 @@ const config = {
   // Production must send them through the configured SMS/email gateway.
   devRevealCodes: process.env.DEV_REVEAL_CODES === '1',
 
-  // When true, a driver created via POST /api/drivers/register is
-  // immediately verified=TRUE so the new driver app can be exercised
-  // end-to-end without a separate admin-verification tool (which doesn't
-  // exist yet). Real KYC review must gate this in production.
-  devAutoVerifyDrivers: process.env.DEV_AUTO_VERIFY_DRIVERS === '1',
   // Local tests only: lets seeded drivers that never report a GPS position
   // be shown and matched. Never set on a real server — riders would see and
   // be assigned drivers who are not there.
   devAllowStaleDrivers: process.env.DEV_ALLOW_STALE_DRIVERS === '1',
-
-  // When true, moMo/Airtel charges and wallet top-ups are "accepted"
-  // immediately without calling Paypack — the whole payment flow can be
-  // exercised without real mobile-money credentials. Never enable in
-  // production (the runner has no real Paypack creds, so rides/top-ups
-  // would settle with nothing actually charged).
-  demoPayments: process.env.DEMO_PAYMENTS === '1',
 
   // Rate limiting (express-rate-limit): per-identity window for auth routes.
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
@@ -119,12 +107,6 @@ const config = {
 
   // ---- Login codes ----
   // 'sms'  — codes are sent by the SMS provider below and never shown.
-  // 'demo' — no SMS is sent; the app shows the rider their code on screen.
-  //          Verification then proves nothing about who owns the phone, so
-  //          this is for a pilot only. It is on ONLY when OTP_MODE=demo is
-  //          set explicitly.
-  otpMode: process.env.OTP_MODE === 'demo' ? 'demo' : 'sms',
-
   // Paypack (Rwanda mobile money). Credentials are read ONLY here, on the
   // server — never shipped to the Flutter app.
   paypackClientId: process.env.PAYPACK_CLIENT_ID || '',
@@ -134,8 +116,7 @@ const config = {
   paypackWebhookSecret: process.env.PAYPACK_WEBHOOK_SECRET || '',
 
   // SMS delivery for OTP codes (services/otpSender.js): 'pindo',
-  // 'africastalking' or 'generic' (JSON POST to SMS_GATEWAY_URL). Unset means
-  // codes are only logged — development only.
+  // 'africastalking' or 'generic' (JSON POST to SMS_GATEWAY_URL).
   smsProvider: (
     process.env.SMS_PROVIDER || (process.env.SMS_GATEWAY_URL ? 'generic' : '')
   ).toLowerCase(),
@@ -146,9 +127,11 @@ const config = {
   // Sender ID shown on the SMS. Most providers require it to be registered.
   smsSenderName: process.env.SMS_SENDER_NAME || 'KIMU',
 
-  // Shared secret for the operator-only /api/admin routes (driver KYC
-  // review). Sent as the X-Admin-Key header. Unset disables those routes.
+  // Optional integration key retained for trusted scripts; the operator page
+  // authenticates with the username/password and a short-lived JWT instead.
   adminApiKey: process.env.ADMIN_API_KEY || '',
+  adminUsername: process.env.ADMIN_USERNAME || '',
+  adminPassword: process.env.ADMIN_PASSWORD || '',
 
   // Average city speed (km/h) used to estimate trip duration server-side.
   estimateAverageSpeedKmh: Number(process.env.ESTIMATE_AVG_SPEED_KMH || 25),
@@ -188,20 +171,13 @@ const config = {
   // How often the background sweeps run.
   schedulerIntervalMs: Number(process.env.SCHEDULER_INTERVAL_MS || 30000),
 
-  // Demo fleet (services/demoFleet.js): simulated drivers driving real
-  // Kigali roads and serving rides end to end. Refused in production.
-  demoFleet: process.env.DEMO_FLEET === '1',
-  demoFleetSize: Number(process.env.DEMO_FLEET_SIZE || 32),
 };
 
-// The switches that reveal login codes, approve drivers without review, fake
-// payments, simulate drivers or match drivers with no GPS.
+// Development-only switches. Driver approval and Paypack charges have no
+// bypass switches.
 const DEV_SWITCHES = {
   devRevealCodes: 'DEV_REVEAL_CODES',
-  devAutoVerifyDrivers: 'DEV_AUTO_VERIFY_DRIVERS',
   devAllowStaleDrivers: 'DEV_ALLOW_STALE_DRIVERS',
-  demoPayments: 'DEMO_PAYMENTS',
-  demoFleet: 'DEMO_FLEET',
 };
 const requestedDevSwitches = Object.keys(DEV_SWITCHES).filter((key) => config[key]);
 
@@ -223,8 +199,17 @@ function lockDownHostedServer() {
 lockDownHostedServer();
 
 // Things an operator should see in the log at every start.
-if (config.otpMode === 'demo') {
-  console.warn('[security] OTP_MODE=demo: no SMS is sent and login codes are shown in the app. Phone numbers are NOT verified.');
+if (process.env.DEMO_FLEET === '1') {
+  console.warn('[drivers] DEMO_FLEET is no longer supported; only real driver accounts are served.');
+}
+if (process.env.DEV_AUTO_VERIFY_DRIVERS === '1') {
+  console.warn('[security] DEV_AUTO_VERIFY_DRIVERS is no longer supported; all drivers require admin approval.');
+}
+if (process.env.DEMO_PAYMENTS === '1') {
+  console.warn('[payments] DEMO_PAYMENTS is no longer supported; mobile-money transactions require Paypack.');
+}
+if (process.env.OTP_MODE === 'demo') {
+  console.warn('[security] OTP_MODE=demo is no longer supported; OTP delivery uses the configured SMS provider.');
 }
 if (!config.localDatabase) {
   if (config.mapRoutingProvider === 'osrm' && /router\.project-osrm\.org/.test(config.osrmUrl)) {
@@ -262,8 +247,8 @@ function ensureConfig() {
     if (process.env.NOMINATIM_REVERSE_URL && /nominatim\.openstreetmap\.org/.test(config.nominatimReverseUrl)) problems.push('NOMINATIM_REVERSE_URL (public service disallowed)');
 
     // Real OTP delivery.
-    if (config.otpMode !== 'demo' && !['pindo', 'africastalking', 'generic'].includes(config.smsProvider)) {
-      problems.push('SMS_PROVIDER (pindo | africastalking | generic), or OTP_MODE=demo');
+    if (!['pindo', 'africastalking', 'generic'].includes(config.smsProvider)) {
+      problems.push('SMS_PROVIDER (pindo | africastalking | generic)');
     }
     if (config.mapRoutingProvider === 'geoapify' && !config.mapRoutingApiKey) problems.push('MAP_ROUTING_API_KEY');
     if (config.mapGeocodingProvider === 'geoapify' && !config.mapGeocodingApiKey) problems.push('MAP_GEOCODING_API_KEY');
@@ -279,9 +264,10 @@ function ensureConfig() {
     // The SOS button must reach a real call center.
     if (!config.emergencyCallCenterPhone) problems.push('EMERGENCY_CALL_CENTER_PHONE');
 
-    // Without it no driver can ever be verified, so no ride can be matched.
-    if (!config.adminApiKey || config.adminApiKey.length < 24) {
-      problems.push('ADMIN_API_KEY (at least 24 characters)');
+    // Without operator credentials no driver can ever be verified.
+    if (!config.adminUsername) problems.push('ADMIN_USERNAME');
+    if (!config.adminPassword || config.adminPassword.length < 12) {
+      problems.push('ADMIN_PASSWORD (at least 12 characters)');
     }
   }
   if (problems.length) {

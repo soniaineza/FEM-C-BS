@@ -5,12 +5,9 @@ const { config } = require('../config');
  *   pindo           — https://api.pindo.io/v1/sms/ (Rwanda; SMS_API_KEY = Pindo token)
  *   africastalking  — Africa's Talking messaging API (SMS_API_KEY + AT_USERNAME)
  *   generic         — POST { to, sender, message } JSON to SMS_GATEWAY_URL
- *   OTP_MODE=demo   — nothing is sent, whatever the provider: the app
- *                     shows the code on screen (a pilot setting).
- *   (unset)         — local database only: the code is logged server-side.
- *                     On a hosted database sending fails instead, so codes
- *                     never reach the log. Production refuses to start
- *                     without a provider (see config.js).
+ *   (unset)         — explicitly revealed local tests may consume the
+ *                     response code; other requests fail rather than logging
+ *                     a one-time code to the server console.
  *
  * Codes are never returned in API responses unless DEV_REVEAL_CODES=1.
  */
@@ -89,18 +86,9 @@ const PROVIDERS = {
 
 /** Sends an SMS. Throws when the provider rejects it. */
 async function sendSms(phone, text) {
-  // Demo mode sends nothing and logs nothing: the code reaches the person
-  // through the app (auth.routes.js devPayload), never through an SMS.
-  if (config.otpMode === 'demo') return;
   const send = PROVIDERS[config.smsProvider];
-  if (!send && !config.localDatabase) {
-    // Real people's login codes must never end up in the server log.
-    throw new Error('No SMS provider is configured (set SMS_PROVIDER and SMS_API_KEY).');
-  }
-  if (!send) {
-    console.log(`[otpSender] (no SMS provider — dev log) to ${phone}: ${text}`);
-    return;
-  }
+  if (!send && config.localDatabase && config.devRevealCodes) return;
+  if (!send) throw new Error('No SMS provider is configured (set SMS_PROVIDER and SMS_API_KEY).');
   await send(toE164(phone), text);
 }
 

@@ -46,12 +46,25 @@ function requireDriverAuth(req, _res, next) {
     const { id, role } = verifyToken(token);
     if (role !== 'driver') throw new Error('wrong role');
     // A token outlives a deleted or closed account by up to its lifetime, so
-    // the account is checked on every request: it must still exist and still
-    // have a password (closed accounts have none).
+    // account status is checked on every request.
     getPool()
-      .query('SELECT 1 FROM drivers WHERE id = $1 AND password_hash IS NOT NULL', [id])
+      .query('SELECT verified, status FROM drivers WHERE id = $1 AND password_hash IS NOT NULL AND deleted_at IS NULL', [id])
       .then(({ rows }) => {
         if (!rows[0]) return next(new ApiError(401, 'This driver account is no longer active.'));
+        const applicationRoutes = new Set([
+          'GET /me', 'PUT /me',
+          'GET /vehicle', 'PUT /vehicle',
+          'GET /documents', 'POST /documents',
+          'POST /device-token',
+          'DELETE /account',
+        ]);
+        if (rows[0].status === 'suspended') {
+          return next(new ApiError(403, 'Your driver account is suspended. Contact Kimu Transport support.'));
+        }
+        if (!rows[0].verified &&
+            !(req.baseUrl === '/api/driver' && applicationRoutes.has(`${req.method} ${req.path}`))) {
+          return next(new ApiError(403, 'Your account is waiting for admin approval. Driver features are available after approval.'));
+        }
         req.driverId = id;
         next();
       })

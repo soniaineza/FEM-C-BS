@@ -53,11 +53,9 @@ async function getDriverBalance(driverId, db = getPool()) {
 
 /**
  * After a cash fare settles: a driver whose unpaid commission passed the
- * limit is taken offline once free and told how to get back online. The
- * simulated fleet is exempt (it never pays anything in).
+ * limit is taken offline once free and told how to get back online.
  */
 async function enforceDebtLimit(driverId) {
-  if (config.demoFleet) return;
   const balance = await getDriverBalance(driverId);
   if (!balance.blocked) return;
   const { rows } = await getPool().query(
@@ -210,9 +208,6 @@ async function approvePayout(payoutId, { reviewer, reference } = {}) {
   const release = () =>
     getPool().query(`UPDATE driver_payouts SET status = 'pending' WHERE id = $1 AND status = 'processing'`, [payoutId]);
 
-  if (config.demoPayments) {
-    return finalizePayout(payout.id, true);
-  }
   if (!paypack.isConfigured()) {
     if (!String(reference || '').trim()) {
       await release();
@@ -313,7 +308,7 @@ async function startSettlement(driverId, amount) {
   if (value > Math.ceil(balance.owed)) {
     throw new ApiError(400, `You owe RWF ${Math.ceil(balance.owed).toLocaleString()}.`);
   }
-  if (!config.demoPayments && !paypack.isConfigured()) {
+  if (!paypack.isConfigured()) {
     throw new ApiError(503, 'Mobile-money payment is not available yet. Please pay at the Kimu Transport office.');
   }
 
@@ -326,9 +321,6 @@ async function startSettlement(driverId, amount) {
   );
   const settlement = rows[0];
 
-  if (config.demoPayments) {
-    return (await finalizeSettlement(settlement.id, true)) || settlement;
-  }
   try {
     const charge = await paypack.createCharge({
       amount: value,

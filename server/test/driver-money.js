@@ -5,7 +5,7 @@
  *
  * Usage: ADMIN_API_KEY=... node test/driver-money.js
  * (local server on :3000 started with DEV_REVEAL_CODES=1,
- * DEV_AUTO_VERIFY_DRIVERS=1, DEMO_PAYMENTS=1 and the same ADMIN_API_KEY.
+ * the same ADMIN_API_KEY.
  * Start it with DRIVER_MAX_COMMISSION_DEBT=100 to also cover the
  * going-online block; with the default limit that part is skipped.)
  */
@@ -64,7 +64,7 @@ async function waitForAssignment(token, rideId) {
     fullName: 'Money Rider', phone: `+2507${ts}`, email: `money${ts}@example.com`, password: 'secret123',
   });
   const token = signup.data.token;
-  await api('POST', '/auth/verify-otp', { passengerId: signup.data.passenger.id, code: signup.data.devCode });
+  await api('POST', '/auth/verify-otp', { passengerId: signup.data.passenger.id, code: signup.data.devCode }, token);
 
   // Start every driver clear of old commission so earlier runs cannot take
   // a driver offline part-way through this one.

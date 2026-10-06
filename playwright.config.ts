@@ -4,12 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 
 // End-to-end tests of the web build (same React Native screens via
-// react-native-web) against a running API + demo fleet:
+// react-native-web) against a running API + local test driver fixtures:
 //
-//   1. API:  cd server && DEV_REVEAL_CODES=1 DEMO_PAYMENTS=1 DEMO_FLEET=1 \
+//   1. API:  cd server && DEV_REVEAL_CODES=1 \
 //              ADMIN_API_KEY=e2e-admin-key-0123456789abcdef npm start
-//   2. Web:  EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api npx expo start --web
-//   3.       npm run test:e2e
+//   2. Seed local fixtures: cd server && SEED_DEV_DATA=1 npm run seed:dev
+//   3. Web:  EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api npx expo start --web
+//   4.       npm run test:e2e
 //
 // Native-only behaviour (Android WebView map, keyboard, status bar, dialer)
 // needs a device/emulator run (e.g. Maestro); see tests/e2e/README.md.

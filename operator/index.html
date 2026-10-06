@@ -51,11 +51,11 @@
 
   <section id="login" class="card">
     <h2>Sign in</h2>
-    <p class="muted">Enter the operator key (ADMIN_API_KEY from the server settings). It is kept only in this browser tab and is forgotten when you close it.</p>
-    <label for="key">Operator key</label>
-    <input id="key" type="password" autocomplete="off">
-    <label for="who">Your name (recorded on every decision you make)</label>
-    <input id="who" type="text" autocomplete="name">
+    <p class="muted">Sign in with your operator username and password. Your session is kept only in this browser tab.</p>
+    <label for="username">Username</label>
+    <input id="username" type="text" autocomplete="username">
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password">
     <div class="row"><button id="enter" class="primary">Continue</button></div>
     <p id="loginError" class="error" role="alert"></p>
   </section>
@@ -94,13 +94,13 @@
     b.addEventListener('click', onClick);
     return b;
   }
-  function key() { return sessionStorage.getItem('kimuOperatorKey') || ''; }
+  function token() { return sessionStorage.getItem('kimuOperatorToken') || ''; }
   function who() { return sessionStorage.getItem('kimuOperatorName') || ''; }
 
   function call(method, path, body) {
     return fetch(API + path, {
       method: method,
-      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key() },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
       body: body ? JSON.stringify(body) : undefined,
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
@@ -249,20 +249,35 @@
   }
 
   $('enter').addEventListener('click', function () {
-    var k = $('key').value.trim();
-    var name = $('who').value.trim();
+    var username = $('username').value.trim();
+    var password = $('password').value;
     $('loginError').textContent = '';
-    if (!k || !name) { $('loginError').textContent = 'Enter the operator key and your name.'; return; }
-    sessionStorage.setItem('kimuOperatorKey', k);
-    sessionStorage.setItem('kimuOperatorName', name);
-    show(true);
-    load().catch(function () {
-      sessionStorage.removeItem('kimuOperatorKey');
+    if (!username || !password) { $('loginError').textContent = 'Enter your username and password.'; return; }
+    fetch(API + '/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username, password: password }),
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) throw new Error(data.error || 'Sign-in failed.');
+        sessionStorage.setItem('kimuOperatorToken', data.token);
+        sessionStorage.setItem('kimuOperatorName', data.name);
+        $('password').value = '';
+        show(true);
+        return load();
+      });
+    }).catch(function (err) {
+      sessionStorage.removeItem('kimuOperatorToken');
       show(false);
-      $('loginError').textContent = 'That key was not accepted.';
+      $('loginError').textContent = err.message;
     });
   });
-  $('signout').addEventListener('click', function () { sessionStorage.clear(); $('key').value = ''; show(false); });
+  $('signout').addEventListener('click', function () {
+    sessionStorage.removeItem('kimuOperatorToken');
+    sessionStorage.removeItem('kimuOperatorName');
+    $('password').value = '';
+    show(false);
+  });
   $('reload').addEventListener('click', function () { load().catch(function () {}); });
   Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
     b.addEventListener('click', function () {
@@ -272,7 +287,7 @@
     });
   });
 
-  if (key()) { show(true); load().catch(function () { show(false); }); }
+  if (token()) { show(true); load().catch(function () { sessionStorage.removeItem('kimuOperatorToken'); show(false); }); }
 })();
 </script>
 </body>

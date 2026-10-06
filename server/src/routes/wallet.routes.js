@@ -4,9 +4,8 @@ const crypto = require('crypto');
 const { getPool } = require('../db');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
-const { config } = require('../config');
 const paypack = require('../services/paypackClient');
-const { creditTopup, failTopup, refreshTopup } = require('../services/walletTopups');
+const { failTopup, refreshTopup } = require('../services/walletTopups');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -73,6 +72,9 @@ router.post(
     if (!paypack.networkOf(phone)) {
       throw new ApiError(400, 'Enter a valid MTN or Airtel mobile-money number, for example 0781234567.');
     }
+    if (!paypack.isConfigured()) {
+      throw new ApiError(503, 'Paypack is not configured. Mobile-money top-ups are temporarily unavailable.');
+    }
 
     const reference = `TOPUP-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
     const { rows } = await getPool().query(
@@ -81,22 +83,6 @@ router.post(
       [req.passengerId, value, String(phone).trim(), reference]
     );
     let topup = rows[0];
-
-    if (config.demoPayments) {
-      // Demo mode: credit the wallet immediately instead of going through
-      // Paypack, so top-ups are testable without real mobile-money creds.
-      topup = await creditTopup(topup.id, { reason: 'demo_acceptance' });
-      return res.status(201).json({ topup: topupToJson(topup) });
-    }
-
-    if (!paypack.isConfigured()) {
-      const updated = await getPool().query(
-        `UPDATE wallet_topups SET metadata = $2::jsonb, updated_at = now() WHERE id = $1 RETURNING *`,
-        [topup.id, JSON.stringify({ reason: 'provider_not_configured' })]
-      );
-      topup = updated.rows[0];
-      return res.status(201).json({ topup: topupToJson(topup) });
-    }
 
     let charge;
     try {

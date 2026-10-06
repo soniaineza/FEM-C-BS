@@ -7,7 +7,8 @@
  *   - SOS config never returns the old fake fallback number
  *
  * Usage: node test/production-readiness.js   (local server on :3000, started
- * with the same PAYPACK_WEBHOOK_SECRET and ADMIN_API_KEY as this process)
+ * with the same PAYPACK_WEBHOOK_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD and
+ * ADMIN_API_KEY (optional integration key) as this process)
  */
 const { SEED_DRIVER_PASSWORD } = require('./seedPassword');
 const crypto = require('crypto');
@@ -75,7 +76,7 @@ async function db() {
 
 (async () => {
   if (!WEBHOOK_SECRET || !ADMIN_KEY) {
-    console.error('Set PAYPACK_WEBHOOK_SECRET and ADMIN_API_KEY (same values as the server).');
+    console.error('Set PAYPACK_WEBHOOK_SECRET and operator credentials (same values as the server).');
     process.exit(1);
   }
   const pool = await db();
@@ -180,32 +181,44 @@ async function db() {
   check('driver registers', reg.status === 201, `status=${reg.status}`);
   const newDt = reg.data.token;
   const newDriverId = reg.data.driver.id;
-  const autoVerified = reg.data.driver.verified === true;
-  if (!autoVerified) {
-    const online = await api('PUT', '/driver/status', { status: 'active' }, newDt);
-    check('unverified driver cannot go online (403)', online.status === 403, `status=${online.status}`);
-  }
+  check('driver registration never bypasses admin approval', reg.data.driver.verified === false);
+  const pendingLogin = await api('POST', '/drivers/login', { phone: dphone, password: 'secret123' });
+  check('unapproved driver cannot log in', pendingLogin.status === 403, `status=${pendingLogin.status}`);
+  const blockedRides = await api('GET', '/drivers/rides/active', null, newDt);
+  check('unapproved driver token cannot access ride operations', blockedRides.status === 403, `status=${blockedRides.status}`);
+  const onboardingDocs = await api('GET', '/driver/documents', null, newDt);
+  check('unapproved driver can access document onboarding', onboardingDocs.status === 200, `status=${onboardingDocs.status}`);
+  const online = await api('PUT', '/driver/status', { status: 'active' }, newDt);
+  check('unverified driver cannot go online (403)', online.status === 403, `status=${online.status}`);
 
   check('admin: wrong key rejected',
     (await api('GET', '/admin/drivers', null, null, { 'X-Admin-Key': 'wrong' })).status === 401);
   const pendingList = await api('GET', '/admin/drivers?verified=false', null, null, { 'X-Admin-Key': ADMIN_KEY });
   check('admin: new driver listed as awaiting verification',
-    autoVerified || (pendingList.status === 200 && pendingList.data.drivers.some((d) => d.id === newDriverId)),
+    pendingList.status === 200 && pendingList.data.drivers.some((d) => d.id === newDriverId),
     `status=${pendingList.status}`);
 
-  const doc = await api('POST', '/driver/documents', { docType: 'license', fileUrl: 'https://example.com/l.jpg', fileName: 'l.jpg' }, newDt);
-  const docId = doc.data?.document?.id;
-  if (docId) {
-    const rej = await api('POST', `/admin/documents/${docId}/review`, { status: 'rejected' }, null, { 'X-Admin-Key': ADMIN_KEY });
-    check('admin: rejecting a document requires a reason', rej.status === 400, `status=${rej.status}`);
-    const ok = await api('POST', `/admin/documents/${docId}/review`, { status: 'approved' }, null, { 'X-Admin-Key': ADMIN_KEY });
-    check('admin: approve document', ok.status === 200 && ok.data.document.status === 'approved', `status=${ok.status}`);
-  } else {
-    check('driver document upload', false, JSON.stringify(doc));
+  const docs = [];
+  for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
+    const doc = await api('POST', '/driver/documents', { docType, fileName: `original-${docType}` }, newDt);
+    if (doc.data?.document?.id) docs.push(doc.data.document.id);
+  }
+  check('driver submits all four required documents', docs.length === 4, `n=${docs.length}`);
+  const incomplete = await api('POST', `/admin/drivers/${newDriverId}/verify`, null, null, { 'X-Admin-Key': ADMIN_KEY });
+  check('admin cannot approve until every required document is reviewed', incomplete.status === 409, `status=${incomplete.status}`);
+  const rej = await api('POST', `/admin/documents/${docs[0]}/review`, { status: 'rejected' }, null, { 'X-Admin-Key': ADMIN_KEY });
+  check('rejecting a document requires a reason', rej.status === 400, `status=${rej.status}`);
+  for (const docId of docs) {
+    const ok = await api('POST', `/admin/documents/${docId}/review`, {
+      status: 'approved', reviewer: 'readiness-test', method: 'in_person', evidenceReference: 'readiness test originals',
+    }, null, { 'X-Admin-Key': ADMIN_KEY });
+    if (ok.status !== 200) console.error(`Document approval failed: ${ok.status}`);
   }
 
   const ver = await api('POST', `/admin/drivers/${newDriverId}/verify`, null, null, { 'X-Admin-Key': ADMIN_KEY });
   check('admin: verify driver', ver.status === 200 && ver.data.driver.verified === true, `status=${ver.status}`);
+  const approvedLogin = await api('POST', '/drivers/login', { phone: dphone, password: 'secret123' });
+  check('approved driver can log in', approvedLogin.status === 200 && approvedLogin.data.token, `status=${approvedLogin.status}`);
   const online2 = await api('PUT', '/driver/status', { status: 'active' }, newDt);
   check('verified driver can go online', online2.status === 200, `status=${online2.status}`);
   const notes = await api('GET', '/driver/notifications', null, newDt);

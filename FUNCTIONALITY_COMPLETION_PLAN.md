@@ -26,15 +26,13 @@ Riders open directly onto a live, map-focused Home screen, see nearby available 
 
 These are code inventory observations. They are not substitutes for end-to-end acceptance.
 
-## Immediate work: more drivers on the map
+## Driver supply and matching
 
-- [x] Expand the **development simulator roster from 16 to 32** drivers across Economy, Comfort, and XL. `DEMO_FLEET_SIZE` defaults to 32 and can be lowered for local performance. The passenger nearby endpoint can now return up to 24 drivers within 5 km.
-- [ ] With `DEMO_FLEET=1`, verify that 32 distinct simulated drivers are active, map markers update while cars move, the nearby count matches returned cars, and a rider can book each vehicle class. Check central Kigali and outer neighborhoods, not just one coordinate.
-- [ ] Measure map frame rate, API latency, memory use, route queue time, and marker readability at 1, 8, and 24 visible cars on a low-end Android device. Cluster or simplify distant markers if the map becomes crowded; keep the booking panel reachable.
-- [ ] Test 0 drivers, 1 driver, 24 drivers, stale locations, offline drivers, and a driver who becomes busy. Never imply that simulated drivers are available in production.
-- [ ] Recruit and verify **real drivers** before launch. The simulator is explicitly refused in production; increasing its roster does not increase real supply. Build an operator view of online, verified drivers by area and vehicle class, then use real location and ride data to decide recruiting targets.
-
-Relevant code: `server/src/services/demoFleet.js`, `server/src/config.js`, `server/src/routes/drivers.routes.js`, `app/(main)/(tabs)/index.tsx`. The separate `server/scripts/seed-dev-drivers.js` creates three static development accounts; it is not the moving fleet or a production onboarding path.
+The moving demo fleet has been removed. Passenger maps and matching now depend
+on eligible drivers reporting a fresh location from their own devices; driver
+ride feeds use the passenger attached to each real booking. Recruit and verify
+real drivers before launch, and use the operator view and real location data
+to measure coverage by area and vehicle class.
 
 ## P0: complete the core ride and payment loop
 
@@ -70,7 +68,7 @@ Relevant code: `server/src/services/demoFleet.js`, `server/src/config.js`, `serv
 2. **Browser:** Playwright auth, Home, booking, cancellation, safety and link tests. Add a screen/button coverage matrix and retain screenshots/traces for failures. Web success does not prove native permission, keyboard, push, dialer or status-bar behavior.
 3. **Android:** Install a fresh build with native modules, then complete at least one whole rider trip and one whole driver trip using test accounts. Check GPS denial, background/reopen, keyboard, status bar, map zoom, calls and push.
 4. **Staging services:** private routing/geocoding capacity, real SMS, real payment provider, webhook signatures, operator SOS delivery, admin verification and payout reconciliation. Use test credentials; document provider receipts.
-5. **Production:** confirm `DEMO_FLEET=0`, `DEMO_PAYMENTS=0`, `DEV_REVEAL_CODES=0`, and `DEV_AUTO_VERIFY_DRIVERS=0`; verify real verified-driver availability, backups, monitoring, rollback and post-deploy readback. Do not mark ready from a local green suite alone.
+5. **Production:** verify real Paypack/SMS credentials, ensure local OTP reveal is disabled, and confirm every driver is approved through KYC; verify driver availability, backups, monitoring, rollback and post-deploy readback. Do not mark ready from a local green suite alone.
 
 Run the existing checks from the repository root with the appropriate API and development database running:
 

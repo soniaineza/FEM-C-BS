@@ -7,6 +7,7 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { useDriverAuthStore } from '../stores/useDriverAuthStore';
+import { updateDriverVehicle } from '../services/driver-profile-service';
 import { useTranslation } from '../hooks/useTranslation';
 import { ApiError } from '../services/driver-api-client';
 
@@ -43,13 +44,18 @@ export default function DriverProfileSetupScreen() {
     setError(undefined);
     setLoading(true);
     try {
+      const vehicle = {
+        vehicleMake: vehicleMake.trim(),
+        vehicleModel: vehicleModel.trim(),
+        vehicleColor: vehicleColor.trim(),
+        vehiclePlate: vehiclePlate.trim(),
+      };
+      if (Object.values(vehicle).some(Boolean)) {
+        await updateDriverVehicle(vehicle);
+      }
       await updateProfile({
         fullName: fullName.trim(),
         email: email.trim(),
-        vehicleMake: vehicleMake.trim() || undefined,
-        vehicleModel: vehicleModel.trim() || undefined,
-        vehicleColor: vehicleColor.trim() || undefined,
-        vehiclePlate: vehiclePlate.trim() || undefined,
       });
       // Root layout's Stack.Protected swaps to (driver) once
       // currentDriver.isProfileComplete becomes true.

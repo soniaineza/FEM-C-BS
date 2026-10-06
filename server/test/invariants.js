@@ -29,6 +29,8 @@ const MOCK_PORT = 4100 + (SEED % 100);
 const API = `http://localhost:${API_PORT}/api`;
 const WEBHOOK_SECRET = 'whsec_invariants';
 const ADMIN_KEY = crypto.randomBytes(24).toString('hex');
+const ADMIN_USERNAME = 'operator-test';
+const ADMIN_PASSWORD = 'test-password-long';
 const COMMISSION = 0.15;
 
 // ---------- deterministic PRNG ----------
@@ -475,7 +477,7 @@ async function newPassenger() {
     if (ok.status !== 200) violations.push(`resend after gateway recovery returned ${ok.status}`);
   }
   const code = await codeFor(phone);
-  const v = await api('POST', '/auth/verify-otp', { passengerId: p.id, code });
+  const v = await api('POST', '/auth/verify-otp', { passengerId: p.id, code }, p.token);
   if (v.status !== 200) {
     const sent = mock.sms.filter((x) => x.to === phone).map((x) => (x.message.match(/code is (\d+)/) || [])[1]);
     const codes = await q('SELECT id, purpose, used_at IS NOT NULL AS used, attempts, created_at FROM verification_codes WHERE passenger_id = $1 ORDER BY id', [p.id]);
@@ -1274,9 +1276,11 @@ async function main() {
     PAYPACK_BASE_URL: `http://localhost:${MOCK_PORT}`,
     EMERGENCY_CALL_CENTER_PHONE: '+250788123456',
     ADMIN_API_KEY: ADMIN_KEY,
+    ADMIN_USERNAME,
+    ADMIN_PASSWORD,
     RATE_LIMIT_MAX: '100000',
     OTP_RESEND_COOLDOWN: '0',
-    // Production refuses the public map services and every demo switch.
+    // Production refuses the public map services and every development switch.
     // The server also loads server/.env, so the switches are pinned off here
     // rather than left to a developer's local values. Routing points at the
     // mock (which has no such route), so fares use the straight-line fallback.
@@ -1284,9 +1288,6 @@ async function main() {
     PHOTON_URL: `http://localhost:${MOCK_PORT}/photon/api/`,
     PHOTON_REVERSE_URL: `http://localhost:${MOCK_PORT}/photon/reverse`,
     DEV_REVEAL_CODES: '0',
-    DEV_AUTO_VERIFY_DRIVERS: '0',
-    DEMO_PAYMENTS: '0',
-    DEMO_FLEET: '0',
     DEV_ALLOW_STALE_DRIVERS: '0',
     // The walk's drivers do many cash trips and never pay commission in;
     // the debt block is covered by test/driver-money.js.
@@ -1324,6 +1325,20 @@ ${serverLog.slice(-1500)}`);
   const head = await fetch(`${API}/webhooks/paypack`, { method: 'HEAD' });
   if (head.status !== 200) violations.push(`webhook HEAD ${head.status}`);
   if ((await api('GET', '/admin/drivers', null, null, { 'X-Admin-Key': ADMIN_KEY.slice(0, -1) + 'x' })).status !== 401) violations.push('admin accepted a wrong key');
+  const badOperatorLogin = await api('POST', '/admin/login', {
+    username: ADMIN_USERNAME,
+    password: 'wrong-password',
+  });
+  if (badOperatorLogin.status !== 401) violations.push('operator login accepted a wrong password');
+  const operatorLogin = await api('POST', '/admin/login', {
+    username: ADMIN_USERNAME,
+    password: ADMIN_PASSWORD,
+  });
+  if (operatorLogin.status !== 200 || !operatorLogin.data?.token) {
+    violations.push(`operator login failed (${operatorLogin.status})`);
+  } else if ((await api('GET', '/admin/drivers', null, operatorLogin.data.token)).status !== 200) {
+    violations.push('operator session token could not access admin routes');
+  }
 
   console.log(`seed=${SEED} steps=${STEPS} db=${DB_NAME}`);
   for (let i = 0; i < 3; i++) await newPassenger();

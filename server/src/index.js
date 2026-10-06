@@ -95,8 +95,8 @@ async function main() {
   // previous `build/web` path here was off by one and pointed above the
   // repo root; verified against the actual directory layout).
   // The operator's page: approve drivers, resolve payment cases, handle SOS.
-  // It holds no secret — every action it takes needs the operator key, which
-  // the operator types in and which is checked by /api/admin as usual.
+  // It holds no secret — every action needs operator authentication checked
+  // by /api/admin.
   app.get('/operator', (_req, res) => {
     res.set({
       'Cache-Control': 'no-store',
@@ -105,7 +105,7 @@ async function main() {
       'Referrer-Policy': 'no-referrer',
       'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'",
     });
-    res.sendFile(path.join(__dirname, '..', 'public', 'operator.html'));
+    res.sendFile(path.join(__dirname, '..', '..', 'operator', 'index.html'));
   });
 
   const webBuildPath = path.join(__dirname, '..', '..', 'dist');
@@ -123,16 +123,11 @@ async function main() {
   app.use(notFound);
   app.use(errorHandler);
 
+  await retireSeedAccounts();
   app.listen(config.port, () => {
     console.log(`[server] Kimu Transport API listening on port ${config.port}`);
   });
-  await retireSeedAccounts();
   startScheduler();
-  if (config.demoFleet) {
-    require('./services/demoFleet')
-      .startDemoFleet()
-      .catch((err) => console.error('[fleet] failed to start:', err));
-  }
 }
 
 main().catch((err) => {

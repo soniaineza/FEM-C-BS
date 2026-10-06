@@ -47,7 +47,7 @@ export function useNearbyCars(center: { latitude: number; longitude: number } | 
           }))
         );
       } catch {
-        // Keep showing the last known cars; the next poll retries.
+        if (!cancelled) setCars([]);
       }
       if (!cancelled) timer = setTimeout(poll, POLL_MS);
     }

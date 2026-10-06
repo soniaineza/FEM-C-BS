@@ -13,6 +13,7 @@ const { SEED_DRIVER_PHONES } = require('../services/seedAccounts');
 const { confirmCashPayment } = require('../services/payments');
 const { transitionRide } = require('../services/rideStateMachine');
 const paypack = require('../services/paypackClient');
+const { signAdminToken, verifyToken } = require('../utils/jwt');
 const {
   getDriverBalance,
   approvePayout,
@@ -22,23 +23,49 @@ const {
   settlementToJson,
 } = require('../services/driverBalance');
 
-// Operator-only routes for driver KYC review. Authenticated with the
-// ADMIN_API_KEY shared secret in the X-Admin-Key header; disabled entirely
-// when ADMIN_API_KEY is unset. See server/README.md for curl examples.
+// Operator-only routes for driver KYC review. The browser uses an
+// eight-hour session token; ADMIN_API_KEY remains for trusted integrations.
 const router = express.Router();
 
 // Wrong keys are limited per address so the operator key cannot be guessed
 // by brute force; correct requests are never counted.
 router.use(apiLimiter({ max: 20, skipSuccessfulRequests: true, keyGenerator: (req) => `admin:${req.ip}` }));
 
-router.use((req, _res, next) => {
-  if (!config.adminApiKey) return next(new ApiError(404, 'Not found.'));
-  const given = Buffer.from(String(req.headers['x-admin-key'] || ''));
-  const expected = Buffer.from(config.adminApiKey);
-  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
-    return next(new ApiError(401, 'Invalid admin key.'));
+function safeEqual(value, expected) {
+  const given = Buffer.from(String(value || ''));
+  const secret = Buffer.from(String(expected || ''));
+  return given.length === secret.length && crypto.timingSafeEqual(given, secret);
+}
+
+router.post('/login', asyncHandler(async (req, res) => {
+  if (!config.adminUsername || !config.adminPassword) {
+    throw new ApiError(503, 'Operator login is not configured.');
   }
-  next();
+  const { username, password } = req.body || {};
+  const usernameMatches = safeEqual(username, config.adminUsername);
+  const passwordMatches = safeEqual(password, config.adminPassword);
+  if (!usernameMatches || !passwordMatches) {
+    throw new ApiError(401, 'Invalid username or password.');
+  }
+  res.json({ token: signAdminToken(config.adminUsername), name: config.adminUsername });
+}));
+
+router.use((req, _res, next) => {
+  const authorization = String(req.headers.authorization || '');
+  const token = authorization.match(/^Bearer\s+(.+)$/i);
+  if (token) {
+    try {
+      if (verifyToken(token[1]).role === 'admin') return next();
+    } catch (_) {
+      return next(new ApiError(401, 'Operator session expired. Please sign in again.'));
+    }
+    return next(new ApiError(403, 'Operator access required.'));
+  }
+
+  if (config.adminApiKey && safeEqual(req.headers['x-admin-key'], config.adminApiKey)) {
+    return next();
+  }
+  next(new ApiError(401, 'Sign in as an operator to continue.'));
 });
 
 function documentToJson(d) {
@@ -359,7 +386,6 @@ router.get('/paypack/status', asyncHandler(async (_req, res) => {
       configured: true,
       authenticated: true,
       webhookSecretSet: Boolean(config.paypackWebhookSecret),
-      demoPayments: config.demoPayments,
       balances,
     });
   } catch (err) {

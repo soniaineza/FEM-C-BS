@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +13,7 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import { getDriverDocuments, submitDriverDocument } from '../../../services/driver-profile-service';
 import { DriverDocument } from '../../../types/driver';
 import { ApiError } from '../../../services/driver-api-client';
+import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
 
 const DOC_TYPES: { id: DriverDocument['docType']; key: string }[] = [
   { id: 'license', key: 'driverDocLicense' },
@@ -42,6 +44,9 @@ const STATUS_KEYS: Record<DriverDocument['status'], string> = {
 // fileUrl/fileName string it's given).
 export default function DriverDocumentsScreen() {
   const { t } = useTranslation();
+  const currentDriver = useDriverAuthStore((s) => s.currentDriver);
+  const refreshDriver = useDriverAuthStore((s) => s.refresh);
+  const wasPendingApproval = useRef(false);
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [docType, setDocType] = useState<DriverDocument['docType'] | null>(null);
@@ -59,6 +64,31 @@ export default function DriverDocumentsScreen() {
   }
 
   useEffect(load, []);
+
+  useEffect(() => {
+    if (!currentDriver) return;
+    if (!currentDriver.verified) {
+      wasPendingApproval.current = true;
+    } else if (wasPendingApproval.current) {
+      router.replace('/(driver)/(tabs)');
+    }
+  }, [currentDriver]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!currentDriver || currentDriver.verified) return undefined;
+      let cancelled = false;
+      const checkApproval = () => {
+        if (!cancelled) refreshDriver().catch(() => {});
+      };
+      checkApproval();
+      const timer = setInterval(checkApproval, 15000);
+      return () => {
+        cancelled = true;
+        clearInterval(timer);
+      };
+    }, [currentDriver?.verified, refreshDriver])
+  );
 
   async function handleSubmit() {
     if (!docType) return setError(t('driverChooseDocType'));
@@ -83,6 +113,14 @@ export default function DriverDocumentsScreen() {
         <BackHeader />
         <Text className="mt-2 text-xl text-ink font-display">{t('documents')}</Text>
         <Text className="mt-1 text-sm text-text-secondary">{t('driverDocumentsIntro')}</Text>
+        {currentDriver && !currentDriver.verified ? (
+          <View className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-3">
+            <Text className="text-sm font-semibold text-ink">{t('driverAwaitingVerification')}</Text>
+            <Text className="mt-1 text-xs leading-5 text-text-secondary">
+              {t('driverApprovalNeededBlurb')}
+            </Text>
+          </View>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator className="mt-6" color="#0E7C4A" />

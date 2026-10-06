@@ -15,6 +15,13 @@ function signDriverToken(driverId) {
   });
 }
 
+/** Signs a short-lived operator session token. */
+function signAdminToken(username) {
+  return jwt.sign({ sub: username, role: 'admin' }, config.jwtSecret, {
+    expiresIn: '8h',
+  });
+}
+
 /** Verifies a session token, returning { id, role } or throwing. */
 function verifyToken(token) {
   const decoded = jwt.verify(token, config.jwtSecret);
@@ -22,4 +29,4 @@ function verifyToken(token) {
   return { id: decoded.sub, role: decoded.role || 'passenger' };
 }
 
-module.exports = { signToken, signDriverToken, verifyToken };
+module.exports = { signToken, signDriverToken, signAdminToken, verifyToken };

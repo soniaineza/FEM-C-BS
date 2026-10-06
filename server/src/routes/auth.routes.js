@@ -28,10 +28,8 @@ const authLimiter = apiLimiter();
 const otpLimiter = apiLimiter({ max: config.rateLimitMax * 2 });
 
 function devPayload(code) {
-  // Local development (DEV_REVEAL_CODES, local database only) and the
-  // explicit demo mode both show the code to the person who asked for it;
-  // in every other case it only ever leaves by SMS.
-  if (config.otpMode === 'demo') return { devCode: code, otpMode: 'demo' };
+  // Local development (DEV_REVEAL_CODES, local database only) may show the
+  // code to the person who asked for it; otherwise it only leaves by SMS.
   return config.devRevealCodes ? { devCode: code } : {};
 }
 
@@ -43,11 +41,9 @@ async function findByIdentifier(identifier) {
   return rows[0] || null;
 }
 
-/** What the reset request says back, without claiming an SMS that was not sent. */
+/** What the reset request says back without revealing whether an account exists. */
 function resetMessage(identifier) {
-  return config.otpMode === 'demo'
-    ? 'Demo verification: no SMS is sent. If this account exists, its code is shown in the app.'
-    : `We sent a verification code to ${identifier}.`;
+  return `We sent a verification code to ${identifier}.`;
 }
 
 // Sets req.identityKey so both the phone/email AND the IP count towards the
@@ -94,15 +90,21 @@ router.post(
       purpose: 'signup',
     });
 
+    let otpSent = true;
+    try {
+      await deliverOtp(passenger, { code, purpose: 'signup' });
+    } catch {
+      otpSent = false;
+    }
+
     const token = signToken(passenger.id);
     res.status(201).json({
       passenger: passengerToJson(passenger),
       token,
+      otpSent,
+      ...(otpSent ? {} : { message: 'Account created, but the verification SMS could not be sent. Use resend code to try again.' }),
       ...devPayload(code),
     });
-    // The account already exists; if delivery fails the app's "resend code"
-    // retries it (and surfaces the error there).
-    sendOtp(passenger, { code, purpose: 'signup' }).catch(() => {});
   })
 );
 
@@ -122,8 +124,29 @@ router.post(
     const ok = await bcrypt.compare(password, passenger.password_hash);
     if (!ok) throw new ApiError(401, 'Incorrect password.');
 
+    let devCode;
+    let otpSent = true;
+    if (!passenger.verified_at) {
+      devCode = await issueCode(getPool(), {
+        passengerId: passenger.id,
+        purpose: 'signup',
+      });
+      try {
+        await deliverOtp(passenger, { code: devCode, purpose: 'signup' });
+      } catch {
+        otpSent = false;
+      }
+    }
     const token = signToken(passenger.id);
-    res.json({ passenger: passengerToJson(passenger), token });
+    res.json({
+      passenger: passengerToJson(passenger),
+      token,
+      ...(passenger.verified_at ? {} : {
+        otpSent,
+        ...(otpSent ? {} : { message: 'We could not send the verification SMS. Use resend code to try again.' }),
+      }),
+      ...devPayload(devCode),
+    });
   })
 );
 
@@ -186,8 +209,8 @@ router.post(
     await deliverOtp(passenger, { code, purpose });
     res.json({
       ...devPayload(code),
-      message: config.otpMode === 'demo'
-        ? 'Demo verification: no SMS is sent. Your code is shown in the app.'
+      message: config.devRevealCodes && config.localDatabase
+        ? 'A new verification code is ready in the app.'
         : 'A new verification code was sent.',
     });
   })
@@ -251,10 +274,12 @@ router.post(
 // POST /api/auth/verify-otp
 router.post(
   '/verify-otp',
+  requireSession,
   otpLimiter,
   asyncHandler(async (req, res) => {
     const { passengerId, code } = req.body || {};
     if (!passengerId || !code) throw new ApiError(400, 'Missing passengerId or code.');
+    if (passengerId !== req.passengerId) throw new ApiError(403, 'You can only verify your own account.');
 
     const result = await verifyCode(getPool(), {
       passengerId,

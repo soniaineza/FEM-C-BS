@@ -32,9 +32,7 @@ const router = express.Router();
 
 // POST /api/drivers/register — self-service driver sign-up for the driver
 // app. New accounts start unverified/offline (KYC documents must be
-// reviewed before a driver can go active and receive rides) unless
-// DEV_AUTO_VERIFY_DRIVERS=1, which immediately verifies them so the app can
-// be exercised end-to-end without a separate admin-verification tool.
+// reviewed before a driver can sign in, go active, or receive rides.
 router.post(
   '/register',
   apiLimiter({ max: 20 }),
@@ -61,7 +59,7 @@ router.post(
         String(phone).trim(),
         passwordHash,
         licenseNumber ? String(licenseNumber).trim() : null,
-        config.devAutoVerifyDrivers,
+        false,
       ]
     );
     const driver = rows[0];
@@ -83,6 +81,12 @@ router.post(
     const { phone, password } = req.body || {};
     if (!phone || !password) throw new ApiError(400, 'Phone and password are required.');
     const driver = await authenticateDriver(String(phone).trim(), String(password));
+    if (!driver.verified) {
+      throw new ApiError(403, 'Your account is waiting for admin approval. You can sign in after your documents have been reviewed.');
+    }
+    if (driver.status === 'suspended') {
+      throw new ApiError(403, 'Your driver account is suspended. Contact Kimu Transport support.');
+    }
     res.json({
       driver: driverToJson(driver),
       token: signDriverToken(driver.id),

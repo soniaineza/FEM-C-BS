@@ -100,23 +100,6 @@ async function chargePayment(payment, ride) {
   }
 
   if (PROVIDER_METHODS.has(payment.method)) {
-    if (config.demoPayments) {
-      // Demo mode (DEMO_PAYMENTS=1): fake acceptance — mark the charge
-      // settled immediately instead of calling Paypack, so the whole ride +
-      // wallet-earnings flow is testable without mobile-money credentials.
-      // The payment row is still recorded with a provider label for realism.
-      await getPool().query(
-        `UPDATE payments SET provider='paypack', state='processing', updated_at=now(),
-           metadata='{"reason":"demo_acceptance"}'::jsonb WHERE id = $1`,
-        [payment.id]
-      );
-      await settleSucceededPayment(payment, ride, { method: payment.method, demo: true });
-      const { rows: settled } = await getPool().query(
-        'SELECT * FROM payments WHERE id = $1',
-        [payment.id]
-      );
-      return settled[0] || payment;
-    }
     if (!paypack.isConfigured()) {
       // Honest "gateway not configured": the ride stays pending — the app must
       // not be allowed to mark itself paid.

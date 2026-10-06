@@ -13,8 +13,8 @@ interface AuthState {
   // instead of jumping straight to profile-setup the instant an account
   // exists but hasn't been verified yet.
   pendingPassenger: Passenger | null;
-  // Demo-only: the OTP revealed by the server when DEV_REVEAL_CODES=1, so
-  // testing never needs a real SMS.
+  otpDeliveryFailed: boolean;
+  // Local-test-only OTP reveal; production codes are delivered by SMS.
   devCode: string | null;
   hydrate: () => Promise<void>;
   signUp: (params: { fullName: string; phone: string; email: string; password: string }) => Promise<void>;
@@ -33,6 +33,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: null,
   isHydrated: false,
   pendingPassenger: null,
+  otpDeliveryFailed: false,
   devCode: null,
 
   hydrate: async () => {
@@ -42,14 +43,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (params) => {
-    const { passenger, devCode } = await authService.signUp(params);
-    set({ pendingPassenger: passenger, devCode: devCode ?? null });
+    const { passenger, devCode, otpSent } = await authService.signUp(params);
+    set({ pendingPassenger: passenger, devCode: devCode ?? null, otpDeliveryFailed: otpSent === false });
   },
 
   logIn: async (params) => {
-    const passenger = await authService.logIn(params);
+    const { passenger, otpSent } = await authService.logIn(params);
     set({ currentUser: passenger.isVerified ? passenger : null,
-      pendingPassenger: passenger.isVerified ? null : passenger });
+      pendingPassenger: passenger.isVerified ? null : passenger,
+      otpDeliveryFailed: !passenger.isVerified && otpSent === false });
     return passenger;
   },
 
@@ -59,12 +61,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await authService.verifyOtp({ passengerId: pending.id, code });
     const verified = await authService.restoreSession();
     if (!verified?.isVerified) throw new Error('Verification could not be confirmed.');
-    set({ currentUser: verified, pendingPassenger: null, devCode: null });
+    set({ currentUser: verified, pendingPassenger: null, devCode: null, otpDeliveryFailed: false });
   },
 
   resendOtp: async (purpose = 'signup') => {
     const { devCode } = await authService.resendOtp(purpose);
-    if (devCode) set({ devCode });
+    set({ devCode: devCode ?? null, otpDeliveryFailed: false });
   },
 
   updateProfile: async (passenger: Passenger) => {
@@ -76,12 +78,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await authService.logout();
     useRideWizardStore.getState().reset();
-    set({ currentUser: null, pendingPassenger: null });
+    set({ currentUser: null, pendingPassenger: null, otpDeliveryFailed: false, devCode: null });
   },
 
   deleteAccount: async () => {
     await authService.deleteAccount();
     useRideWizardStore.getState().reset();
-    set({ currentUser: null, pendingPassenger: null });
+    set({ currentUser: null, pendingPassenger: null, otpDeliveryFailed: false, devCode: null });
   },
 }));

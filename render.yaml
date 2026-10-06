@@ -1,12 +1,3 @@
-# Render blueprint for the Kimu Transport API (https://render.com/docs/blueprint-spec).
-#
-# `starter` is Render's smallest paid instance: unlike `free` it never sleeps,
-# so there is no ~24s cold start on the first request after idle.
-#
-# Existing service: rather than syncing this blueprint (which would create a
-# second service), switch the current service's Instance Type to Starter in
-# the Render dashboard and add the env vars below under Environment.
-# The server refuses to start in production if any required one is missing.
 services:
   - type: web
     name: fem-cabs-api
@@ -32,8 +23,10 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: ADMIN_API_KEY
-        generateValue: true
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
       # OTP SMS: pindo | africastalking | generic
       - key: SMS_PROVIDER
         sync: false
@@ -51,8 +44,4 @@ services:
       - key: EMERGENCY_CALL_CENTER_PHONE
         sync: false
       - key: DEV_REVEAL_CODES
-        value: "0"
-      - key: DEMO_PAYMENTS
-        value: "0"
-      - key: DEV_AUTO_VERIFY_DRIVERS
         value: "0"

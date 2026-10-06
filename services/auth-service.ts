@@ -28,19 +28,20 @@ export async function signUp(params: {
   phone: string;
   email: string;
   password: string;
-}): Promise<{ passenger: Passenger; devCode?: string }> {
-  const json = await apiClient.post<{ passenger: any; token: string; devCode?: string }>('/auth/signup', params, false);
+}): Promise<{ passenger: Passenger; devCode?: string; otpSent?: boolean }> {
+  const json = await apiClient.post<{ passenger: any; token: string; devCode?: string; otpSent?: boolean }>('/auth/signup', params, false);
   await saveSession(json.token, json.passenger.id);
   return {
     passenger: passengerFromBackendJson(json.passenger),
     devCode: json.devCode,
+    otpSent: json.otpSent,
   };
 }
 
-export async function logIn(params: { identifier: string; password: string }): Promise<Passenger> {
-  const json = await apiClient.post<{ passenger: any; token: string }>('/auth/login', params, false);
+export async function logIn(params: { identifier: string; password: string }): Promise<{ passenger: Passenger; otpSent?: boolean }> {
+  const json = await apiClient.post<{ passenger: any; token: string; otpSent?: boolean }>('/auth/login', params, false);
   await saveSession(json.token, json.passenger.id);
-  return passengerFromBackendJson(json.passenger);
+  return { passenger: passengerFromBackendJson(json.passenger), otpSent: json.otpSent };
 }
 
 export async function resetPassword(identifier: string): Promise<{ message: string; devCode?: string }> {
@@ -61,7 +62,7 @@ export async function confirmResetPassword(params: {
 // successful verify, the caller refreshes via restoreSession()/GET auth/me
 // to pick up the now-verified state.
 export async function verifyOtp(params: { passengerId: string; code: string }): Promise<void> {
-  await apiClient.post('/auth/verify-otp', params, false);
+  await apiClient.post('/auth/verify-otp', params);
 }
 
 export async function resendOtp(purpose: string = 'signup'): Promise<{ devCode?: string }> {

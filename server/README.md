@@ -72,21 +72,28 @@ signup/login). All responses are JSON; errors are `{ "error": "message" }`.
 
 ## Development switches
 
-`DEV_REVEAL_CODES`, `DEV_AUTO_VERIFY_DRIVERS`, `DEV_ALLOW_STALE_DRIVERS`,
-`DEMO_PAYMENTS` and `DEMO_FLEET` exist so the flows can be exercised on a
-developer's machine without SMS, operator review, GPS or a payment provider.
+`DEV_REVEAL_CODES` and `DEV_ALLOW_STALE_DRIVERS` are local test switches.
+Driver approval, SMS verification and Paypack transactions cannot be bypassed.
 They take effect only when `DATABASE_URL` points at a local database
 (`localhost`). On any hosted database they are ignored with a warning,
 whatever `NODE_ENV` is, and with `NODE_ENV=production` the server refuses to
 start if one is even set.
 
+The simulated driver fleet has been removed. `DEMO_FLEET` no longer starts
+drivers; if it is still set to `1`, the server logs a warning. `DEMO_PAYMENTS`
+and `DEV_AUTO_VERIFY_DRIVERS` are also ignored and warned about: real Paypack
+and explicit administrator approval are always required. The nearby map
+and ride matching use only eligible drivers reporting a fresh location, and
+the driver ride feed shows passengers from real ride bookings.
+
 The same rule protects against development accounts. `npm run seed:dev`
 creates three test drivers; it needs `SEED_DEV_DATA=1`, a local database and
 your own `SEED_DRIVER_PASSWORD` in `server/.env` (there is no built-in
-password). On a hosted database the server closes those accounts, and any
-simulated-fleet accounts, at every startup: no password, unverified,
-suspended. Without an SMS provider a hosted server fails to send a login code
-rather than writing it to the log.
+password). Every server startup closes those accounts and any legacy
+demo-fleet accounts: no password, unverified, suspended. For local API tests,
+start the server first, then run `SEED_DEV_DATA=1 npm run seed:dev` to create
+the test fixtures for that session. Without an SMS provider a hosted server
+fails to send a login code rather than writing it to the log.
 
 ## Going to production
 
@@ -139,11 +146,12 @@ records stay. A rider with an unfinished or unpaid ride, and a driver with an
 open ride, a payout in progress or cash still owed to Kimu, is refused.
 
 **Operator page.** `https://<api-host>/operator` is a simple page for the
-person running the service: sign in with `ADMIN_API_KEY` and your name, then
+person running the service: sign in with the configured operator username and
+password, then
 approve drivers (after inspecting their four documents in person), decide
 payment cases (unconfirmed cash, refunds) and close SOS events. It calls the
-same `/api/admin` endpoints as the commands in this file; wrong keys are rate
-limited.
+same `/api/admin` endpoints as the commands in this file. Login issues an
+eight-hour, tab-scoped session; incorrect credentials are rate limited.
 
 **Operator checks** (read-only):
 
@@ -188,19 +196,25 @@ A driver is shown to riders and matched only while their last accepted fix is
 newer than `DRIVER_LOCATION_MAX_AGE_SECONDS` (default 45). Accepted fixes are
 pushed to the rider over `GET /api/rides/:id/stream`.
 
-**Login codes.** `OTP_MODE=sms` (default) sends codes through the SMS provider
-below. `OTP_MODE=demo` sends nothing: the code is returned to the app, which
-shows it on screen. Codes are still random, single-use and expire. Demo mode
-verifies nobody's phone number, so anyone who knows a rider's phone or email
-can reset that rider's password; use it for a pilot only. It is on only when
-set explicitly, and the server warns about it at every start.
+**Login codes.** Signup sends a random, single-use, expiring code through the
+configured SMS provider; the passenger must verify the phone before using
+passenger APIs. Password login does not ask for another OTP once the phone is
+verified. An unverified account gets a fresh SMS code when it logs in.
+`OTP_MODE=demo` is ignored. Only local tests may reveal codes with
+`DEV_REVEAL_CODES=1`; codes are never written to server logs.
 
 **Driver verification.** New drivers start unverified and can't go online
-until an operator approves them. Set `ADMIN_API_KEY` (at least 24 random
-characters) and call the admin API with the `X-Admin-Key` header:
+until an operator approves them. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+Production requires a password of at least 12 characters.
+For trusted scripts, `ADMIN_API_KEY` remains an optional integration secret.
+Sign in with the operator credentials to obtain a bearer token:
 
 ```
-H="X-Admin-Key: $ADMIN_API_KEY"; API=https://<api-host>/api/admin
+API=https://<api-host>/api/admin
+TOKEN=$(jq -n --arg username "$ADMIN_USERNAME" --arg password "$ADMIN_PASSWORD" \
+  '{username:$username,password:$password}' |
+  curl -sS "$API/login" -H 'Content-Type: application/json' -d @- | jq -r .token)
+H="Authorization: Bearer $TOKEN"
 curl -H "$H" "$API/drivers?verified=false"          # awaiting review, with documents
 curl -H "$H" -X POST "$API/documents/<docId>/review" \
      -H 'Content-Type: application/json' \
@@ -255,14 +269,14 @@ With Paypack configured, approval sends the money by mobile-money cash-out
 payout completes when the `transaction:processed` webhook or the scheduler's
 poll confirms it. A failed or rejected payout returns to the driver's balance.
 
-**Demo switches.** `DEV_REVEAL_CODES`, `DEMO_PAYMENTS` and
-`DEV_AUTO_VERIFY_DRIVERS` must be `0`.
+**Payment and driver access.** Mobile-money charges use Paypack only, and
+drivers cannot sign in until the operator has approved all required documents.
 
 `test/production-readiness.js` covers the webhook, admin and driver
 verification flows end to end. Run it against a dev server started with the
 same `PAYPACK_WEBHOOK_SECRET` and `ADMIN_API_KEY`.
 
-## Pricing, routing and the demo fleet
+## Pricing and routing
 
 **Upfront pricing** (`src/services/pricing.js`): every fare uses the real
 road route, not the straight line, and is itemised as base + per-km +
@@ -291,29 +305,22 @@ minutes) and `osrm/Dockerfile` bakes it into a deployable image. Point the
 API at it with `OSRM_URL=http://<host>:5000/route/v1/driving`. Matching and
 pickup ETAs use OSRM's table service to rank nearby cars by road time.
 
-**Demo fleet** (`DEMO_FLEET=1`, refused in production): 32 simulated
-drivers drive real Kigali roads between real places and serve rides end to
-end (accept, drive to the pickup, start with the PIN, drive, complete)
-through the same code paths as the driver app. `FLEET_DEBUG=1` logs each
-car's decisions. Nearby cars and the assigned driver are served with the
-last ~12 s of their trail so the app can animate them along the road.
-
 **Tests** are plain scripts with different prerequisites, so each has its
 own npm script (each exits non-zero on failure):
 
 | Command | Needs |
 | --- | --- |
 | `npm test` | Runs `test:smoke` then `test:wallet`. |
-| `npm run test:smoke` | API on `:3000` started with `DEV_REVEAL_CODES=1 DEV_AUTO_VERIFY_DRIVERS=1`; add `DEMO_PAYMENTS=1` to both the server and the test to cover demo settlement. |
+| `npm run test:smoke` | API on `:3000` started with `DEV_REVEAL_CODES=1`; seed local test drivers after startup with `SEED_DEV_DATA=1 npm run seed:dev`. |
 | `npm run test:wallet` | Same local API as the smoke test. |
-| `npm run test:money` | Same local API started with `DEMO_PAYMENTS=1` and an `ADMIN_API_KEY` (pass the same key to the test). Covers shared-ride seats, the stop plan, cash commission, commission settlement and payouts; start the API with `DRIVER_MAX_COMMISSION_DEBT=100` to also cover the going-online block. |
+| `npm run test:money` | Same local API and an `ADMIN_API_KEY` (pass the same key to the test). Commission settlements require working Paypack credentials; manual operator settlements and payouts can be tested without them. |
 | `npm run test:maps` | Nothing: provider adapters, routing, geocoding and GPS validation with the provider stubbed. |
-| `npm run test:otp` | A local database; starts its own server to check demo login codes. |
-| `npm run test:readiness` | API on `:3000` started with the same `PAYPACK_WEBHOOK_SECRET` and `ADMIN_API_KEY` as in `server/.env`. |
+| `npm run test:otp` | A local database; starts its own server to check SMS delivery failure and local-only OTP reveal behavior. |
+| `npm run test:readiness` | API on `:3000` started with the same Paypack webhook secret and admin key as in `server/.env`. |
 | `npm run test:invariants` | Only PostgreSQL (`INV_DATABASE_URL`). Starts its own production-mode API, fake Paypack and SMS gateway, and a fresh database. Optional args: `-- <seed> <steps>`. |
 | `npm run test:places` | API on `:3000` and `TYPESAFE_API_KEY`; TypeSafe's Jev judges whether place search returns the place a rider meant. |
 
-The smoke, wallet and money tests need the seeded dev drivers online: set `SEED_DRIVER_PASSWORD` in `server/.env`, run `SEED_DEV_DATA=1 npm run seed:dev` first, and `node scripts/reset-dev-rides.js` after a crashed run (it cancels stuck rides and clears test commission debt).
+The smoke, wallet and money tests need the seeded dev drivers online: set `SEED_DRIVER_PASSWORD` in `server/.env`, start the API, then run `SEED_DEV_DATA=1 npm run seed:dev` before the tests. Run `node scripts/reset-dev-rides.js` after a crashed run (it cancels stuck rides and clears test commission debt).
 
 ## Wiring up the app
 
