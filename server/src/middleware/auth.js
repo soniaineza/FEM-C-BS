@@ -58,11 +58,14 @@ function requireDriverAuth(req, _res, next) {
           'POST /device-token',
           'DELETE /account',
         ]);
+        const canViewApplicationDocument =
+          req.method === 'GET' && /^\/documents\/[0-9a-f-]+\/file$/i.test(req.path);
         if (rows[0].status === 'suspended') {
           return next(new ApiError(403, 'Your driver account is suspended. Contact Kimu Transport support.'));
         }
         if (!rows[0].verified &&
-            !(req.baseUrl === '/api/driver' && applicationRoutes.has(`${req.method} ${req.path}`))) {
+            !(req.baseUrl === '/api/driver' &&
+              (applicationRoutes.has(`${req.method} ${req.path}`) || canViewApplicationDocument))) {
           return next(new ApiError(403, 'Your account is waiting for admin approval. Driver features are available after approval.'));
         }
         req.driverId = id;

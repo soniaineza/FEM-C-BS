@@ -50,8 +50,8 @@ signup/login). All responses are JSON; errors are `{ "error": "message" }`.
   — upfront price for every vehicle class. A shared quote also returns
   `shared: { maxAddedMinutes, maxSeats, seats }`.
 - `POST /api/rides` (auth) `{ pickup: {address, latitude, longitude}, destination: {...}, vehicleId, paymentMethodId, rideType?, seats?, quoteId? }`
-  — distance/duration/fare are always computed server-side. Kicks off a simulated
-  driver-matching lifecycle (see below).
+  — distance/duration/fare are always computed server-side. Starts matching
+  with verified online drivers reporting a live location (see below).
 - `GET /api/rides` (auth) — ride history
 - `GET /api/rides/:id` (auth)
 - `GET /api/rides/:id/stream` (auth) — Server-Sent Events with live status pushes
@@ -67,6 +67,8 @@ signup/login). All responses are JSON; errors are `{ "error": "message" }`.
 - `POST /api/notifications/:id/read` (auth)
 - `POST /api/notifications/device-token` (auth) `{ token, platform? }`
 
+- `GET /api/support/contacts` — the configured `SUPPORT_WHATSAPP_NUMBER` and
+  `SUPPORT_EMAIL` (each `null` when unset; the apps then hide that button)
 - `POST /api/support` (auth) `{ category, subject, message }`
 - `GET /api/support` (auth)
 
@@ -86,14 +88,16 @@ and explicit administrator approval are always required. The nearby map
 and ride matching use only eligible drivers reporting a fresh location, and
 the driver ride feed shows passengers from real ride bookings.
 
-The same rule protects against development accounts. `npm run seed:dev`
-creates three test drivers; it needs `SEED_DEV_DATA=1`, a local database and
-your own `SEED_DRIVER_PASSWORD` in `server/.env` (there is no built-in
-password). Every server startup closes those accounts and any legacy
-demo-fleet accounts: no password, unverified, suspended. For local API tests,
-start the server first, then run `SEED_DEV_DATA=1 npm run seed:dev` to create
-the test fixtures for that session. Without an SMS provider a hosted server
-fails to send a login code rather than writing it to the log.
+There is no seed script and no demo account. The local test scripts
+register and verify the drivers they need through the real API
+(`server/test/fixtures.js`), the same path a real driver takes. Every server
+startup still closes any account left over from the old seed script or the
+retired demo fleet (no password, unverified, suspended), and
+`GET /api/admin/audit/test-data` lists every record that looks like test data
+(passengers with `@example.com` addresses or "test" in the name, drivers with
+`TEST` licence numbers, the `WELCOME30` promotion) for an operator to review
+and close. Without an SMS provider a hosted server fails to send a login code
+rather than writing it to the log.
 
 ## Going to production
 
@@ -311,7 +315,7 @@ own npm script (each exits non-zero on failure):
 | Command | Needs |
 | --- | --- |
 | `npm test` | Runs `test:smoke` then `test:wallet`. |
-| `npm run test:smoke` | API on `:3000` started with `DEV_REVEAL_CODES=1`; seed local test drivers after startup with `SEED_DEV_DATA=1 npm run seed:dev`. |
+| `npm run test:smoke` | API on `:3000` started with `DEV_REVEAL_CODES=1` and `ADMIN_API_KEY`; the test registers and verifies its own drivers through the API. |
 | `npm run test:wallet` | Same local API as the smoke test. |
 | `npm run test:money` | Same local API and an `ADMIN_API_KEY` (pass the same key to the test). Commission settlements require working Paypack credentials; manual operator settlements and payouts can be tested without them. |
 | `npm run test:maps` | Nothing: provider adapters, routing, geocoding and GPS validation with the provider stubbed. |
@@ -320,7 +324,7 @@ own npm script (each exits non-zero on failure):
 | `npm run test:invariants` | Only PostgreSQL (`INV_DATABASE_URL`). Starts its own production-mode API, fake Paypack and SMS gateway, and a fresh database. Optional args: `-- <seed> <steps>`. |
 | `npm run test:places` | API on `:3000` and `TYPESAFE_API_KEY`; TypeSafe's Jev judges whether place search returns the place a rider meant. |
 
-The smoke, wallet and money tests need the seeded dev drivers online: set `SEED_DRIVER_PASSWORD` in `server/.env`, start the API, then run `SEED_DEV_DATA=1 npm run seed:dev` before the tests. Run `node scripts/reset-dev-rides.js` after a crashed run (it cancels stuck rides and clears test commission debt).
+The smoke, wallet, money and readiness tests create their own verified drivers through the API, which needs `ADMIN_API_KEY` in `server/.env` (the same value the server runs with) and a local database. Run `node scripts/reset-dev-rides.js` after a crashed run (it cancels stuck rides and clears test commission debt).
 
 ## Wiring up the app
 

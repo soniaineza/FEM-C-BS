@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
@@ -152,6 +152,14 @@ export default function HomeScreen() {
   }
 
   const sheetMaxHeight = Math.min(420, Math.max(280, screenHeight * 0.48));
+  // The booking panel covers the bottom of the map: tell the map how much, so
+  // the rider's position (and the cars around it) are centred in the part
+  // of the map they can actually see rather than hidden under the panel.
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const mapPadding = useMemo(
+    () => ({ top: 96, bottom: (sheetHeight || sheetMaxHeight) + 16, left: 24, right: 24 }),
+    [sheetHeight, sheetMaxHeight]
+  );
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top']}>
@@ -166,6 +174,7 @@ export default function HomeScreen() {
             : []}
           cars={nearbyCars}
           serverTimeOffsetMs={serverTimeOffsetMs}
+          padding={mapPadding}
           retryLabel={t('tryAgain')}
           loadingLabel={t('mapLoading')}
           errorLabel={t('mapError')}
@@ -203,6 +212,7 @@ export default function HomeScreen() {
         <View
           className="absolute bottom-0 left-0 right-0 overflow-hidden rounded-t-[28px] bg-white"
           style={{ maxHeight: sheetMaxHeight, elevation: 12, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 18 }}
+          onLayout={(e) => setSheetHeight(Math.round(e.nativeEvent.layout.height))}
         >
           <View className="items-center pt-2"><View className="h-1 w-10 rounded-full bg-border" /></View>
           <ScrollView className="px-4 sm:px-5" contentContainerClassName="pb-2 pt-3" keyboardShouldPersistTaps="handled">

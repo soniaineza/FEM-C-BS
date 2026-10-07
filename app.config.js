@@ -1,38 +1,19 @@
 const appJson = require('./app.json');
 
-module.exports = () => {
-  const androidMapsKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY || '';
-  const iosMapsKey = process.env.GOOGLE_MAPS_IOS_API_KEY || '';
-
-  return {
-    expo: {
-      ...appJson.expo,
-      ios: {
-        ...appJson.expo.ios,
-        bundleIdentifier: appJson.expo.ios?.bundleIdentifier || 'com.femcabs.passenger',
-        config: {
-          ...(appJson.expo.ios?.config || {}),
-          googleMapsApiKey: iosMapsKey,
-        },
-        infoPlist: {
-          ...(appJson.expo.ios?.infoPlist || {}),
-          NSLocationWhenInUseUsageDescription:
-            'Kimu Transport uses your location to find your pickup point and help your driver find you.',
-        },
-      },
-      android: {
-        ...appJson.expo.android,
-        config: {
-          ...(appJson.expo.android?.config || {}),
-          googleMaps: {
-            apiKey: androidMapsKey,
-          },
-        },
-      },
-      extra: {
-        ...(appJson.expo.extra || {}),
-        googleMapsConfigured: Boolean(androidMapsKey || iosMapsKey),
+// The maps in the app are drawn by MapLibre inside a DOM component (see
+// components/map/MapEngine.tsx) with the style the API serves, so no Google
+// Maps key is needed or configured here.
+module.exports = () => ({
+  expo: {
+    ...appJson.expo,
+    ios: {
+      ...appJson.expo.ios,
+      bundleIdentifier: appJson.expo.ios?.bundleIdentifier || 'com.femcabs.passenger',
+      infoPlist: {
+        ...(appJson.expo.ios?.infoPlist || {}),
+        NSLocationWhenInUseUsageDescription:
+          'Kimu Transport uses your location to find your pickup point and help your driver find you.',
       },
     },
-  };
-};
+  },
+});

@@ -3,11 +3,11 @@ import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceho
 
 import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { getAvailablePaymentMethods } from '../../../services/ride-service';
+import { getBookablePaymentMethods } from '../../../services/ride-service';
 
 export default function PaymentMethodsScreen() {
   const { t } = useTranslation();
-  const methods = getAvailablePaymentMethods();
+  const methods = getBookablePaymentMethods();
 
   return (
     <SafeAreaViewPlaceholder className="flex-1 bg-white">

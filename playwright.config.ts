@@ -8,7 +8,7 @@ import path from 'node:path';
 //
 //   1. API:  cd server && DEV_REVEAL_CODES=1 \
 //              ADMIN_API_KEY=e2e-admin-key-0123456789abcdef npm start
-//   2. Seed local fixtures: cd server && SEED_DEV_DATA=1 npm run seed:dev
+//      (test drivers are registered through the API by the tests themselves)
 //   3. Web:  EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api npx expo start --web
 //   4.       npm run test:e2e
 //

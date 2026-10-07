@@ -66,6 +66,9 @@ export interface DriverDocument {
   docType: 'license' | 'national_id' | 'vehicle_registration' | 'insurance' | 'profile_photo' | 'vehicle_photo' | 'other';
   fileUrl?: string;
   fileName?: string;
+  hasFile?: boolean;
+  fileSize?: number;
+  contentType?: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired';
   rejectionReason?: string;
   expiresAt?: string;
@@ -79,6 +82,9 @@ export function driverDocumentFromBackendJson(json: any): DriverDocument {
     docType: json.docType,
     fileUrl: json.fileUrl ?? undefined,
     fileName: json.fileName ?? undefined,
+    hasFile: Boolean(json.hasFile),
+    fileSize: json.fileSize ?? undefined,
+    contentType: json.contentType ?? undefined,
     status: json.status,
     rejectionReason: json.rejectionReason ?? undefined,
     expiresAt: json.expiresAt ?? undefined,

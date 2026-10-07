@@ -1,4 +1,3 @@
-
 export interface LngLat {
   latitude: number;
   longitude: number;

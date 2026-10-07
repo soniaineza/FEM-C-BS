@@ -1,13 +1,20 @@
 # Kimu Transport functionality completion plan
 
-Updated: 2026-09-29. This is a work plan and acceptance checklist, not a claim that every screen has passed on a physical phone. Check a box only after the named behavior has been observed and its evidence recorded in a PR or release note.
+Updated: 2026-10-07. This is a work plan and acceptance checklist, not a claim that every screen has passed on a physical phone. Check a box only after the named behavior has been observed and its evidence recorded in a PR or release note.
 
 ## Latest local evidence
 
-- The isolated local API and PostgreSQL test stack passed all 10 existing Playwright tests. After the screen changes, the focused driver account, map-focused Home, and geocoded saved-place tests passed (3/3). These are browser checks, not Android or provider checks.
-- TypeScript and translation checks passed. A rendered web heading resolved to `Poppins_700Bold`; Inter remains the body and control font.
-- Jev selected the compact persistent map booking panel, inline errors with retry, geocoded saved places, and Inter body text with Poppins major headings. The review questions and redacted product state are in `tests/jev/screen-design-decisions.mjs`; the API key stays outside the repository.
-- Expo's universal Tailwind guidance supports NativeWind for Android and web. The app already uses NativeWind, so the current visual work extends its shared type tokens instead of adding a second UI system. Reassess components only after testing actual short-phone screens.
+Updated 2026-10-07, from an isolated local stack (PostgreSQL 16, the API, the web export served by the API, headless Chromium). These are API and browser checks; nothing below is an Android or provider check.
+
+- No demo data remains: the driver seed script, the fake driver screens (card registration, E-Bill dialpad, QR pairing, local fare meter, "videos coming soon"), the placeholder support number and the straight-line route/ETA fallback are gone. Every driver the local tests use is registered, KYC-reviewed and verified through the real API (`server/test/fixtures.js`).
+- `server/test/smoke.js`: 64 of 65 checks pass with API-created drivers (signup, OTP, matching, PIN, trip, an unanswered mobile-money prompt expiring and the rider switching to cash, driver cash confirmation, receipts, rating, pooling two riders into one car, wallet, scheduled rides, SOS, trip sharing). The one failure is place search, because the public geocoder is unreachable from that machine.
+- `server/test/production-readiness.js`: 34 of 34 (Paypack webhook HMAC, exactly-once credit on duplicate delivery, KYC gating, operator approval and suspension).
+- Driver document upload: PDF, JPEG and PNG stored and returned byte-for-byte to the driver and the operator; mismatched bytes, wrong-type photos, unsupported types, missing and oversize files refused; other drivers get 404; the operator endpoint without a key gets 401. Also exercised through the real Documents screen in the browser.
+- Playwright: auth (5), Home map (1), driver screens (1) and saved places (1) pass with `E2E_OFFLINE_MAP=1`; the booking flow needs the real geocoder and could not run there.
+- Map: camera padding is clamped to the canvas (short phones no longer lose the camera), missing OpenMapTiles source no longer aborts map setup, the server-chosen style is applied when it arrives, and Home keeps the rider's pin above the booking panel (verified at 390×844 and 360×640).
+- TypeScript and translation checks pass.
+
+Still unproven, and the only things standing between this and a release: one whole rider trip and one whole driver trip on an installed Android build (`eas build -p android --profile preview`), including the document upload from the phone's file picker and the map inside the WebView; real SMS, real Paypack callbacks and the production map providers on the Render service.
 
 ## Product target
 

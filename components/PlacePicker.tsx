@@ -130,7 +130,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
         setGpsError(t('locationNotGranted'));
         return;
       }
-      const here = await locationService.getCurrentPlace();
+      const here = await locationService.getCurrentPlace({ force: interactive });
       if (here.latitude == null || here.longitude == null) return;
       skipNextLookup.current = false;
       moveCamera({ latitude: here.latitude, longitude: here.longitude });

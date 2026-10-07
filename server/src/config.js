@@ -145,6 +145,13 @@ const config = {
   // release. In production this MUST be set to the real call-center number.
   emergencyCallCenterPhone: process.env.EMERGENCY_CALL_CENTER_PHONE || '',
 
+  // How riders and drivers reach human support outside the in-app tickets
+  // (GET /api/support/contacts). Both optional: the apps hide the WhatsApp
+  // and e-mail buttons when a value is unset, and never show a made-up one.
+  // WhatsApp is the number in international format, digits only (2507...).
+  supportWhatsappNumber: String(process.env.SUPPORT_WHATSAPP_NUMBER || '').replace(/\D/g, ''),
+  supportEmail: (process.env.SUPPORT_EMAIL || '').trim(),
+
   // A driver who does not accept within this many seconds is released and the
   // ride goes back to searchingDriver for another match.
   assignAcceptTimeoutSeconds: Number(process.env.ASSIGN_ACCEPT_TIMEOUT_SECONDS || 120),
@@ -263,6 +270,13 @@ function ensureConfig() {
 
     // The SOS button must reach a real call center.
     if (!config.emergencyCallCenterPhone) problems.push('EMERGENCY_CALL_CENTER_PHONE');
+    // Support contacts are optional, but a value that is set must be usable.
+    if (process.env.SUPPORT_WHATSAPP_NUMBER && !/^[1-9]\d{7,14}$/.test(config.supportWhatsappNumber)) {
+      problems.push('SUPPORT_WHATSAPP_NUMBER (international format, digits only, e.g. 2507XXXXXXXX)');
+    }
+    if (process.env.SUPPORT_EMAIL && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.supportEmail)) {
+      problems.push('SUPPORT_EMAIL (a valid e-mail address)');
+    }
 
     // Without operator credentials no driver can ever be verified.
     if (!config.adminUsername) problems.push('ADMIN_USERNAME');

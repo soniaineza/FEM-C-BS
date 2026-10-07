@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 import { LiveMap } from './map/LiveMap';
-import type { MapCar, MapMarker, MapScene } from './map/map-types';
+import type { MapCar, MapMarker, MapPadding, MapScene } from './map/map-types';
 
 export interface LatLng {
   latitude: number;
@@ -26,6 +26,11 @@ interface RideMapProps {
   /** Live cars to animate (see hooks/useNearbyCars.ts). */
   cars?: MapCar[];
   serverTimeOffsetMs?: number;
+  /**
+   * Screen space covered by overlays (a bottom sheet, a header), so the
+   * centre and any fitted route land in the part of the map that is visible.
+   */
+  padding?: MapPadding;
   retryLabel?: string;
   loadingLabel?: string;
   errorLabel?: string;
@@ -47,6 +52,7 @@ export function RideMap({
   recenterToken,
   cars,
   serverTimeOffsetMs,
+  padding,
   retryLabel,
   loadingLabel,
   errorLabel,
@@ -65,14 +71,14 @@ export function RideMap({
     const route = (routePolyline ?? []).map((p) => [p.longitude, p.latitude] as [number, number]);
     return {
       camera: route.length > 1 || pins.length > 1
-        ? { mode: 'fit', token: recenterToken, zoom: Math.max(zoom, 16) }
-        : { mode: 'center', center, zoom, token: recenterToken },
+        ? { mode: 'fit', token: recenterToken, zoom: Math.max(zoom, 16), padding }
+        : { mode: 'center', center, zoom, token: recenterToken, padding },
       markers: pins,
       routes: route.length > 1 ? [{ coordinates: route }] : [],
       cars: [...markerCars, ...(cars ?? [])],
       serverTimeOffsetMs,
     };
-  }, [center.latitude, center.longitude, zoom, markers, routePolyline, recenterToken, cars, serverTimeOffsetMs]);
+  }, [center.latitude, center.longitude, zoom, markers, routePolyline, recenterToken, cars, serverTimeOffsetMs, padding]);
 
   return (
     <LiveMap

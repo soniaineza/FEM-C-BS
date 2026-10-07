@@ -35,6 +35,7 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .docs { list-style: none; padding: 0; margin: 8px 0 0; }
   .docs li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .doc-preview { max-width: 100%; max-height: 360px; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; }
   .tag { font-size: 12px; font-weight: 600; }
   .tag.ok { color: var(--primary); } .tag.wait { color: var(--warn); } .tag.bad { color: var(--danger); }
   .notice { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
@@ -139,9 +140,45 @@
       REQUIRED.forEach(function (type) {
         var doc = latest[type];
         var li = el('li');
-        li.appendChild(el('span', DOC_NAMES[type] + (doc && doc.fileName ? ' — ' + doc.fileName : '')));
+        var label = el('span', DOC_NAMES[type] + (doc && doc.fileName ? ' — ' + doc.fileName : ''));
         var state = !doc ? ['not submitted', 'wait'] : doc.status === 'approved' ? ['approved', 'ok'] : doc.status === 'rejected' ? ['rejected', 'bad'] : ['to check', 'wait'];
-        li.appendChild(el('span', state[0], 'tag ' + state[1]));
+        var stateNode = el('span', state[0] + (doc && !doc.hasFile ? ' · file missing' : ''), 'tag ' + state[1]);
+        li.appendChild(label);
+        li.appendChild(stateNode);
+        if (doc && doc.hasFile) {
+          var preview = button('View file', '', function () {
+            preview.disabled = true;
+            fetch(API + '/documents/' + doc.id + '/file', {
+              headers: { 'Authorization': 'Bearer ' + token() },
+            }).then(function (res) {
+              if (!res.ok) return res.json().catch(function () { return {}; }).then(function (data) {
+                throw new Error(data.error || ('Could not load file (' + res.status + ')'));
+              });
+              return res.blob();
+            }).then(function (blob) {
+              var url = URL.createObjectURL(blob);
+              var image = document.createElement('img');
+              image.className = 'doc-preview';
+              image.alt = DOC_NAMES[type] + ' preview';
+              image.src = url;
+              image.onload = function () { URL.revokeObjectURL(url); };
+              if (blob.type.indexOf('image/') === 0) {
+                card.appendChild(image);
+              } else {
+                var link = el('a', 'Open PDF: ' + (doc.fileName || DOC_NAMES[type]));
+                link.href = url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                card.appendChild(link);
+              }
+            }).catch(function (err) {
+              setStatus('Could not load file: ' + err.message);
+            }).finally(function () {
+              preview.disabled = false;
+            });
+          });
+          li.appendChild(preview);
+        }
         ul.appendChild(li);
       });
       card.appendChild(ul);
@@ -161,7 +198,9 @@
           }, Promise.resolve()).then(function () { return call('POST', '/drivers/' + d.id + '/verify'); });
         });
       });
-      approve.disabled = missing.length > 0;
+      approve.disabled = missing.length > 0 || REQUIRED.some(function (type) {
+        return !latest[type] || !latest[type].hasFile;
+      });
       row.appendChild(approve);
       REQUIRED.forEach(function (type) {
         var doc = latest[type];

@@ -35,7 +35,7 @@ interface SidebarItem {
 // Slide-out navigation drawer ("sidebar") for the driver dashboard. Rendered
 // as a full-screen transparent Modal with a left panel that slides in from
 // the edge — the same structural role as YegoCabs' drawer: profile header on
-// top, the ten menu items in the exact order, and an app-version footer.
+// top, the menu items in order, and an app-version footer.
 export function DriverSidebar({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const currentDriver = useDriverAuthStore((s) => s.currentDriver);
@@ -87,13 +87,12 @@ export function DriverSidebar({ visible, onClose }: { visible: boolean; onClose:
     { key: 'messages', icon: 'chatbubble-ellipses-outline', label: t('driverSidebarMessages'), path: '/(driver)/notifications' },
     { key: 'tariff', icon: 'pricetag-outline', label: t('driverSidebarTariff'), path: '/(driver)/tariff' },
     { key: 'settings', icon: 'settings-outline', label: t('driverSidebarSettings'), path: '/(driver)/account/settings' },
-    { key: 'card', icon: 'card-outline', label: t('driverSidebarRegisterCard'), path: '/(driver)/register-card' },
     { key: 'terms', icon: 'document-text-outline', label: t('driverSidebarTerms'), path: '/(driver)/terms' },
-    { key: 'help', icon: 'play-circle-outline', label: t('driverSidebarHelpVideos'), path: '/(driver)/help-videos' },
+    { key: 'help', icon: 'headset-outline', label: t('helpSupportTitle'), path: '/(driver)/account/support' },
     { key: 'logout', icon: 'log-out-outline', label: t('driverSidebarLogout'), destructive: true },
   ];
 
-  const version = Constants.expoConfig?.version ?? '2.6.1';
+  const version = Constants.expoConfig?.version ?? null;
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
@@ -153,7 +152,9 @@ export function DriverSidebar({ visible, onClose }: { visible: boolean; onClose:
               <Ionicons name="chevron-forward" size={18} color="#5C6B8E" />
             </Pressable>
 
-            <Text className="mt-6 text-center font-medium text-dark-muted" style={{ fontSize: dimensions.typography?.caption || 10 }}>Ver: {version}</Text>
+            {version ? (
+              <Text className="mt-6 text-center font-medium text-dark-muted" style={{ fontSize: dimensions.typography?.caption || 10 }}>Ver: {version}</Text>
+            ) : null}
           </ScrollView>
         </Animated.View>
       </View>

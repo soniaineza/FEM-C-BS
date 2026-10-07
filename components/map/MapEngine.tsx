@@ -260,6 +260,27 @@ function boundsOf(points: [number, number][]): maplibregl.LngLatBounds | null {
   return b;
 }
 
+/**
+ * Padding that fits the canvas. Screens ask for the space their panels
+ * cover in pixels; on a short phone that can be more than the map is tall,
+ * and MapLibre then refuses to compute a camera at all (the map would stay
+ * wherever it was, often nowhere near the ride). Keep at least 30% of each
+ * axis for the content, shrinking the padding proportionally when needed.
+ */
+function fitPadding(map: maplibregl.Map, padding: { top: number; bottom: number; left: number; right: number }) {
+  const { width, height } = map.getCanvas().getBoundingClientRect();
+  const clamp = (a: number, b: number, size: number) => {
+    const max = Math.max(0, size * 0.7);
+    const total = Math.max(0, a) + Math.max(0, b);
+    if (!size || total <= max) return [Math.max(0, a), Math.max(0, b)];
+    const k = max / total;
+    return [Math.floor(Math.max(0, a) * k), Math.floor(Math.max(0, b) * k)];
+  };
+  const [top, bottom] = clamp(padding.top, padding.bottom, height);
+  const [left, right] = clamp(padding.left, padding.right, width);
+  return { top, bottom, left, right };
+}
+
 export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, onCenterChanged, onUserGesture }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -274,6 +295,69 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
   const callbacks = useRef({ onReady, onError, onPress, onCenterChanged, onUserGesture });
   callbacks.current = { onReady, onError, onPress, onCenterChanged, onUserGesture };
   sceneRef.current = scene;
+  const appliedStyle = useRef<string>('');
+
+  /**
+   * Everything the engine adds on top of the base style. Runs on every style
+   * load, so switching to the server-chosen style keeps buildings, routes and
+   * cars. Each piece is independent: a style without the OpenMapTiles source
+   * simply has no 3D buildings instead of leaving the map half-built.
+   */
+  function installLayers(map: maplibregl.Map) {
+    // Compact attribution starts expanded; keep it collapsed until tapped.
+    container.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
+    try {
+      // 3D buildings (OpenMapTiles heights), under the labels.
+      if (map.getSource('openmaptiles') && !map.getLayer('kimu-buildings-3d')) {
+        const firstLabel = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id;
+        map.addLayer(
+          {
+            id: 'kimu-buildings-3d',
+            type: 'fill-extrusion',
+            source: 'openmaptiles',
+            'source-layer': 'building',
+            minzoom: 14.5,
+            paint: {
+              'fill-extrusion-color': '#e3e5e8',
+              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
+              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+              'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 14.5, 0, 15.5, 0.85],
+            },
+          },
+          firstLabel
+        );
+      }
+    } catch (err) {
+      console.warn('[map] 3D buildings unavailable for this style:', err);
+    }
+    for (const id of ['secondary', 'primary']) {
+      if (map.getSource(`kimu-route-${id}`)) continue;
+      map.addSource(`kimu-route-${id}`, { type: 'geojson', data: EMPTY_FC as any });
+      map.addLayer({
+        id: `kimu-route-${id}-casing`,
+        type: 'line',
+        source: `kimu-route-${id}`,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 5, 17, 12] },
+      });
+      map.addLayer({
+        id: `kimu-route-${id}-line`,
+        type: 'line',
+        source: `kimu-route-${id}`,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': id === 'primary' ? '#111111' : '#0E7C4A',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 17, 7],
+          ...(id === 'secondary' ? { 'line-dasharray': [1.2, 1.4] } : {}),
+        },
+      });
+    }
+    if (!map.getLayer('kimu-cars')) {
+      const layer = new CarLayer();
+      carsRef.current = layer;
+      map.addLayer(layer);
+    }
+  }
 
   // ---------- one-time map setup ----------
   useEffect(() => {
@@ -281,9 +365,10 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
     let map: maplibregl.Map;
     try {
       const cam = scene.camera;
+      appliedStyle.current = styleUrl || DEFAULT_STYLE_URL;
       map = new maplibregl.Map({
         container: container.current,
-        style: styleUrl || DEFAULT_STYLE_URL,
+        style: appliedStyle.current,
         center: [cam.center?.longitude ?? KIGALI_CENTER.longitude, cam.center?.latitude ?? KIGALI_CENTER.latitude],
         zoom: cam.zoom ?? 14,
         pitch: cam.pitch ?? 0,
@@ -311,51 +396,14 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
       (w.__kimuMaps ??= []).push({ map, cars: () => carsRef.current });
     }
 
+    // Fires for the first style and again after setStyle(): everything the
+    // engine draws on top of the base map is (re)installed here.
+    map.on('style.load', () => {
+      installLayers(map);
+      if (loadedRef.current) applyScene(sceneRef.current, true);
+    });
     map.on('load', () => {
-      // Compact attribution starts expanded; keep it collapsed until tapped.
-      container.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
-      // 3D buildings (OpenMapTiles heights), under the labels.
-      const firstLabel = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id;
-      map.addLayer(
-        {
-          id: 'kimu-buildings-3d',
-          type: 'fill-extrusion',
-          source: 'openmaptiles',
-          'source-layer': 'building',
-          minzoom: 14.5,
-          paint: {
-            'fill-extrusion-color': '#e3e5e8',
-            'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
-            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-            'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 14.5, 0, 15.5, 0.85],
-          },
-        },
-        firstLabel
-      );
-      for (const id of ['secondary', 'primary']) {
-        map.addSource(`kimu-route-${id}`, { type: 'geojson', data: EMPTY_FC as any });
-        map.addLayer({
-          id: `kimu-route-${id}-casing`,
-          type: 'line',
-          source: `kimu-route-${id}`,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 5, 17, 12] },
-        });
-        map.addLayer({
-          id: `kimu-route-${id}-line`,
-          type: 'line',
-          source: `kimu-route-${id}`,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color': id === 'primary' ? '#111111' : '#0E7C4A',
-            'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 17, 7],
-            ...(id === 'secondary' ? { 'line-dasharray': [1.2, 1.4] } : {}),
-          },
-        });
-      }
-      const layer = new CarLayer();
-      carsRef.current = layer;
-      map.addLayer(layer);
+      if (!carsRef.current) installLayers(map);
       loadedRef.current = true;
       applyScene(sceneRef.current, true);
       callbacks.current.onReady?.();
@@ -409,6 +457,17 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
 
+  // The server's choice of map style can arrive after the map was created
+  // (stores/useMapConfigStore.ts loads it in the background): switch to it.
+  useEffect(() => {
+    const map = mapRef.current;
+    const next = styleUrl || DEFAULT_STYLE_URL;
+    if (!map || next === appliedStyle.current) return;
+    appliedStyle.current = next;
+    carsRef.current = null;
+    map.setStyle(next);
+  }, [styleUrl]);
+
   function applyScene(s: MapScene, first: boolean) {
     const map = mapRef.current;
     const cars = carsRef.current;
@@ -420,7 +479,7 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
     map.getCanvas().style.cursor = s.reportCenter ? 'grab' : '';
 
     const cam = s.camera;
-    const key = JSON.stringify([cam.mode, cam.token ?? 0, cam.center?.latitude, cam.center?.longitude, cam.zoom, cam.pitch]);
+    const key = JSON.stringify([cam.mode, cam.token ?? 0, cam.center?.latitude, cam.center?.longitude, cam.zoom, cam.pitch, cam.padding]);
     if (first || key !== lastCameraKey.current) {
       lastCameraKey.current = key;
       lastUserGestureAt.current = 0;
@@ -515,7 +574,7 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
   function applyCamera(s: MapScene, animate: boolean) {
     const map = mapRef.current!;
     const cam = s.camera;
-    const padding = cam.padding ?? { top: 60, bottom: 60, left: 40, right: 40 };
+    const padding = fitPadding(map, cam.padding ?? { top: 60, bottom: 60, left: 40, right: 40 });
     const duration = animate ? 800 : 0;
     if (cam.mode === 'center' && cam.center) {
       map.easeTo({
@@ -553,7 +612,7 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
     const bounds = boundsOf(pts);
     if (!bounds) return;
     const cameraOpts = map.cameraForBounds(bounds, {
-      padding: s.camera.padding ?? { top: 80, bottom: 80, left: 50, right: 50 },
+      padding: fitPadding(map, s.camera.padding ?? { top: 80, bottom: 80, left: 50, right: 50 }),
       maxZoom: s.camera.zoom ?? 16.5,
     });
     if (cameraOpts) map.easeTo({ ...cameraOpts, pitch: s.camera.pitch ?? 45, duration: 1100, easing: (x) => x });

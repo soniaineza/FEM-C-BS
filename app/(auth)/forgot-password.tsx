@@ -94,7 +94,7 @@ export default function ForgotPasswordScreen() {
             {devCode ? (
               <View className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
                 <Text className="text-center font-bold tracking-widest text-primary">
-                  {t('demoOtpHint', { code: devCode })}
+                  {t('devOtpHint', { code: devCode })}
                 </Text>
               </View>
             ) : null}

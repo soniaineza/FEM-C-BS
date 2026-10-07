@@ -1,5 +1,7 @@
-/* End-to-end smoke test against the running Kimu Transport API. */
-const { SEED_DRIVER_PASSWORD } = require('./seedPassword');
+/* End-to-end smoke test against the running Kimu Transport API.
+ * Needs ADMIN_API_KEY (same value as the server): the drivers it books are
+ * registered and verified through the real API (see fixtures.js). */
+const { FIXTURE_PASSWORD, createDriversAround, ensureTestPromotion, expirePaymentPrompt } = require('./fixtures');
 const BASE = 'http://localhost:3000/api';
 let passed = 0, failed = 0;
 
@@ -30,6 +32,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const health = await api('GET', '/health');
   check('health', health.status === 200, `status=${health.status}`);
 
+  // Real drivers for this run: registered, KYC-reviewed and verified through
+  // the API, parked online around KN 5 Rd where the rides below start.
+  const fixtureDrivers = await createDriversAround({ latitude: -1.9441, longitude: 30.0619 }, 3);
+  check('three verified drivers online near KN 5 Rd', fixtureDrivers.length === 3);
+  await ensureTestPromotion('WELCOME30');
+
   // 2. Signup + login
   const ts = Date.now().toString().slice(-8);
   const rnd = () => '07' + Math.floor(10000000 + Math.random() * 89999999).toString();
@@ -51,7 +59,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('resend-otp blocked by cooldown', resend2.status === 429, `r1=${resend1.status} r2=${resend2.status}`);
 
   // 4. verify-otp with the revealed dev code (latest issued)
-  const latestCode = resend1.data.devCode || signup.data.devCode;
+  const latestCode = login.data.devCode || resend1.data.devCode || signup.data.devCode;
   const otp = await api('POST', '/auth/verify-otp', { passengerId: signup.data.passenger.id, code: latestCode }, token);
   check('verify-otp', otp.status === 200 && otp.data.verified === true, `status=${otp.status}`);
 
@@ -59,9 +67,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const vehicles = await api('GET', '/vehicles', null, token);
   check('vehicles >= 3', vehicles.status === 200 && vehicles.data.vehicles?.length >= 3, `n=${vehicles.data.vehicles?.length}`);
 
-  // 5b. nearby drivers (real seeded drivers are parked around KN 5 Rd)
+  // 5b. nearby drivers (the fixture drivers are parked around KN 5 Rd)
   const nearby = await api('GET', '/drivers/nearby?lat=-1.9441&lng=30.0619', null, token);
-  check('nearby drivers returns real seeded drivers',
+  check('nearby drivers returns the online drivers',
     nearby.status === 200 && Array.isArray(nearby.data.drivers) && nearby.data.drivers.length >= 1,
     `status=${nearby.status} n=${nearby.data?.drivers?.length}`);
 
@@ -103,7 +111,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // 10. driver auth + ride progress
   const loginAsAssignedDriver = async (rideJson) => {
-    const dlogin = await api('POST', '/drivers/login', { phone: rideJson.driver.phone, password: SEED_DRIVER_PASSWORD });
+    const dlogin = await api('POST', '/drivers/login', { phone: rideJson.driver.phone, password: FIXTURE_PASSWORD });
     check(`driver login (${rideJson.driver.name})`, dlogin.status === 200 && dlogin.data.token, `status=${dlogin.status}`);
     return dlogin.data.token;
   };
@@ -176,18 +184,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ride1Check.data.ride.status === 'paymentPending',
     `status=${ride1Check.data.ride.status}`);
 
-  // switch to cash route: create a NEW cash ride and settle it via the driver confirm-cash.
-  // Cancel the pending mobile-money trip first; a passenger can hold one active ride.
-  const ride1Cancel = await api('POST', `/rides/${rideId}/cancel`, { reason: 'smoke: switching to cash ride' }, token);
-  check('cancel momo ride to free the passenger', ride1Cancel.status === 200 && ride1Cancel.data.ride.status === 'cancelled',
-    `status=${ride1Cancel.status}`);
+  // A completed trip awaiting mobile money cannot be cancelled (the provider
+  // could still settle it) and cash cannot replace a prompt that is still
+  // open. The real path: the unanswered prompt expires, the rider switches
+  // to cash, the driver confirms the cash — and the rider is free to book.
+  const ride1Cancel = await api('POST', `/rides/${rideId}/cancel`, { reason: 'smoke: trying to cancel an unpaid trip' }, token);
+  check('completed momo trip cannot be cancelled while unpaid', ride1Cancel.status === 400, `status=${ride1Cancel.status}`);
+  const cashTooEarly = await api('POST', '/payments', { rideId, method: 'cash' }, token);
+  check('cash cannot replace a prompt that is still open', cashTooEarly.status === 409, `status=${cashTooEarly.status}`);
+  await expirePaymentPrompt(pay.data.payment.id); // the prompt timed out (PAYMENT_EXPIRY_SECONDS elapsed)
+  const expired = await api('POST', `/payments/${pay.data.payment.id}/refresh`, null, token);
+  check('unanswered prompt expires', expired.status === 200 && expired.data.payment.status === 'expired', `status=${expired.status} ${expired.data.payment?.status}`);
+  const toCash = await api('POST', '/payments', { rideId, method: 'cash' }, token);
+  check('rider switches the unpaid trip to cash', toCash.status === 201 && toCash.data.payment.method === 'cash', `status=${toCash.status}`);
+  const cashConfirm1 = await api('POST', `/drivers/rides/${rideId}/confirm-cash`, null, dt);
+  check('driver confirms cash -> completed', cashConfirm1.status === 200 &&
+    (await api('GET', `/rides/${rideId}`, null, token)).data.ride.status === 'completed', `status=${cashConfirm1.status}`);
 
   const ride2 = await api('POST', '/rides', {
     pickup: { address: 'KN 5 Rd, Kigali', latitude: -1.9441, longitude: 30.0619 },
     destination: { address: 'Gisozi', latitude: -1.9333, longitude: 30.0712 },
     vehicleId: 'fem_economy', paymentMethodId: 'cash', rideType: 'private',
   }, token);
-  check('cash ride created after cancel (guard released)', ride2.status === 201, `status=${ride2.status}`);
+  check('new cash ride created once the first trip is settled', ride2.status === 201, `status=${ride2.status}`);
   const ride2Id = ride2.data.ride.id;
   let ride2assigned = null;
   for (let i = 0; i < 12; i++) {
@@ -247,9 +266,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const thread = await api('GET', `/support/${ticket.data.ticket.id}`, null, token);
   check('support thread has 2 messages', thread.status === 200 && thread.data.messages.length === 2, `n=${thread.data.messages?.length}`);
 
-  // 17. emergency + share. rideId was cancelled at step 11b — sharing only
-  // applies to ACTIVE rides, so use ride2Id (completed? no — completed also
-  // rejected). Create a fresh active ride for the share check.
+  // 17. emergency + share. Sharing only applies to ACTIVE rides, so a fresh
+  // ride is booked for the share check below.
   const sos = await api('POST', '/emergency', { rideId, latitude: -1.9441, longitude: 30.0619, address: 'KN 5 Rd', details: 'Passenger needs help' }, token);
   check('emergency event', sos.status === 201 && sos.data.emergency.status === 'dispatched' && !!sos.data.emergency.reference, `status=${sos.status}`);
 
@@ -319,7 +337,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     JSON.stringify(companions.data));
 
   const poolDriverLogin = await api('POST', '/drivers/login', {
-    phone: poolAAssigned.driver.phone, password: SEED_DRIVER_PASSWORD,
+    phone: poolAAssigned.driver.phone, password: FIXTURE_PASSWORD,
   });
   const poolDt = poolDriverLogin.data.token;
 

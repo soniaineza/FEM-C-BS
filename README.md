@@ -39,6 +39,12 @@ tab is visible. New driver applications, unresolved Paypack/cash exceptions,
 and passenger or driver SOS events are loaded from the API database; they are
 not sample records.
 
+Driver KYC documents and profile/vehicle photos are uploaded as private files
+(PDF or supported image, maximum 8 MB each) and stored in the API database.
+Only the uploading driver and authenticated operators can retrieve them.
+Operators must review the actual files and verify the originals in person;
+document references alone cannot satisfy driver approval.
+
 Before using the Vercel URL, set `ADMIN_USERNAME` and a strong
 `ADMIN_PASSWORD` (at least 12 characters) in the Render service's environment
 and redeploy the API. Do not put operator credentials in Vercel or in this

@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Platform } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { router, useFocusEffect } from 'expo-router';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
-import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '../../../components/Button';
-import { Input } from '../../../components/Input';
 import { ErrorMessage } from '../../../components/ErrorMessage';
 import { BackHeader } from '../../../components/BackHeader';
 import { useTranslation } from '../../../hooks/useTranslation';
@@ -38,10 +37,16 @@ const STATUS_KEYS: Record<DriverDocument['status'], string> = {
   expired: 'documentStatusExpired',
 };
 
-// Document submission is a metadata form here, not a real camera/file
-// upload — the backend itself has no file-storage endpoint either
-// (driverProfile.routes.js's POST /documents only ever persists whatever
-// fileUrl/fileName string it's given).
+const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const DOCUMENT_FILE_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
 export default function DriverDocumentsScreen() {
   const { t } = useTranslation();
   const currentDriver = useDriverAuthStore((s) => s.currentDriver);
@@ -50,7 +55,7 @@ export default function DriverDocumentsScreen() {
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [docType, setDocType] = useState<DriverDocument['docType'] | null>(null);
-  const [fileName, setFileName] = useState('');
+  const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [error, setError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
 
@@ -90,15 +95,57 @@ export default function DriverDocumentsScreen() {
     }, [currentDriver?.verified, refreshDriver])
   );
 
+  async function chooseFile() {
+    if (!docType) return setError(t('driverChooseDocType'));
+    setError(undefined);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['profile_photo', 'vehicle_photo'].includes(docType)
+          ? DOCUMENT_FILE_TYPES.filter((type) => type.startsWith('image/'))
+          : DOCUMENT_FILE_TYPES,
+        multiple: false,
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled) {
+        const file = result.assets[0];
+        if (file.size != null && file.size > MAX_FILE_SIZE_BYTES) {
+          setError(t('driverFileTooLarge'));
+          return;
+        }
+        setSelectedFile(file);
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('driverDocumentSubmitFailed'));
+    }
+  }
+
   async function handleSubmit() {
     if (!docType) return setError(t('driverChooseDocType'));
-    if (!fileName.trim()) return setError(t('driverEnterFileReference'));
+    if (!selectedFile) return setError(t('driverChooseFile'));
     setError(undefined);
     setSubmitting(true);
     try {
-      await submitDriverDocument({ docType, fileName: fileName.trim() });
+      // On the web the picker hands over the File itself; on a phone it gives
+      // a file:// URI that React Native streams as a multipart part. Either
+      // way the server receives the real file and checks its type and size.
+      let file: Blob | { uri: string; name: string; type: string };
+      let contentType = selectedFile.mimeType || '';
+      if (Platform.OS === 'web') {
+        const webFile = selectedFile.file ?? (await (await fetch(selectedFile.uri)).blob());
+        if (webFile.size > MAX_FILE_SIZE_BYTES) {
+          setError(t('driverFileTooLarge'));
+          return;
+        }
+        contentType = contentType || webFile.type;
+        if (!contentType) throw new Error('This file type is not supported. Choose a PDF or image file.');
+        file = webFile.type === contentType ? webFile : new Blob([await webFile.arrayBuffer()], { type: contentType });
+      } else {
+        if (!contentType) throw new Error('This file type is not supported. Choose a PDF or image file.');
+        file = { uri: selectedFile.uri, name: selectedFile.name, type: contentType };
+      }
+      await submitDriverDocument({ docType, file, fileName: selectedFile.name });
+      setSelectedFile(null);
       setDocType(null);
-      setFileName('');
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('driverDocumentSubmitFailed'));
@@ -153,7 +200,7 @@ export default function DriverDocumentsScreen() {
             <Pressable
               key={docTypeOption.id}
               className={`rounded-full border px-3 py-1.5 ${docType === docTypeOption.id ? 'border-primary bg-primary/10' : 'border-border'}`}
-              onPress={() => setDocType(docTypeOption.id)}
+              onPress={() => { setDocType(docTypeOption.id); setSelectedFile(null); setError(undefined); }}
             >
               <Text className={docType === docTypeOption.id ? 'text-[13px] font-semibold text-primary' : 'text-[13px] text-ink'}>
                 {t(docTypeOption.key as any)}
@@ -163,17 +210,28 @@ export default function DriverDocumentsScreen() {
         </View>
 
         <View className="mt-4 gap-3">
-          <Input label={t('driverFileReference')} placeholder={t('driverFileReferencePlaceholder')} value={fileName} onChangeText={setFileName} prefixIcon="document-attach-outline" />
+          <Button
+            title={selectedFile ? selectedFile.name : t('driverChooseFile')}
+            variant="outline"
+            onPress={chooseFile}
+            disabled={!docType || submitting}
+          />
+          {selectedFile ? (
+            <Text className="text-xs text-text-secondary">
+              {selectedFile.name}{selectedFile.size != null ? ` · ${(selectedFile.size / 1024 / 1024).toFixed(1)} MB` : ''}
+            </Text>
+          ) : null}
+          <Text className="text-xs text-text-secondary">{t('driverUploadFileHint')}</Text>
           {error ? <ErrorMessage message={error} /> : null}
         </View>
 
-        <View className="mt-4 flex-row items-center rounded-xl bg-gray-light p-3">
-          <Ionicons name="camera-outline" size={18} color="#6B7280" />
-          <Text className="ml-2 flex-1 text-xs text-text-secondary">{t('driverCameraComingSoon')}</Text>
-        </View>
-
         <View className="mt-4">
-          <Button title={t('driverSubmitDocument')} onPress={handleSubmit} loading={submitting} />
+          <Button
+            title={t('driverUploadFile')}
+            onPress={handleSubmit}
+            loading={submitting}
+            disabled={!selectedFile || !docType}
+          />
         </View>
       </KeyboardAwareScrollView>
     </SafeAreaViewPlaceholder>

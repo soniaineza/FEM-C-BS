@@ -11,6 +11,13 @@ function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-va
     return res.status(409).json({ error: 'That account already exists.' });
   }
 
+  if (err && err.name === 'MulterError') {
+    const tooLarge = err.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : 400).json({
+      error: tooLarge ? 'File is too large. Maximum size is 8 MB.' : 'Could not accept this file upload.',
+    });
+  }
+
   console.error('[api] unhandled error:', err);
   return res.status(500).json({ error: 'Something went wrong. Please try again.' });
 }

@@ -9,7 +9,9 @@ test('driver tabs and account screens load real account data', async ({ page }) 
   await page.getByRole('tab', { name: 'My Rides' }).click();
   await expect(page.getByText('No trips yet')).toBeVisible();
   await page.getByRole('tab', { name: 'Wallet' }).click();
-  await expect(page.getByText('Pending balance')).toBeVisible();
+  // The wallet headline follows the commission arrangement: a withdrawable
+  // balance when drivers keep part of the fare, otherwise the fares sent on.
+  await expect(page.getByText(/^(Pending balance|Fares sent to Kimu)$/)).toBeVisible();
   await page.getByRole('tab', { name: 'More' }).click();
   await expect(page.getByText('Account').first()).toBeVisible();
 

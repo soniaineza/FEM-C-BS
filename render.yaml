@@ -43,5 +43,10 @@ services:
         sync: false
       - key: EMERGENCY_CALL_CENTER_PHONE
         sync: false
+      # Optional human-support contacts shown in the apps (digits only / e-mail)
+      - key: SUPPORT_WHATSAPP_NUMBER
+        sync: false
+      - key: SUPPORT_EMAIL
+        sync: false
       - key: DEV_REVEAL_CODES
         value: "0"

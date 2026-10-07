@@ -49,13 +49,29 @@ export async function getDriverDocuments(): Promise<DriverDocument[]> {
   return json.documents.map(driverDocumentFromBackendJson);
 }
 
+/**
+ * Uploads the actual document file (multipart, field `file`). `file` is a
+ * Blob/File on the web, or React Native's `{ uri, name, type }` file part on
+ * Android/iOS — RN's FormData sends a local file from its URI and does not
+ * serialise a Blob, so the two platforms hand over the file differently.
+ */
 export async function submitDriverDocument(params: {
   docType: DriverDocument['docType'];
-  fileUrl?: string;
-  fileName?: string;
+  file: Blob | { uri: string; name: string; type: string };
+  fileName: string;
   expiresAt?: string;
 }): Promise<void> {
-  await driverApiClient.post('/driver/documents', params);
+  const form = new FormData();
+  form.append('docType', params.docType);
+  form.append('fileName', params.fileName);
+  if (params.expiresAt) form.append('expiresAt', params.expiresAt);
+  if (typeof Blob !== 'undefined' && params.file instanceof Blob) {
+    form.append('file', params.file, params.fileName);
+  } else {
+    // React Native file part; the web FormData typings do not know this shape.
+    form.append('file', params.file as unknown as Blob);
+  }
+  await driverApiClient.post('/driver/documents', form);
 }
 
 // ---- Earnings ----

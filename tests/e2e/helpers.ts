@@ -8,11 +8,25 @@ export const ADMIN_KEY = process.env.E2E_ADMIN_KEY ?? 'e2e-admin-key-0123456789a
 export const HUYE = { latitude: -2.5967, longitude: 29.7394 };
 export const HUYE_DEST = { latitude: -2.6090, longitude: 29.7440 };
 
+const TEST_PNG = Uint8Array.from([
+  137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
+  0, 0, 0, 1, 0, 0, 0, 1, 8, 4, 0, 0, 0, 181, 28, 12, 2,
+  0, 0, 0, 11, 73, 68, 65, 84, 120, 218, 99, 252, 255, 31, 0, 3,
+  3, 2, 0, 239, 163, 94, 42, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130
+]);
+
 export async function api<T = any>(method: string, path: string, body?: unknown, token?: string, headers: Record<string, string> = {}): Promise<{ status: number; data: T }> {
+  const multipart = typeof FormData !== 'undefined' && body instanceof FormData;
+  const requestHeaders = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...headers,
+  };
+  if (multipart) delete requestHeaders['Content-Type'];
   const res = await fetch(API + path, {
     method,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
-    body: body ? JSON.stringify(body) : undefined,
+    headers: requestHeaders,
+    body: body ? multipart ? body : JSON.stringify(body) : undefined,
   });
   const text = await res.text();
   let data: any = null;
@@ -47,7 +61,7 @@ export async function createPassenger(name = 'E2E Rider'): Promise<Passenger> {
   const password = 'Secret123';
   const su = await api('POST', '/auth/signup', { fullName: name, phone, email, password });
   expect(su.status, JSON.stringify(su.data)).toBe(201);
-  await api('POST', '/auth/verify-otp', { passengerId: su.data.passenger.id, code: su.data.devCode });
+  await api('POST', '/auth/verify-otp', { passengerId: su.data.passenger.id, code: su.data.devCode }, su.data.token);
   await api('PUT', '/auth/profile', { fullName: name, phone }, su.data.token);
   return { id: su.data.passenger.id, token: su.data.token, phone, email, password, name };
 }
@@ -75,12 +89,17 @@ export async function createDriver(opts: { verified?: boolean; online?: boolean;
   }, d.token);
   expect(vehicle.status, `driver vehicle: ${JSON.stringify(vehicle.data)}`).toBe(200);
   if (opts.verified !== false) {
-    // The test database has no real KYC uploads. Exercise the same review
-    // contract with clearly synthetic document references.
+    const hostname = new URL(API).hostname;
+    if (!['localhost', '127.0.0.1', '::1'].includes(hostname)) {
+      throw new Error('Synthetic KYC fixtures may only be used against a local E2E API.');
+    }
+    // The one-pixel image is an isolated E2E fixture, not an identity document.
     for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
-      const uploaded = await api('POST', '/driver/documents', {
-        docType, fileUrl: `https://example.invalid/e2e/${docType}`, fileName: `e2e-${docType}.pdf`,
-      }, d.token);
+      const form = new FormData();
+      form.append('docType', docType);
+      form.append('fileName', `e2e-${docType}.png`);
+      form.append('file', new Blob([TEST_PNG], { type: 'image/png' }), `e2e-${docType}.png`);
+      const uploaded = await api('POST', '/driver/documents', form, d.token);
       expect(uploaded.status, `${docType} upload: ${JSON.stringify(uploaded.data)}`).toBe(201);
       const reviewed = await api('POST', `/admin/documents/${uploaded.data.document.id}/review`, {
         status: 'approved', reviewer: 'E2E fixture', method: 'in_person', evidenceReference: `e2e-${docType}`,
@@ -169,7 +188,18 @@ const BENIGN = [
   /\[Reanimated\]/i,
 ];
 
-type Fixtures = { appErrors: string[]; externalLinks: string[] };
+type Fixtures = { appErrors: string[]; externalLinks: string[]; offlineMap: void };
+
+// E2E_OFFLINE_MAP=1: a machine with no route to tiles.openfreemap.org (a
+// locked-down CI runner) still gets a map that loads — a blank base style
+// served from the test — so markers, cars, routes and camera behaviour are
+// exercised. The real style is used whenever the variable is unset.
+const OFFLINE_STYLE = {
+  version: 8,
+  name: 'e2e-offline',
+  sources: {},
+  layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#e8ebe4' } }],
+};
 
 /**
  * Every test fails if the page throws, logs an unexpected console error, or
@@ -177,6 +207,17 @@ type Fixtures = { appErrors: string[]; externalLinks: string[] };
  * recorded in `externalLinks` instead of navigating away.
  */
 export const test = base.extend<Fixtures>({
+  offlineMap: [
+    async ({ page }, use) => {
+      if (process.env.E2E_OFFLINE_MAP === '1') {
+        await page.route('https://tiles.openfreemap.org/**', (route) =>
+          route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(OFFLINE_STYLE) })
+        );
+      }
+      await use();
+    },
+    { auto: true },
+  ],
   externalLinks: async ({ page }, use) => {
     const links: string[] = [];
     // react-native-web sends tel: through window.location; Chromium reports
@@ -228,7 +269,7 @@ export const test = base.extend<Fixtures>({
         // Reverse geocoding runs in the background after GPS has already
         // returned a usable coordinate; public geocoder outages are an
         // optional address-label degradation, not a broken app flow.
-        !/HTTP 502 GET .*\/locations\/reverse\?/.test(e)
+        !/HTTP 50[23] GET .*\/(locations|maps)\/(reverse|search)\?/.test(e)
       );
       expect(real, 'unexpected app errors').toEqual([]);
     },

@@ -9,7 +9,7 @@
  * Start it with DRIVER_MAX_COMMISSION_DEBT=100 to also cover the
  * going-online block; with the default limit that part is skipped.)
  */
-const { SEED_DRIVER_PASSWORD } = require('./seedPassword');
+const { FIXTURE_PASSWORD, createDriversAround } = require('./fixtures');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -59,6 +59,10 @@ async function waitForAssignment(token, rideId) {
     console.error('Set ADMIN_API_KEY (same value as the server).');
     process.exit(1);
   }
+  // Real drivers for this run, registered and verified through the API and
+  // parked online at the pickup used below.
+  await createDriversAround(PICKUP, 3);
+
   const ts = Date.now().toString().slice(-8);
   const signup = await api('POST', '/auth/signup', {
     fullName: 'Money Rider', phone: `+2507${ts}`, email: `money${ts}@example.com`, password: 'secret123',
@@ -105,7 +109,7 @@ async function waitForAssignment(token, rideId) {
   const rideId = booked.data.ride.id;
   const assigned = await waitForAssignment(token, rideId);
   check('ride matched', assigned?.status === 'driverAssigned', `status=${assigned?.status}`);
-  const dt = (await api('POST', '/drivers/login', { phone: assigned.driver.phone, password: SEED_DRIVER_PASSWORD })).data.token;
+  const dt = (await api('POST', '/drivers/login', { phone: assigned.driver.phone, password: FIXTURE_PASSWORD })).data.token;
 
   const before = (await api('GET', '/driver/balance', null, dt)).data.balance;
   check('driver balance readable', typeof before?.balance === 'number', JSON.stringify(before));
@@ -140,7 +144,7 @@ async function waitForAssignment(token, rideId) {
   }, token);
   const momoId = momo.data.ride.id;
   const momoAssigned = await waitForAssignment(token, momoId);
-  const dt2 = (await api('POST', '/drivers/login', { phone: momoAssigned.driver.phone, password: SEED_DRIVER_PASSWORD })).data.token;
+  const dt2 = (await api('POST', '/drivers/login', { phone: momoAssigned.driver.phone, password: FIXTURE_PASSWORD })).data.token;
   const momoBefore = (await api('GET', '/driver/balance', null, dt2)).data.balance;
   await api('POST', `/drivers/rides/${momoId}/accept`, null, dt2);
   await api('POST', `/drivers/rides/${momoId}/arrived`, null, dt2);
@@ -219,7 +223,7 @@ async function waitForAssignment(token, rideId) {
   }, token);
   const debtRideId = debtRide.data.ride.id;
   const debtAssigned = await waitForAssignment(token, debtRideId);
-  const dt3 = (await api('POST', '/drivers/login', { phone: debtAssigned.driver.phone, password: SEED_DRIVER_PASSWORD })).data.token;
+  const dt3 = (await api('POST', '/drivers/login', { phone: debtAssigned.driver.phone, password: FIXTURE_PASSWORD })).data.token;
   await api('POST', `/drivers/rides/${debtRideId}/accept`, null, dt3);
   await api('POST', `/drivers/rides/${debtRideId}/arrived`, null, dt3);
   const pin3 = (await api('GET', `/rides/${debtRideId}`, null, token)).data.ride.pin;

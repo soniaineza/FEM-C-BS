@@ -199,8 +199,6 @@ export interface RouteResult {
   points: RoutePoint[];
   distanceMeters: number;
   durationSeconds: number;
-  /** True when the road route could not be fetched and a straight line is drawn instead. */
-  estimated?: boolean;
 }
 
 // Map lookups work for whoever is signed in: the rider client in the rider
@@ -221,42 +219,17 @@ export async function getRoute(params: { from: Place; to: Place }): Promise<Rout
     if (json && Array.isArray(json.points) && json.points.length > 1) {
       return json;
     }
-    // Backend returned an empty route (e.g. OSRM found nothing) — fall through
-    // to the straight-line fallback so the map still shows the way.
   } catch {
-    // fall through to the straight-line fallback below
+    // No road route available right now: handled below.
   }
 
-  // Always return a usable route: a simple great-circle line between pickup
-  // and destination. OSRM's public demo instance has spotty road coverage in
-  // Rwanda, so a booking map must never be left without any path drawn —
-  // the green line is the "this is where we're going" signal the fare
-  // estimate, tracking and pickup screens all rely on.
-  const [latA, lngA] = [params.from.latitude, params.from.longitude];
-  const [latB, lngB] = [params.to.latitude, params.to.longitude];
-  const steps = 12;
-  const points: RoutePoint[] = [];
-  for (let i = 0; i <= steps; i += 1) {
-    const t = i / steps;
-    points.push({
-      latitude: latA + (latB - latA) * t,
-      longitude: lngA + (lngB - lngA) * t,
-    });
-  }
-  const distanceMeters = Math.round(haversineM(latA, lngA, latB, lngB));
-  const durationSeconds = Math.round((distanceMeters / 1000 / 25) * 3600); // ~25 km/h city speed
-  // A drawing aid only: fares always come from the server's own route.
-  return { points, distanceMeters, durationSeconds, estimated: true };
-}
-
-function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
+  // No route is better than a made-up one. A straight line between the two
+  // points is not the way the car will go, and a duration invented from it
+  // would be shown to the rider as the driver's ETA. Callers draw the pickup
+  // and destination markers alone and show no ETA until the server's road
+  // route is available again. Fares never depend on this: the server prices
+  // every ride from its own route.
+  return null;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

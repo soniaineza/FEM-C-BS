@@ -10,7 +10,7 @@
  * with the same PAYPACK_WEBHOOK_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD and
  * ADMIN_API_KEY (optional integration key) as this process)
  */
-const { SEED_DRIVER_PASSWORD } = require('./seedPassword');
+const { FIXTURE_PASSWORD, createDriversAround } = require('./fixtures');
 const crypto = require('crypto');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
@@ -33,6 +33,28 @@ async function api(method, p, body, token, headers = {}) {
   });
   let data = null;
   const text = await res.text();
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  return { status: res.status, data };
+}
+
+const TEST_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=',
+  'base64'
+);
+
+async function uploadDriverDocument(docType, fileName, token) {
+  const form = new FormData();
+  form.append('docType', docType);
+  form.append('fileName', fileName);
+  form.append('file', new Blob([TEST_PNG], { type: 'image/png' }), fileName);
+  const base = typeof BASE === 'string' ? BASE : API;
+  const res = await fetch(`${base}/driver/documents`, {
+    method: 'POST',
+    headers: { Authorization: ['Bearer', token].join(' ') },
+    body: form,
+  });
+  const text = await res.text();
+  let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   return { status: res.status, data };
 }
@@ -81,6 +103,10 @@ async function db() {
   }
   const pool = await db();
 
+  // Real drivers for this run, registered and verified through the API and
+  // parked online around KN 5 Rd where the ride below starts.
+  await createDriversAround({ latitude: -1.9441, longitude: 30.0619 }, 2);
+
   const ts = Date.now().toString().slice(-8);
   const signup = await api('POST', '/auth/signup', {
     fullName: 'Readiness Rider',
@@ -91,6 +117,9 @@ async function db() {
   check('signup', signup.status === 201, `status=${signup.status}`);
   const token = signup.data.token;
   const passengerId = signup.data.passenger.id;
+  // Wallet, SOS and booking routes need a verified phone (local reveal code).
+  const verified = await api('POST', '/auth/verify-otp', { passengerId, code: signup.data.devCode }, token);
+  check('phone verified with the local reveal code', verified.status === 200, `status=${verified.status}`);
 
   // ---- SOS config ----
   const sos = await api('GET', '/emergency/config', null, token);
@@ -151,7 +180,7 @@ async function db() {
     else await sleep(1200);
   }
   check('ride matched', Boolean(assigned));
-  const dt = (await api('POST', '/drivers/login', { phone: assigned.driver.phone, password: SEED_DRIVER_PASSWORD })).data.token;
+  const dt = (await api('POST', '/drivers/login', { phone: assigned.driver.phone, password: FIXTURE_PASSWORD })).data.token;
   await api('POST', `/drivers/rides/${rideId}/accept`, null, dt);
   await api('POST', `/drivers/rides/${rideId}/arrived`, null, dt);
   const pin = (await api('GET', `/rides/${rideId}`, null, token)).data.ride.pin;
@@ -190,6 +219,10 @@ async function db() {
   check('unapproved driver can access document onboarding', onboardingDocs.status === 200, `status=${onboardingDocs.status}`);
   const online = await api('PUT', '/driver/status', { status: 'active' }, newDt);
   check('unverified driver cannot go online (403)', online.status === 403, `status=${online.status}`);
+  const referenceOnly = await api('POST', '/driver/documents', {
+    docType: 'license', fileName: 'reference-only',
+  }, newDt);
+  check('document references without file bytes are rejected', referenceOnly.status === 400, `status=${referenceOnly.status}`);
 
   check('admin: wrong key rejected',
     (await api('GET', '/admin/drivers', null, null, { 'X-Admin-Key': 'wrong' })).status === 401);
@@ -200,10 +233,20 @@ async function db() {
 
   const docs = [];
   for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
-    const doc = await api('POST', '/driver/documents', { docType, fileName: `original-${docType}` }, newDt);
+    const doc = await uploadDriverDocument(docType, `original-${docType}.png`, newDt);
     if (doc.data?.document?.id) docs.push(doc.data.document.id);
   }
   check('driver submits all four required documents', docs.length === 4, `n=${docs.length}`);
+  const fileResponse = await fetch(`${BASE}/driver/documents/${docs[0]}/file`, {
+    headers: { Authorization: `Bearer ${newDt}` },
+  });
+  const fileBytes = Buffer.from(await fileResponse.arrayBuffer());
+  check('driver can retrieve the uploaded private file',
+    fileResponse.status === 200 && fileResponse.headers.get('content-type') === 'image/png' &&
+      fileBytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
+    `status=${fileResponse.status}`);
+  const privateFile = await fetch(`${BASE}/driver/documents/${docs[0]}/file`);
+  check('driver files cannot be retrieved without authentication', privateFile.status === 401, `status=${privateFile.status}`);
   const incomplete = await api('POST', `/admin/drivers/${newDriverId}/verify`, null, null, { 'X-Admin-Key': ADMIN_KEY });
   check('admin cannot approve until every required document is reviewed', incomplete.status === 409, `status=${incomplete.status}`);
   const rej = await api('POST', `/admin/documents/${docs[0]}/review`, { status: 'rejected' }, null, { 'X-Admin-Key': ADMIN_KEY });

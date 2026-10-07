@@ -3,7 +3,7 @@ import { test, expect, api, createPassenger, signInPassenger } from './helpers';
 test('a saved pickup stores a map point and remains bookable from Home', async ({ page }) => {
   const rider = await createPassenger('Saved Place Rider');
   await signInPassenger(page, rider);
-  await page.route('**/api/locations/search?**', (route) => route.fulfill({
+  await page.route('**/api/{maps,locations}/search?**', (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ results: [{ address: 'Kacyiru, Kigali', latitude: -1.9393, longitude: 30.0864 }] }),

@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const multer = require('multer');
 
 const { getPool } = require('../db');
 const { config } = require('../config');
@@ -24,6 +25,44 @@ const {
 
 const router = express.Router();
 router.use(requireDriverAuth);
+const documentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 3, fieldSize: 200 },
+  fileFilter: (_req, file, callback) => {
+    const supported = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+    if (!supported.includes(file.mimetype)) {
+      callback(new ApiError(415, 'Upload a PDF, JPEG, PNG, WebP, or HEIC file.'));
+      return;
+    }
+    callback(null, true);
+  },
+});
+
+function fileMatchesType(file) {
+  const bytes = file.buffer;
+  switch (file.mimetype) {
+    case 'application/pdf':
+      return bytes.subarray(0, 5).toString('ascii') === '%PDF-';
+    case 'image/jpeg':
+      return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    case 'image/png':
+      return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    case 'image/webp':
+      return bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
+        bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+    case 'image/heic':
+    case 'image/heif':
+      return bytes.subarray(4, 8).toString('ascii') === 'ftyp';
+    default:
+      return false;
+  }
+}
+
+function safeDownloadName(fileName) {
+  return String(fileName || 'driver-document')
+    .replace(/[\\/\r\n"]/g, '_')
+    .slice(0, 160);
+}
 
 // ============================================================
 // PROFILE
@@ -185,36 +224,67 @@ router.put('/vehicle', asyncHandler(async (req, res) => {
 // GET /api/driver/documents — list driver documents.
 router.get('/documents', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
-    'SELECT * FROM driver_documents WHERE driver_id = $1 ORDER BY uploaded_at DESC',
+    `SELECT id, doc_type, file_name, status, rejection_reason, expires_at, uploaded_at,
+            reviewed_at, (file_data IS NOT NULL) AS has_file, file_size, content_type
+       FROM driver_documents WHERE driver_id = $1 ORDER BY uploaded_at DESC`,
     [req.driverId]
   );
   res.json({
     documents: rows.map((r) => ({
       id: r.id,
       docType: r.doc_type,
-      fileUrl: r.file_url,
+      fileUrl: r.has_file ? `/api/driver/documents/${r.id}/file` : null,
       fileName: r.file_name,
       status: r.status,
       rejectionReason: r.rejection_reason,
       expiresAt: r.expires_at,
       uploadedAt: r.uploaded_at,
       reviewedAt: r.reviewed_at,
+      hasFile: Boolean(r.has_file),
+      fileSize: r.file_size,
+      contentType: r.content_type,
     })),
   });
 }));
 
-// POST /api/driver/documents — submit a document.
-router.post('/documents', asyncHandler(async (req, res) => {
-  const { docType, fileName, expiresAt } = req.body || {};
+router.get('/documents/:id/file', asyncHandler(async (req, res) => {
+  const { rows } = await getPool().query(
+    'SELECT file_data, content_type, file_name FROM driver_documents WHERE id = $1 AND driver_id = $2',
+    [req.params.id, req.driverId]
+  );
+  if (!rows[0] || !rows[0].file_data) throw new ApiError(404, 'Document file not found.');
+  res.set({
+    'Cache-Control': 'private, no-store',
+    'Content-Disposition': `inline; filename="${safeDownloadName(rows[0].file_name)}"`,
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.type(rows[0].content_type).send(rows[0].file_data);
+}));
+
+// POST /api/driver/documents — persist the actual uploaded file.
+router.post(
+  '/documents',
+  apiLimiter({ max: 12, keyGenerator: (req) => `driver-doc:${req.driverId}` }),
+  documentUpload.single('file'),
+  asyncHandler(async (req, res) => {
+  const { docType, expiresAt } = req.body || {};
   const validTypes = ['license', 'national_id', 'vehicle_registration', 'insurance', 'profile_photo', 'vehicle_photo', 'other'];
   if (!docType || !validTypes.includes(docType)) {
     throw new ApiError(400, `docType must be one of: ${validTypes.join(', ')}`);
   }
+  if (!req.file) throw new ApiError(400, 'Choose a file to upload.');
+  if (!fileMatchesType(req.file)) throw new ApiError(415, 'The selected file does not match its file type.');
+  if (['profile_photo', 'vehicle_photo'].includes(docType) && !req.file.mimetype.startsWith('image/')) {
+    throw new ApiError(415, 'Profile and vehicle photos must be image files.');
+  }
+
+  const fileName = safeDownloadName(req.file.originalname);
 
   const { rows } = await getPool().query(
-    `INSERT INTO driver_documents (driver_id, doc_type, file_url, file_name, expires_at)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [req.driverId, docType, null, fileName || null, expiresAt || null]
+    `INSERT INTO driver_documents
+       (driver_id, doc_type, file_url, file_name, expires_at, file_data, content_type, file_size)
+     VALUES ($1, $2, NULL, $3, $4, $5, $6, $7) RETURNING *`,
+    [req.driverId, docType, fileName, expiresAt || null, req.file.buffer, req.file.mimetype, req.file.size]
   );
   res.status(201).json({
     document: {
@@ -222,9 +292,13 @@ router.post('/documents', asyncHandler(async (req, res) => {
       docType: rows[0].doc_type,
       status: rows[0].status,
       uploadedAt: rows[0].uploaded_at,
+      fileUrl: `/api/driver/documents/${rows[0].id}/file`,
+      fileName: rows[0].file_name,
+      fileSize: rows[0].file_size,
     },
   });
-}));
+  })
+);
 
 // ============================================================
 // RIDE HISTORY

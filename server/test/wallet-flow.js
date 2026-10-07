@@ -10,7 +10,7 @@
  *
  * Usage: node test/wallet-flow.js   (local server on :3000)
  */
-const { SEED_DRIVER_PASSWORD } = require('./seedPassword');
+const { FIXTURE_PASSWORD, createDriversAround } = require('./fixtures');
 const BASE = 'http://localhost:3000/api';
 let passed = 0;
 let failed = 0;
@@ -85,7 +85,7 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   const rideId = created.data.ride.id;
   const assigned = await waitForAssignment(token, rideId);
   if (!assigned) return { error: new Error('never matched') };
-  const dlogin = await api('POST', '/drivers/login', { phone: assigned.driver.phone, password: SEED_DRIVER_PASSWORD });
+  const dlogin = await api('POST', '/drivers/login', { phone: assigned.driver.phone, password: FIXTURE_PASSWORD });
   const dt = dlogin.data.token;
   await api('POST', `/drivers/rides/${rideId}/accept`, null, dt);
   await api('POST', `/drivers/rides/${rideId}/arrived`, null, dt);
@@ -96,6 +96,10 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
 }
 
 (async () => {
+  // Real drivers for this run, registered and verified through the API and
+  // parked online around KN 5 Rd where the rides below start.
+  await createDriversAround({ latitude: -1.9441, longitude: 30.0619 }, 2);
+
   // Fresh passenger, isolated from other tests.
   const ts = Date.now().toString().slice(-8);
   const signup = await api('POST', '/auth/signup', {
@@ -192,7 +196,7 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   check('restore: current while searchingDriver', cur.data.ride?.id === restoreRideId && cur.data.ride.status === 'searchingDriver',
     `status=${cur.data.ride?.status}`);
   const assignedR = await waitForAssignment(token, restoreRideId);
-  const dloginR = await api('POST', '/drivers/login', { phone: assignedR.driver.phone, password: SEED_DRIVER_PASSWORD });
+  const dloginR = await api('POST', '/drivers/login', { phone: assignedR.driver.phone, password: FIXTURE_PASSWORD });
   const dtR = dloginR.data.token;
 
   await api('POST', `/drivers/rides/${restoreRideId}/accept`, null, dtR);

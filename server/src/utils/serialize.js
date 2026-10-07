@@ -23,7 +23,6 @@ function vehicleToJson(row) {
     baseFare: Number(row.base_fare),
     farePerKm: Number(row.fare_per_km),
     etaMinutes: row.eta_minutes,
-    isMock: false,
   };
 }
 

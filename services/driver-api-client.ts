@@ -46,10 +46,10 @@ async function send<T>(
       return await fetch(`${BASE_URL}${path}`, {
         method,
         headers: {
-          'Content-Type': 'application/json',
+          ...(typeof FormData !== 'undefined' && body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: body === undefined ? undefined : typeof FormData !== 'undefined' && body instanceof FormData ? body : JSON.stringify(body),
         signal: controller.signal,
       });
     } finally {

@@ -1,12 +1,26 @@
 const express = require('express');
 
 const { getPool } = require('../db');
+const { config } = require('../config');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { pushNotification } = require('../services/notify');
 const { loadRide } = require('../services/rideStateMachine');
 
 const router = express.Router();
+
+// GET /api/support/contacts — how to reach human support outside the in-app
+// tickets. Public: the rider and driver apps call it with different tokens,
+// and it holds nothing secret (SUPPORT_WHATSAPP_NUMBER / SUPPORT_EMAIL, both
+// optional — a missing one is null and the app hides that button).
+router.get('/contacts', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({
+    whatsappNumber: config.supportWhatsappNumber || null,
+    email: config.supportEmail || null,
+  });
+});
+
 router.use(requireAuth);
 
 const CATEGORIES = new Set([

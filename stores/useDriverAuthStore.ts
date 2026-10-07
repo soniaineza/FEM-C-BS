@@ -2,11 +2,6 @@ import { create } from 'zustand';
 import * as driverAuthService from '../services/driver-auth-service';
 import { useRideWizardStore } from './useRideWizardStore';
 import { DriverProfile } from '../types/driver';
-
-// Driver-side counterpart to stores/useAuthStore.ts — kept as a fully
-// separate store (not a discriminated union on the same store) so a
-// passenger session and a driver session never share state, matching the
-// separate token storage in storage/driverSession.ts.
 interface DriverAuthState {
   currentDriver: DriverProfile | null;
   isHydrated: boolean;

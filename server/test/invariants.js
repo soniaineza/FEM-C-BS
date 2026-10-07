@@ -223,6 +223,28 @@ async function api(method, p, body, token, headers = {}) {
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   return { status: res.status, data };
 }
+
+const TEST_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=',
+  'base64'
+);
+
+async function uploadDriverDocument(docType, fileName, token) {
+  const form = new FormData();
+  form.append('docType', docType);
+  form.append('fileName', fileName);
+  form.append('file', new Blob([TEST_PNG], { type: 'image/png' }), fileName);
+  const base = typeof BASE === 'string' ? BASE : API;
+  const res = await fetch(`${base}/driver/documents`, {
+    method: 'POST',
+    headers: { Authorization: ['Bearer', token].join(' ') },
+    body: form,
+  });
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  return { status: res.status, data };
+}
 const admin = (method, p, body) => api(method, `/admin${p}`, body, null, { 'X-Admin-Key': ADMIN_KEY });
 
 // ---------- world model ----------
@@ -497,7 +519,7 @@ async function newDriver() {
   // Verification needs all four core documents approved in person.
   d.docIds = [];
   for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
-    const doc = await api('POST', '/driver/documents', { docType, fileName: `${docType}.jpg` }, d.token);
+    const doc = await uploadDriverDocument(docType, `${docType}.png`, d.token);
     if (doc.status !== 201) violations.push(`document submit ${doc.status}`);
     else d.docIds.push(doc.data.document.id);
   }
@@ -745,7 +767,7 @@ async function onlineDriver(phone) {
   if (reg.status !== 201) throw new Error(`scenario driver register ${reg.status} ${JSON.stringify(reg.data)}`);
   const d = { id: reg.data.driver.id, token: reg.data.token, phone, docIds: [], docsApproved: true };
   for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
-    const doc = await api('POST', '/driver/documents', { docType, fileName: `${docType}.jpg` }, d.token);
+    const doc = await uploadDriverDocument(docType, `${docType}.png`, d.token);
     await admin('POST', `/documents/${doc.data.document.id}/review`, {
       status: 'approved', reviewer: 'invariants', method: 'in_person', evidenceReference: `scenario-${docType}`,
     });

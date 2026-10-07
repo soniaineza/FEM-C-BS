@@ -13,6 +13,7 @@ const freshLocationSql = config.devAllowStaleDrivers ? '' : `
 const eligibleDriverSql = freshLocationSql + `
   AND (SELECT count(DISTINCT doc_type) FROM driver_documents dd
     WHERE dd.driver_id = d.id AND dd.doc_type IN ('license','national_id','vehicle_registration','insurance')
+      AND dd.file_data IS NOT NULL
       AND dd.status = 'approved' AND dd.reviewed_by IS NOT NULL
       AND dd.verification_method = 'in_person' AND dd.evidence_reference IS NOT NULL
       AND (dd.expires_at IS NULL OR dd.expires_at > now())) = 4`;
@@ -21,6 +22,7 @@ async function missingApprovedDocuments(driverId) {
   const { rows } = await getPool().query(
     `SELECT DISTINCT doc_type FROM driver_documents
        WHERE driver_id = $1 AND status = 'approved'
+         AND file_data IS NOT NULL
          AND reviewed_by IS NOT NULL AND verification_method = 'in_person'
          AND evidence_reference IS NOT NULL
          AND (expires_at IS NULL OR expires_at > now())`,

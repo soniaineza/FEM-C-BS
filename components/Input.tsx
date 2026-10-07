@@ -10,7 +10,7 @@ interface InputProps extends TextInputProps {
   // Ionicons name, matching custom_text_field.dart's prefixIcon (e.g.
   // 'person-outline', 'call-outline', 'mail-outline', 'lock-closed-outline').
   prefixIcon?: keyof typeof Ionicons.glyphMap;
-  // Dark mode: use dark theme colors (for dark-bg screens like live-meter)
+  // Dark mode: use dark theme colors (for dark-bg driver screens)
   dark?: boolean;
 }
 

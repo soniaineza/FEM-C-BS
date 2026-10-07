@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '../../../components/SafeAreaViewPlaceholder';
-import { Linking } from 'react-native';
 import { router } from 'expo-router';
 
 import { Button } from '../../../components/Button';
@@ -12,7 +11,7 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import { submitRequest, getTickets } from '../../../services/support-service';
 import { SUPPORT_CATEGORY_IDS, SupportTicket } from '../../../types/support';
 import { ApiError } from '../../../services/api-client';
-import { openWhatsAppSupport, SUPPORT_EMAIL } from '../../../utils/support';
+import { getSupportContacts, openWhatsAppSupport, openEmailSupport, SupportContacts } from '../../../utils/support';
 
 const TOPICS = Object.keys(SUPPORT_CATEGORY_IDS) as (keyof typeof SUPPORT_CATEGORY_IDS)[];
 
@@ -32,9 +31,13 @@ export default function HelpSupportScreen() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  // Server-configured contacts; a button is shown only for a contact the
+  // server actually provides.
+  const [contacts, setContacts] = useState<SupportContacts | null>(null);
 
   useEffect(() => {
     getTickets().then(setTickets).catch(() => setError(t('requestFailed')));
+    getSupportContacts().then(setContacts).catch(() => setContacts(null));
   }, []);
 
   async function handleSend() {
@@ -60,12 +63,16 @@ export default function HelpSupportScreen() {
         <Text className="mt-2 text-xl text-ink font-display">{t('helpSupportTitle')}</Text>
         <Text className="mt-1 text-text-secondary">{t('helpIntro')}</Text>
 
-        <View className="mt-4">
-          <Button title={t('whatsappSupport')} icon="logo-whatsapp" onPress={() => openWhatsAppSupport()} />
-        </View>
-        <Pressable className="mt-3" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>
-          <Text className="text-primary">{t('contactSupport')}</Text>
-        </Pressable>
+        {contacts?.whatsappNumber ? (
+          <View className="mt-4">
+            <Button title={t('whatsappSupport')} icon="logo-whatsapp" onPress={() => openWhatsAppSupport(contacts.whatsappNumber!)} />
+          </View>
+        ) : null}
+        {contacts?.email ? (
+          <Pressable className="mt-3" onPress={() => openEmailSupport(contacts.email!)}>
+            <Text className="text-primary">{t('contactSupport')}</Text>
+          </Pressable>
+        ) : null}
 
         {sent ? (
           <Text className="mt-6 text-primary">{t('messageSentConfirmation')}</Text>
