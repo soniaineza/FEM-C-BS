@@ -9,7 +9,8 @@ test.describe('Passenger authentication', () => {
     await page.getByText('English', { exact: true }).click();
     await page.getByText(/^(Komeza|Continue)$/).click();
     await expect(page.getByText('Get started')).toBeVisible();
-    await expect(page.getByText('Switch to driver app')).toBeVisible();
+    // The rider app is its own app now: no link over to the driver app.
+    await expect(page.getByText('Switch to driver app')).toHaveCount(0);
   });
 
   test('sign up, verify the SMS code, complete the profile, reach Home', async ({ page }) => {

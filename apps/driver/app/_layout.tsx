@@ -94,6 +94,8 @@ export default function RootLayout() {
   }, [router]);
 
   useEffect(() => {
+    // Android only: react-native-web logs an error for BackHandler.
+    if (Platform.OS !== 'android') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
     return () => subscription.remove();
   }, [handleBackPress]);
