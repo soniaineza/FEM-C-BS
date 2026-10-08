@@ -1,29 +1,51 @@
 # Kimu Transport
 
-Ride-hailing for Kigali: one Expo (React Native) app containing the rider and
-driver experiences, and a Node.js + Express + PostgreSQL API in `server/`.
+Ride-hailing for Kigali: two Expo (React Native) apps, one for riders and one
+for drivers, and a Node.js + Express + PostgreSQL API in `server/`.
 
 ## Layout
 
 | Path | What it is |
 | --- | --- |
-| `app/` | Screens (expo-router): `(auth)` and `(main)` for riders, `(driver-auth)` and `(driver)` for drivers |
-| `components/`, `hooks/`, `stores/`, `services/`, `utils/` | Shared UI, state and API clients |
-| `locales/` | English, French and Kinyarwanda strings |
+| `apps/passenger/` | Rider app "Kimu Transport" (`com.femcabs.passenger`, scheme `femcabs`). Screens in `app/`: `(auth)`, `profile-setup`, `(main)` |
+| `apps/driver/` | Driver app "Kimu Drive" (`com.femcabs.driver`, scheme `kimudrive`). Screens in `app/`: `(driver-auth)`, `driver-profile-setup`, `(driver)` |
+| `packages/shared/` | `@kimu/shared`: code both apps use (HTTP client, maps, UI components, translations, types, Tailwind theme) |
 | `server/` | The API — see `server/README.md` for setup, production settings and operator commands |
-| `tests/e2e/` | Playwright tests of the web build |
+| `operator/` | Static operator page (driver approvals, payment exceptions, SOS queue) |
+| `tests/e2e/` | Playwright tests of the web builds |
+
+The apps share no runtime state: each has its own sign-in, stored session and
+API client. Each app registers its client with `setAppApiClient()` in its root
+`app/_layout.tsx` so shared modules (map lookups, support contacts) use it.
 
 ## Run it locally
 
 1. API: follow `server/README.md` (PostgreSQL, `server/.env`, `npm install`, `npm start`).
-2. App: copy `.env.example` to `.env`, then
+2. Apps: copy `apps/passenger/.env.example` and `apps/driver/.env.example` to
+   `.env` in the same folders, then from the repository root
 
    ```
-   npm install
-   npm run web        # or: npm run android
+   npm install            # installs all workspaces
+   npm run passenger      # rider app (Expo dev server)
+   npm run driver         # driver app (Expo dev server)
    ```
 
-`EXPO_PUBLIC_API_BASE_URL` (in `.env`) must point at the API, ending in `/api`.
+   Or work inside one app folder: `cd apps/driver && npx expo start --android`.
+
+`EXPO_PUBLIC_API_BASE_URL` (in each app's `.env`) must point at the API, ending in `/api`.
+
+The web build served by the API (`npm run build`, used by `render.yaml`) is the
+rider app.
+
+## Build the apps
+
+Each app is its own EAS project. From the app's folder:
+
+```
+cd apps/passenger && eas build -p android --profile preview
+cd apps/driver && eas init        # once: creates the driver app's EAS project
+cd apps/driver && eas build -p android --profile preview
+```
 
 ## Host the operator page on Vercel
 
@@ -51,15 +73,15 @@ and redeploy the API. Do not put operator credentials in Vercel or in this
 repository. The existing `/operator` page on the API remains available.
 
 Push notifications and driver background location need native code, so they
-do not work in Expo Go or on web: build the app with EAS (`eas build -p android
---profile preview`) and install that build.
+do not work in Expo Go or on web: build the apps with EAS (see above) and
+install those builds.
 
 ## Checks
 
 ```
-npm run typecheck      # TypeScript
+npm run typecheck      # TypeScript, both apps
 npm run test:i18n      # every locale has every key and placeholder
-npx playwright test    # browser tests; needs the API and web server running (see playwright.config.ts)
+npm run test:e2e       # browser tests; needs the API and both apps' web servers (see playwright.config.ts)
 cd server && npm test  # API tests; see the table in server/README.md
 ```
 

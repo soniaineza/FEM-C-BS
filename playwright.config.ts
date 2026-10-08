@@ -9,8 +9,11 @@ import path from 'node:path';
 //   1. API:  cd server && DEV_REVEAL_CODES=1 \
 //              ADMIN_API_KEY=e2e-admin-key-0123456789abcdef npm start
 //      (test drivers are registered through the API by the tests themselves)
-//   3. Web:  EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api npx expo start --web
-//   4.       npm run test:e2e
+//   2. Web:  in apps/passenger and apps/driver, with
+//              EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api
+//              npx expo start --web --port 8081   (rider app)
+//              npx expo start --web --port 8082   (driver app)
+//   3.       npm run test:e2e
 //
 // Native-only behaviour (Android WebView map, keyboard, status bar, dialer)
 // needs a device/emulator run (e.g. Maestro); see tests/e2e/README.md.

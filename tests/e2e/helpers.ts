@@ -1,6 +1,8 @@
 import { test as base, expect, type Page } from '@playwright/test';
 
 export const API = process.env.E2E_API_URL ?? 'http://localhost:3000/api';
+// The rider and driver apps are separate web servers (see playwright.config.ts).
+export const DRIVER_APP_URL = process.env.E2E_DRIVER_APP_URL ?? 'http://localhost:8082';
 export const ADMIN_KEY = process.env.E2E_ADMIN_KEY ?? 'e2e-admin-key-0123456789abcdef';
 
 // Huye, ~100 km from Kigali: outside the demo fleet's 5 km matching radius,
@@ -116,37 +118,34 @@ export async function createDriver(opts: { verified?: boolean; online?: boolean;
   return d;
 }
 
-/** Signs the browser in as this passenger (English, passenger mode). */
+/** Signs the browser in as this passenger (English). */
 export async function signInPassenger(page: Page, p: Passenger) {
   await page.addInitScript(([token, id]) => {
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_passenger_id', id);
     localStorage.setItem('kimu_locale', 'en');
     localStorage.setItem('kimu_locale_chosen', '1');
-    localStorage.setItem('app_mode', 'passenger');
   }, [p.token, p.id]);
 }
 
-/** Signs the browser into the driver experience with an existing fixture. */
+/** Signs the driver app in with an existing fixture. */
 export async function signInDriver(page: Page, driver: Driver) {
   await page.addInitScript(([token, id]) => {
     localStorage.setItem('driver_auth_token', token);
     localStorage.setItem('driver_auth_driver_id', id);
     localStorage.setItem('kimu_locale', 'en');
     localStorage.setItem('kimu_locale_chosen', '1');
-    localStorage.setItem('app_mode', 'driver');
   }, [driver.token, driver.id]);
 }
 
 /** Fresh visitor in English: no session, language already chosen or not. */
-export async function freshVisitor(page: Page, { languageChosen = true, mode = 'passenger' } = {}) {
-  await page.addInitScript(([chosen, m]) => {
+export async function freshVisitor(page: Page, { languageChosen = true } = {}) {
+  await page.addInitScript((chosen) => {
     if (chosen === '1') {
       localStorage.setItem('kimu_locale', 'en');
       localStorage.setItem('kimu_locale_chosen', '1');
     }
-    localStorage.setItem('app_mode', m);
-  }, [languageChosen ? '1' : '0', mode]);
+  }, languageChosen ? '1' : '0');
 }
 
 /** Books a ride through the API for this passenger. */

@@ -40,6 +40,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+apps/*/ios
+apps/*/android
 
 # local build artifacts
 .tmp-apk/

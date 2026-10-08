@@ -1,4 +1,6 @@
-import { test, expect, createDriver, signInDriver } from './helpers';
+import { test, expect, createDriver, signInDriver, DRIVER_APP_URL } from './helpers';
+
+test.use({ baseURL: DRIVER_APP_URL });
 
 test('driver tabs and account screens load real account data', async ({ page }) => {
   const driver = await createDriver({ verified: true, online: false });

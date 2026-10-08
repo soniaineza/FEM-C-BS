@@ -4,7 +4,8 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    buildCommand: npm ci && ./node_modules/.bin/expo export --platform web && cd server && npm ci --omit=dev
+    # The web build is the rider app (apps/passenger), exported to dist/ for server/ to serve.
+    buildCommand: npm ci && npm run build && cd server && npm ci --omit=dev
     startCommand: cd server && npm start
     healthCheckPath: /api/health
     autoDeploy: true

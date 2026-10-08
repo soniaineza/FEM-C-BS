@@ -1,0 +1,90 @@
+import { useEffect, useState } from 'react';
+import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+
+import { BackHeader } from '@kimu/shared/components/BackHeader';
+import { Button } from '@kimu/shared/components/Button';
+import { useTranslation } from '@kimu/shared/hooks/useTranslation';
+import { getNotifications, markAsRead, markAllRead } from '../../../services/notification-service';
+import { NotificationItem } from '@kimu/shared/types/notification';
+
+export default function NotificationsScreen() {
+  const { t } = useTranslation();
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
+
+  function load() {
+    setLoading(true);
+    setError(undefined);
+    getNotifications()
+      .then(setItems)
+      .catch(() => setError(t('requestFailed')))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, []);
+
+  async function handleOpen(item: NotificationItem) {
+    if (!item.read) {
+      try {
+        await markAsRead(item.id);
+        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, read: true } : i)));
+      } catch { setError(t('requestFailed')); }
+    }
+  }
+
+  return (
+    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+      <View className="flex-1 px-6 pt-2">
+        <BackHeader />
+        <View className="mt-2 flex-row items-center justify-between">
+          <Text className="text-xl text-ink font-display">{t('notifications')}</Text>
+          {items.some((i) => !i.read) ? (
+            <Pressable
+              onPress={async () => {
+                try {
+                  await markAllRead();
+                  setItems((prev) => prev.map((i) => ({ ...i, read: true })));
+                } catch { setError(t('requestFailed')); }
+              }}
+            >
+              <Text className="text-sm text-primary">{t('markAllRead')}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        {error && items.length > 0 ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
+
+        {loading ? (
+          <ActivityIndicator className="mt-8" color="#0E7C4A" />
+        ) : error && items.length === 0 ? (
+          <View className="mt-8 gap-4">
+            <Text className="text-center text-error">{error}</Text>
+            <Button title={t('tryAgain')} variant="outline" onPress={load} />
+          </View>
+        ) : items.length === 0 ? (
+          <View className="mt-8 items-center">
+            <Text className="text-base font-medium text-ink">{t('noNotificationsYet')}</Text>
+            <Text className="mt-1 text-center text-text-secondary">{t('notificationsEmptySubtitle')}</Text>
+          </View>
+        ) : (
+          <FlatList
+            className="mt-4"
+            data={items}
+            keyExtractor={(i) => i.id}
+            renderItem={({ item }) => (
+              <Pressable className="border-b border-border py-3" onPress={() => handleOpen(item)}>
+                <View className="flex-row items-center gap-2">
+                  {!item.read ? <View className="h-2 w-2 rounded-full bg-accent" /> : null}
+                  <Text className="text-base font-medium text-ink">{item.title}</Text>
+                </View>
+                <Text className="mt-1 text-sm text-text-secondary">{item.body}</Text>
+              </Pressable>
+            )}
+          />
+        )}
+      </View>
+    </SafeAreaViewPlaceholder>
+  );
+}

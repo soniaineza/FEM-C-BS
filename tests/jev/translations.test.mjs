@@ -1,4 +1,4 @@
-// Translation checks for locales/{en,fr,rw}.json.
+// Translation checks for packages/shared/locales/{en,fr,rw}.json.
 //
 //   node --test 'tests/jev/*.test.mjs'           # structural checks only
 //   TYPESAFE_API_KEY=... node --test 'tests/jev/*.test.mjs'  # + Jev
@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
-const load = (l) => JSON.parse(fs.readFileSync(path.join(ROOT, 'locales', `${l}.json`), 'utf8'));
+const load = (l) => JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/shared/locales', `${l}.json`), 'utf8'));
 const en = load('en');
 const others = { fr: { name: 'French', dict: load('fr') }, rw: { name: 'Kinyarwanda', dict: load('rw') } };
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
