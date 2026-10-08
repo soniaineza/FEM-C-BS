@@ -46,3 +46,8 @@ yarn-error.*
 server/*.log
 /tests/e2e/report/
 /tests/e2e/results/
+
+# app binaries
+*.apk
+*.aab
+*.ipa
