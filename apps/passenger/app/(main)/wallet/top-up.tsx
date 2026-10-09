@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { goBack } from '@kimu/shared/utils/navigation';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
 import { ErrorMessage } from '@kimu/shared/components/ErrorMessage';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { topUpWallet, refreshWalletTopup, WalletTopup } from '../../../services/wallet-service';
@@ -61,11 +60,9 @@ export default function WalletTopUpScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('topUpTitle')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('topUpTitle')}</Text>
-        <Text className="mt-1 text-sm text-text-secondary">{t('topUpSubtitle')}</Text>
+        <Text className="font-sans mt-1 text-sm text-text-secondary">{t('topUpSubtitle')}</Text>
 
         {!topup ? (
           <View className="mt-6 gap-4">
@@ -76,7 +73,7 @@ export default function WalletTopUpScreen() {
               <View className="mt-2.5 flex-row flex-wrap gap-2">
                 {QUICK_AMOUNTS.map((a) => (
                   <Pressable key={a} className="rounded-full border border-border px-3 py-1.5" onPress={() => setAmount(String(a))}>
-                    <Text className="text-[13px] text-ink">{formatFare(a)}</Text>
+                    <Text className="font-sans text-[13px] text-ink">{formatFare(a)}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -86,9 +83,9 @@ export default function WalletTopUpScreen() {
           </View>
         ) : (
           <View className="mt-6 rounded-2xl border border-border p-5">
-            <Text className="text-sm text-text-secondary">{t('depositing')}</Text>
+            <Text className="font-sans text-sm text-text-secondary">{t('depositing')}</Text>
             <Text className="mt-1 text-2xl font-bold text-ink">{formatFare(topup.amount)}</Text>
-            <Text className="mt-1 text-xs text-text-secondary">{t('depositTo', { phone: topup.phone })}</Text>
+            <Text className="font-sans mt-1 text-xs text-text-secondary">{t('depositTo', { phone: topup.phone })}</Text>
 
             {topup.status === 'succeeded' ? (
               <Text className="mt-4 font-semibold text-primary">{t('depositReceived')}</Text>
@@ -96,7 +93,7 @@ export default function WalletTopUpScreen() {
               <Text className="mt-4 font-semibold text-error">{t('depositFailed')}</Text>
             ) : (
               <>
-                <Text className="mt-4 text-sm text-text-secondary">{t('depositPendingHint')}</Text>
+                <Text className="font-sans mt-4 text-sm text-text-secondary">{t('depositPendingHint')}</Text>
                 <View className="mt-3">
                   <Button title={t('checkStatus')} variant="outline" onPress={handleCheckStatus} loading={checking} />
                 </View>
@@ -110,6 +107,6 @@ export default function WalletTopUpScreen() {
           </View>
         )}
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

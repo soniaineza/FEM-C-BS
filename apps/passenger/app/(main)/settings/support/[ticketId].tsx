@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
@@ -67,7 +68,7 @@ export default function TicketThreadScreen() {
           <BackHeader />
           {loading ? <ActivityIndicator className="mt-10" color="#0E7C4A" /> : (
             <View className="mt-10 gap-4">
-              <Text className="text-center text-error">{error ?? t('requestFailed')}</Text>
+              <Text className="font-sans text-center text-error">{error ?? t('requestFailed')}</Text>
               <Button title={t('tryAgain')} variant="outline" onPress={load} />
             </View>
           )}
@@ -77,13 +78,12 @@ export default function TicketThreadScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('helpSupportTitle')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <View className="flex-1 px-6 pt-2">
-        <BackHeader />
         <Text className="mt-2 text-xl font-bold text-ink">{ticket.subject}</Text>
-        <Text className="mt-1 text-sm text-text-secondary">{t((STATUS_KEYS[ticket.status] ?? ticket.status) as any)}</Text>
-        {error ? <Text className="mt-2 text-sm text-error">{error}</Text> : null}
+        <Text className="font-sans mt-1 text-sm text-text-secondary">{t((STATUS_KEYS[ticket.status] ?? ticket.status) as any)}</Text>
+        {error ? <Text className="font-sans mt-2 text-sm text-error">{error}</Text> : null}
 
         <FlatList
           className="mt-4"
@@ -91,7 +91,7 @@ export default function TicketThreadScreen() {
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => (
             <View className={`mt-2 max-w-[85%] rounded p-3 ${item.senderRole === 'passenger' ? 'self-end bg-primary/10' : 'self-start bg-gray-light'}`}>
-              <Text className="text-ink">{item.message}</Text>
+              <Text className="font-sans text-ink">{item.message}</Text>
             </View>
           )}
         />
@@ -108,6 +108,6 @@ export default function TicketThreadScreen() {
         ) : null}
       </View>
       </KeyboardAvoidingView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

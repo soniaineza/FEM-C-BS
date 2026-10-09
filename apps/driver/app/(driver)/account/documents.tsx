@@ -3,11 +3,10 @@ import { View, Text, Pressable, ActivityIndicator, Platform } from 'react-native
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useFocusEffect } from 'expo-router';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 
 import { Button } from '@kimu/shared/components/Button';
 import { ErrorMessage } from '@kimu/shared/components/ErrorMessage';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { getDriverDocuments, submitDriverDocument } from '../../../services/driver-profile-service';
 import { DriverDocument } from '../../../types/driver';
@@ -155,15 +154,13 @@ export default function DriverDocumentsScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('documents')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('documents')}</Text>
-        <Text className="mt-1 text-sm text-text-secondary">{t('driverDocumentsIntro')}</Text>
+        <Text className="font-sans mt-1 text-sm text-text-secondary">{t('driverDocumentsIntro')}</Text>
         {currentDriver && !currentDriver.verified ? (
           <View className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-3">
             <Text className="text-sm font-semibold text-ink">{t('driverAwaitingVerification')}</Text>
-            <Text className="mt-1 text-xs leading-5 text-text-secondary">
+            <Text className="font-sans mt-1 text-[14px] leading-[21px] text-text-secondary">
               {t('driverApprovalNeededBlurb')}
             </Text>
           </View>
@@ -177,7 +174,7 @@ export default function DriverDocumentsScreen() {
             <Button title={t('tryAgain')} variant="outline" onPress={load} />
           </View>
         ) : documents.length === 0 ? (
-          <Text className="mt-6 text-sm text-text-secondary">{t('driverNoDocumentsYet')}</Text>
+          <Text className="font-sans mt-6 text-sm text-text-secondary">{t('driverNoDocumentsYet')}</Text>
         ) : (
           <View className="mt-5 gap-2.5">
             {documents.map((doc) => (
@@ -186,9 +183,9 @@ export default function DriverDocumentsScreen() {
                   <Text className="text-[14px] font-semibold text-ink">
                     {t((DOC_TYPES.find((d) => d.id === doc.docType)?.key ?? 'driverDocOther') as any)}
                   </Text>
-                  {doc.fileName ? <Text className="mt-0.5 text-xs text-text-secondary">{doc.fileName}</Text> : null}
+                  {doc.fileName ? <Text className="font-sans mt-0.5 text-[13px] text-text-secondary">{doc.fileName}</Text> : null}
                 </View>
-                <Text className="text-xs font-semibold" style={{ color: STATUS_COLORS[doc.status] }}>{t(STATUS_KEYS[doc.status] as any)}</Text>
+                <Text className="text-[13px] font-semibold" style={{ color: STATUS_COLORS[doc.status] }}>{t(STATUS_KEYS[doc.status] as any)}</Text>
               </View>
             ))}
           </View>
@@ -217,11 +214,11 @@ export default function DriverDocumentsScreen() {
             disabled={!docType || submitting}
           />
           {selectedFile ? (
-            <Text className="text-xs text-text-secondary">
+            <Text className="font-sans text-[13.5px] leading-5 text-text-secondary">
               {selectedFile.name}{selectedFile.size != null ? ` · ${(selectedFile.size / 1024 / 1024).toFixed(1)} MB` : ''}
             </Text>
           ) : null}
-          <Text className="text-xs text-text-secondary">{t('driverUploadFileHint')}</Text>
+          <Text className="font-sans text-[13.5px] leading-5 text-text-secondary">{t('driverUploadFileHint')}</Text>
           {error ? <ErrorMessage message={error} /> : null}
         </View>
 
@@ -234,6 +231,6 @@ export default function DriverDocumentsScreen() {
           />
         </View>
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

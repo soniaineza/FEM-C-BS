@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, TextInput } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 
 import { Button } from '@kimu/shared/components/Button';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { getSavedPlaces, savePlace, deleteSavedPlace } from '../../../services/user-service';
 import { searchLocations } from '@kimu/shared/services/location-service';
@@ -85,11 +84,9 @@ export default function SavedPlacesScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('savedPlaces')} back background="bg-white" backLabel={t('back')}>
       <View className="flex-1 px-6 pt-2">
-        <BackHeader />
         <View className="mt-2 flex-row items-center justify-between">
-          <Text className="text-xl text-ink font-display">{t('savedPlaces')}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={t('addPlace')} onPress={() => setModalOpen(true)}>
             <Text className="font-semibold text-primary">{t('addPlace')}</Text>
           </Pressable>
@@ -97,7 +94,7 @@ export default function SavedPlacesScreen() {
 
         {error && !modalOpen ? (
           <View className="mt-5">
-            <Text className="text-sm text-error">{error}</Text>
+            <Text className="font-sans text-sm text-error">{error}</Text>
             <Button title={t('tryAgain')} variant="outline" onPress={load} />
           </View>
         ) : null}
@@ -105,7 +102,7 @@ export default function SavedPlacesScreen() {
         {!loading && !error && places.length === 0 ? (
           <View className="mt-8 items-center">
             <Text className="text-base font-medium text-ink">{t('noSavedPlaces')}</Text>
-            <Text className="mt-1 text-center text-text-secondary">{t('savePlacesHint')}</Text>
+            <Text className="font-sans mt-1 text-center text-text-secondary">{t('savePlacesHint')}</Text>
           </View>
         ) : (
           <FlatList
@@ -116,10 +113,10 @@ export default function SavedPlacesScreen() {
               <View className="flex-row items-center justify-between border-b border-border py-3">
                 <View className="flex-1">
                   <Text className="text-base font-medium text-ink">{item.name}</Text>
-                  <Text className="text-sm text-text-secondary">{item.place.address}</Text>
+                  <Text className="font-sans text-sm text-text-secondary">{item.place.address}</Text>
                 </View>
                 <Pressable accessibilityRole="button" accessibilityLabel={`${t('deleteTooltip')} ${item.name}`} onPress={() => handleDelete(item.id)}>
-                  <Text className="text-error">{t('deleteTooltip')}</Text>
+                  <Text className="font-sans text-error">{t('deleteTooltip')}</Text>
                 </Pressable>
               </View>
             )}
@@ -146,7 +143,7 @@ export default function SavedPlacesScreen() {
               onChangeText={(value) => { setAddress(value); setSelectedPlace(null); setResults([]); setHasSearched(false); setError(undefined); }}
               accessibilityLabel={t('addressHint')}
             />
-            {searching ? <Text className="mt-2 text-sm text-text-secondary">{t('searching')}</Text> : null}
+            {searching ? <Text className="font-sans mt-2 text-sm text-text-secondary">{t('searching')}</Text> : null}
             {results.length > 0 ? (
               <View className="mt-2 max-h-48 rounded-xl border border-border">
                 {results.slice(0, 5).map((place, index) => (
@@ -156,15 +153,15 @@ export default function SavedPlacesScreen() {
                     onPress={() => { setSelectedPlace(place); setAddress(place.address); setResults([]); setError(undefined); }}
                     className="border-b border-border px-3 py-3"
                   >
-                    <Text numberOfLines={2} className="text-sm text-ink">{place.address}</Text>
+                    <Text numberOfLines={2} className="font-sans text-sm text-ink">{place.address}</Text>
                   </Pressable>
                 ))}
               </View>
             ) : null}
             {hasSearched && results.length === 0 && !selectedPlace && !searching ? (
-              <Text className="mt-2 text-sm text-text-secondary">{t('noLocationsFound')}</Text>
+              <Text className="font-sans mt-2 text-sm text-text-secondary">{t('noLocationsFound')}</Text>
             ) : null}
-            {error ? <Text className="mt-2 text-sm text-error">{error}</Text> : null}
+            {error ? <Text className="font-sans mt-2 text-sm text-error">{error}</Text> : null}
             <View className="mt-4 flex-row gap-3">
               <View className="flex-1">
                 <Button title={t('back')} variant="outline" onPress={() => setModalOpen(false)} />
@@ -177,6 +174,6 @@ export default function SavedPlacesScreen() {
         </View>
         </KeyboardAvoidingView>
       </Modal>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

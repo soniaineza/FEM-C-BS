@@ -1,6 +1,6 @@
 import { useState, memo } from 'react';
 import { View, Text, TextInput, TextInputProps, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useTranslation } from '../hooks/useTranslation';
 
@@ -41,7 +41,7 @@ export const Input = memo(function Input({
           </View>
         ) : null}
         <TextInput
-          className={`h-button w-full rounded border text-base ${
+          className={`font-sans h-button w-full rounded border text-base ${
             dark
               ? 'border-dark-border bg-dark-surface text-dark-text'
               : 'border-border bg-white text-ink'
@@ -67,7 +67,7 @@ export const Input = memo(function Input({
           </Pressable>
         ) : null}
       </View>
-      {error ? <Text className="mt-1 text-xs text-error">{error}</Text> : null}
+      {error ? <Text className="font-sans mt-1 text-xs text-error">{error}</Text> : null}
     </View>
   );
 });

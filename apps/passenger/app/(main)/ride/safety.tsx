@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { View, Text, Pressable, ScrollView } from 'react-native';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
+import { SosButton } from '@kimu/shared/components/SosButton';
+import { CallRow } from '@kimu/shared/components/CallRow';
+import { useAuthStore } from '../../../stores/useAuthStore';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import {
   triggerEmergency,
@@ -15,7 +17,7 @@ import {
   EmergencyResult,
 } from '../../../services/safety-service';
 import { ApiError } from '../../../services/api-client';
-import { shareText } from '../../../utils/share';
+import { shareText } from '@kimu/shared/utils/share';
 
 // Safety screen — SOS now routes to the Kimu Transport call center: the tap
 // records the emergency server-side (auditable trail + control-room
@@ -26,6 +28,11 @@ import { shareText } from '../../../utils/share';
 export default function SafetyScreen() {
   const { t } = useTranslation();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
+  // The contact the rider registered on Trusted Contacts doubles as their SOS
+  // person: in an emergency it is the number they most want one tap away.
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const trustedName = currentUser?.emergencyContactName?.trim();
+  const trustedPhone = currentUser?.emergencyContactPhone?.trim();
 
   const [sosLoading, setSosLoading] = useState(false);
   const [sosError, setSosError] = useState<string | undefined>();
@@ -71,27 +78,25 @@ export default function SafetyScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-4 text-xl text-ink font-display">{t('safety')}</Text>
-        <Text className="mt-2 text-text-secondary">{t('safetyPriority')}</Text>
+    <ScreenShell title={t('safety')} back background="bg-white" backLabel={t('back')}>
+      <ScrollView className="flex-1" contentContainerClassName="px-6 pb-10 pt-2">
+        <Text className="font-sans mt-2 text-text-secondary">{t('safetyPriority')}</Text>
 
         <View className="mt-8 rounded border border-error p-4">
           <Text className="text-base font-semibold text-error">{t('emergencyAssistance')}</Text>
-          <Text className="mt-1 text-xs text-text-secondary">{t('emergencySosHint')}</Text>
+          <Text className="font-sans mt-1 text-xs text-text-secondary">{t('emergencySosHint')}</Text>
           <View className="mt-3">
-            <Button title={t('sos')} onPress={handleSos} loading={sosLoading} className="bg-error" />
+            <SosButton title={t('sos')} onPress={handleSos} loading={sosLoading} />
           </View>
           {sosResult ? (
             <View className="mt-2 flex-row items-center">
               <Ionicons name="call" size={13} color="#0E7C4A" />
-              <Text className="ml-1.5 flex-1 text-xs text-text-secondary">
+              <Text className="font-sans ml-1.5 flex-1 text-xs text-text-secondary">
                 {t('sosSent')} {t('sosReferenceLabel', { reference: sosResult.reference })}
               </Text>
             </View>
           ) : null}
-          {sosError ? <Text className="mt-2 text-xs text-error">{sosError}</Text> : null}
+          {sosError ? <Text className="font-sans mt-2 text-xs text-error">{sosError}</Text> : null}
           {callCenterPhone ? (
             <Pressable
               className="mt-3 flex-row items-center justify-center rounded border border-error py-2.5"
@@ -104,13 +109,33 @@ export default function SafetyScreen() {
         </View>
 
         <View className="mt-4 rounded border border-border p-4">
+          <Text className="text-base font-semibold text-ink">{t('trustedContactSos')}</Text>
+          <Text className="font-sans mt-1 text-xs text-text-secondary">{t('trustedContactSosHint')}</Text>
+          {trustedPhone ? (
+            <CallRow label={trustedName || t('drawerTrustedContacts')} phone={trustedPhone} />
+          ) : (
+            <>
+              <Text className="font-sans mt-2 text-xs text-text-secondary">{t('noTrustedContactYet')}</Text>
+              <Pressable
+                accessibilityRole="button"
+                className="mt-3 min-h-[44px] flex-row items-center justify-center rounded border border-primary py-2.5"
+                onPress={() => router.push('/(main)/settings/trusted-contacts')}
+              >
+                <Ionicons name="person-add-outline" size={16} color="#0E7C4A" />
+                <Text className="ml-2 text-sm font-semibold text-primary">{t('addTrustedContact')}</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+
+        <View className="mt-4 rounded border border-border p-4">
           <Text className="text-base font-semibold text-ink">{t('shareTrip')}</Text>
-          <Text className="mt-1 text-xs text-text-secondary">{t('shareTripHint')}</Text>
+          <Text className="font-sans mt-1 text-xs text-text-secondary">{t('shareTripHint')}</Text>
           <View className="mt-3">
             <Button title={t('shareTripLink')} variant="outline" onPress={handleShareTrip} loading={shareLoading} />
           </View>
         </View>
-      </View>
-    </SafeAreaViewPlaceholder>
+      </ScrollView>
+    </ScreenShell>
   );
 }

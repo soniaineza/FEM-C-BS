@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ActivityIndicator, Pressable } from 'react-native';
 import { router, useIsFocused } from 'expo-router';
 import { goBack } from '@kimu/shared/utils/navigation';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@kimu/shared/components/Button';
@@ -109,12 +109,12 @@ export default function FareEstimateScreen() {
         <View className="mb-3 rounded-2xl border border-border p-3.5">
           <View className="flex-row items-center">
             <View className="h-2.5 w-2.5 rounded-full bg-ink" />
-            <Text className="ml-3 flex-1 text-[13px] text-ink" numberOfLines={1}>{pickup.address}</Text>
+            <Text className="font-sans ml-3 flex-1 text-[13px] text-ink" numberOfLines={1}>{pickup.address}</Text>
           </View>
           <View className="ml-[4px] h-4 w-px bg-border" />
           <View className="flex-row items-center">
             <View className="h-2.5 w-2.5 bg-ink" />
-            <Text className="ml-3 flex-1 text-[13px] text-ink" numberOfLines={1}>{destination.address}</Text>
+            <Text className="font-sans ml-3 flex-1 text-[13px] text-ink" numberOfLines={1}>{destination.address}</Text>
           </View>
         </View>
 
@@ -122,7 +122,7 @@ export default function FareEstimateScreen() {
           <ActivityIndicator className="my-6" color="#0E7C4A" />
         ) : loadError ? (
           <View className="rounded-2xl border border-error/40 bg-error/5 p-4">
-            <Text className="text-sm text-error">{loadError}</Text>
+            <Text className="font-sans text-sm text-error">{loadError}</Text>
             <View className="mt-3 self-start">
               <Button title={t('retryLabel')} variant="outline" onPress={load} />
             </View>
@@ -131,7 +131,7 @@ export default function FareEstimateScreen() {
           <View>
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-[15px] font-bold text-ink">{estimate.vehicle.name}</Text>
-              <Text className="text-[13px] text-text-secondary">
+              <Text className="font-sans text-[13px] text-text-secondary">
                 {estimate.distanceKm.toFixed(1)} km · ~{estimate.durationMinutes} min
                 {eta != null ? ` · ${t('dropoffAt', { time: clockIn(eta + estimate.durationMinutes) })}` : ''}
               </Text>

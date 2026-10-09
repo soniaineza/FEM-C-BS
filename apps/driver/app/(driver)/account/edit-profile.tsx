@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { View, Text } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { goBack } from '@kimu/shared/utils/navigation';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
 import { ErrorMessage } from '@kimu/shared/components/ErrorMessage';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { ApiError } from '../../../services/driver-api-client';
@@ -43,10 +42,8 @@ export default function DriverEditProfileScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('editProfile')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('editProfile')}</Text>
 
         <View className="mt-6 gap-4">
           <Input label={t('fullName')} value={fullName} onChangeText={setFullName} prefixIcon="person-outline" />
@@ -65,6 +62,6 @@ export default function DriverEditProfileScreen() {
           <Button title={t('save')} onPress={handleSave} loading={loading} />
         </View>
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

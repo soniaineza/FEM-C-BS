@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
-import { Ionicons } from '@expo/vector-icons';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
+import { useDrawerStore } from '../../../stores/useDrawerStore';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
@@ -74,9 +75,8 @@ export default function RideHistoryScreen() {
   ];
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
+    <ScreenShell title={t('myRides')} onMenu={() => useDrawerStore.getState().setOpen(true)} menuLabel={t('menu')} background="bg-bg-light">
       <View className="flex-1 px-6 pt-4">
-        <Text className="text-2xl text-ink font-display">{t('myRides')}</Text>
 
         {/* Segmented control: pill background on the active tab, equal flex
             widths so all locales fit without truncation on 320px screens. */}
@@ -104,7 +104,7 @@ export default function RideHistoryScreen() {
           <ActivityIndicator className="mt-8" color="#0E7C4A" />
         ) : error ? (
           <View className="mt-8 items-center">
-            <Text className="text-center text-text-secondary">{error}</Text>
+            <Text className="font-sans text-center text-text-secondary">{error}</Text>
             <View className="mt-4 min-w-[160px]">
               <Button title={t('tryAgain')} variant="outline" onPress={load} />
             </View>
@@ -115,7 +115,7 @@ export default function RideHistoryScreen() {
               <Ionicons name={section.icon} size={30} color="#0E7C4A" />
             </View>
             <Text className="mt-4 text-base font-semibold text-ink">{t(section.title)}</Text>
-            <Text className="mt-1 px-8 text-center text-sm text-text-secondary">{t(section.hint)}</Text>
+            <Text className="font-sans mt-1 px-8 text-center text-sm text-text-secondary">{t(section.hint)}</Text>
           </View>
         ) : (
           <FlatList
@@ -126,7 +126,7 @@ export default function RideHistoryScreen() {
           />
         )}
       </View>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }
 
@@ -172,7 +172,7 @@ function RideCard({ ride }: { ride: Ride }) {
       <View className="mt-3">
         <View className="flex-row items-center">
           <View className="h-2 w-2 rounded-full bg-primary" />
-          <Text numberOfLines={1} className="ml-2.5 flex-1 text-[13px] text-text-secondary">
+          <Text numberOfLines={1} className="font-sans ml-2.5 flex-1 text-[13px] text-text-secondary">
             {ride.pickup.address}
           </Text>
         </View>
@@ -186,7 +186,7 @@ function RideCard({ ride }: { ride: Ride }) {
       </View>
 
       <View className="mt-3 flex-row items-center justify-between border-t border-border pt-3">
-        <Text className="text-xs text-text-secondary">
+        <Text className="font-sans text-xs text-text-secondary">
           {t(ride.rideType === 'shared' ? 'shareRide' : 'privateRide')}
         </Text>
         <Text className="font-semibold text-primary">

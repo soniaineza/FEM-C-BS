@@ -11,7 +11,7 @@ const { signDriverToken } = require('../utils/jwt');
 const { requireDriverAuth, requireAuth } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimit');
 const { haversineKm } = require('../utils/distance');
-const { confirmCashPayment } = require('../services/payments');
+const { confirmCashPayment, createPaymentForRide } = require('../services/payments');
 const { eligibleDriverSql } = require('../services/driverKyc');
 const {
   authenticateDriver,
@@ -23,7 +23,9 @@ const {
   declineRide,
   markArrived,
   verifyPin,
+  startTrip,
   completeTrip,
+  chargeRide,
   cancelRideAsDriver,
   changeDestinationAsDriver,
 } = require('../services/rideDriverOps');
@@ -232,20 +234,37 @@ active.post(
   })
 );
 
-// POST /api/drivers/rides/:id/complete-trip — ends the trip, creates payment.
+// POST /api/drivers/rides/:id/start — the rider has paired (scanned the QR),
+// so the ride is pinVerified; the driver taps Start to begin the trip.
+active.post(
+  '/rides/:id/start',
+  asyncHandler(async (req, res) => {
+    await startTrip(req.driverId, req.params.id);
+    res.json({ started: true });
+  })
+);
+
+// POST /api/drivers/rides/:id/complete-trip — ends the trip; the fare is now
+// collected separately (the driver sends the MoMo prompt or confirms cash).
 active.post(
   '/rides/:id/complete-trip',
   asyncHandler(async (req, res) => {
-    const { ride, payment } = await completeTrip(req.driverId, req.params.id);
+    const { ride } = await completeTrip(req.driverId, req.params.id);
+    res.json({ ride: rideToJson(ride) });
+  })
+);
+
+// POST /api/drivers/rides/:id/charge { phone } — the driver types the
+// passenger's mobile-money number; this sends the MTN/Airtel prompt to it.
+active.post(
+  '/rides/:id/charge',
+  asyncHandler(async (req, res) => {
+    const { phone } = req.body || {};
+    if (!phone) throw new ApiError(400, "Enter the passenger's mobile money number.");
+    const { payment, method } = await chargeRide(req.driverId, req.params.id, phone);
     res.json({
-      ride: rideToJson(ride),
-      payment: {
-        id: payment.id,
-        amount: Number(payment.amount),
-        method: payment.method,
-        status: payment.status,
-        state: payment.state,
-      },
+      method,
+      payment: { id: payment.id, amount: Number(payment.amount), method: payment.method, status: payment.status, state: payment.state },
     });
   })
 );
@@ -258,8 +277,20 @@ active.post('/rides/:id/confirm-cash', asyncHandler(async (req, res) => {
         AND p.method = 'cash' ORDER BY p.created_at DESC LIMIT 1`,
     [req.params.id, req.driverId]
   );
-  if (!rows[0]) throw new ApiError(404, 'Cash payment awaiting this driver was not found.');
-  const payment = await confirmCashPayment(rows[0]);
+  let cashPayment = rows[0];
+  if (!cashPayment) {
+    // The driver chose cash at the collect-the-fare step, so no payment was
+    // created yet — make the cash one now, then confirm it.
+    const { rows: rideRows } = await getPool().query(
+      "SELECT * FROM rides WHERE id = $1 AND driver_id = $2 AND status = 'paymentPending'",
+      [req.params.id, req.driverId]
+    );
+    if (!rideRows[0]) throw new ApiError(404, 'No ride awaiting payment for this driver.');
+    await getPool().query("UPDATE rides SET payment_method = 'cash' WHERE id = $1", [req.params.id]);
+    const { rows: fresh } = await getPool().query('SELECT * FROM rides WHERE id = $1', [req.params.id]);
+    cashPayment = await createPaymentForRide(fresh[0]);
+  }
+  const payment = await confirmCashPayment(cashPayment);
   // A late confirmation closes the operator's case for this ride.
   await getPool().query(
     `UPDATE payment_exceptions SET status='resolved', resolution='driver_confirmed', resolved_at=now()

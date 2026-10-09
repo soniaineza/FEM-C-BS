@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '@kimu/shared/components/Button';
 import { BrandMark } from '@kimu/shared/components/BrandMark';
@@ -43,7 +43,7 @@ export default function LanguageScreen() {
           <Text className="mt-8 text-center text-2xl text-ink font-display">
             {t('chooseYourLanguage')}
           </Text>
-          <Text className="mt-2 text-center text-text-secondary">{t('chooseLanguageHint')}</Text>
+          <Text className="font-sans mt-2 text-center text-text-secondary">{t('chooseLanguageHint')}</Text>
 
           <View className="mt-8 gap-3">
             {OPTIONS.map(({ locale: l, flag }) => {
@@ -62,7 +62,7 @@ export default function LanguageScreen() {
                     backgroundColor: active ? 'rgba(14,124,74,0.06)' : '#fff',
                   }}
                 >
-                  <Text style={{ fontSize: 26 }}>{flag}</Text>
+                  <Text className="font-sans" style={{ fontSize: 26 }}>{flag}</Text>
                   <Text className="ml-3.5 flex-1 text-base font-semibold text-ink">
                     {languageNames[l]}
                   </Text>

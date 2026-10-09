@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { goBack } from '@kimu/shared/utils/navigation';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
 import { ErrorMessage } from '@kimu/shared/components/ErrorMessage';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { resetPassword, confirmResetPassword } from '../../services/auth-service';
 import { validators } from '@kimu/shared/utils/validators';
@@ -41,7 +40,6 @@ export default function ForgotPasswordScreen() {
       setLoading(false);
     }
   }
-
   async function handleConfirm() {
     const passwordError = validators.password(newPassword, t('passwordHint'));
     const confirmError = validators.confirmPassword(confirmPassword, newPassword);
@@ -58,16 +56,13 @@ export default function ForgotPasswordScreen() {
       setLoading(false);
     }
   }
-
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('forgotPassword')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
         <View className="w-full max-w-[440px] self-center">
-        <BackHeader />
         {stage === 'request' && (
           <>
-            <Text className="text-2xl text-ink font-display">{t('forgotPassword')}</Text>
-            <Text className="mt-1 text-text-secondary">{t('forgotPasswordDescription')}</Text>
+            <Text className="font-sans mt-1 text-text-secondary">{t('forgotPasswordDescription')}</Text>
             <View className="mt-6 gap-4">
               <Input
                 label={t('emailOrPhone')}
@@ -83,14 +78,13 @@ export default function ForgotPasswordScreen() {
             </View>
           </>
         )}
-
         {stage === 'confirm' && (
           <>
             <View className="items-center">
               <Ionicons name="mail-open-outline" size={56} color="#0E7C4A" />
             </View>
             <Text className="mt-4 text-2xl text-ink font-display">{t('codeArrivalHint')}</Text>
-            <Text className="mt-2 leading-relaxed text-text-secondary">{t('checkPhoneOrEmail')}</Text>
+            <Text className="font-sans mt-2 leading-relaxed text-text-secondary">{t('checkPhoneOrEmail')}</Text>
             {devCode ? (
               <View className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
                 <Text className="text-center font-bold tracking-widest text-primary">
@@ -128,7 +122,6 @@ export default function ForgotPasswordScreen() {
             </View>
           </>
         )}
-
         {stage === 'done' && (
           <>
             <View className="items-center pt-6">
@@ -139,8 +132,6 @@ export default function ForgotPasswordScreen() {
               <Button
                 title={t('backToLogin')}
                 icon="arrow-back-outline"
-                // Login is already underneath this screen: go back to it
-                // instead of stacking a second login screen.
                 onPress={() => goBack('/(auth)/login')}
               />
             </View>
@@ -149,11 +140,11 @@ export default function ForgotPasswordScreen() {
 
         {stage !== 'done' && (
           <Pressable className="mt-6 items-center" onPress={() => goBack()}>
-            <Text className="text-primary">{t('backToLogin')}</Text>
+            <Text className="font-sans text-primary">{t('backToLogin')}</Text>
           </Pressable>
         )}
         </View>
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

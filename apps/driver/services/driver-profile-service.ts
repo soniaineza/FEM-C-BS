@@ -206,3 +206,45 @@ export async function reportDriverEmergency(params: {
   const json = await driverApiClient.post<{ emergency: EmergencyResult }>('/driver/emergency', params);
   return json.emergency;
 }
+
+export interface DriverTripShare {
+  token: string;
+  expiresAt: string;
+  url: string;
+}
+
+// The share page is served from the same origin as the API (see
+// server/src/index.js), so the link is derived from the configured base URL
+// rather than hardcoded to one deployment.
+function apiOrigin(): string {
+  const base = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api';
+  return new URL(base).origin;
+}
+
+/** A live link the driver can send to someone they trust for this trip. */
+export async function createDriverTripShare(rideId: string): Promise<DriverTripShare> {
+  const json = await driverApiClient.post<{ share: { token: string; expires_at: string } }>(
+    '/driver/share',
+    { rideId }
+  );
+  return {
+    token: json.share.token,
+    expiresAt: json.share.expires_at,
+    url: `${apiOrigin()}/share/${json.share.token}`,
+  };
+}
+
+export type IncidentCategory = 'unsafe_passenger' | 'threat' | 'damage' | 'accident' | 'other';
+
+/** A safety report about a trip, read by an operator. */
+export async function reportDriverIncident(params: {
+  rideId?: string;
+  category: IncidentCategory;
+  details?: string;
+}): Promise<{ id: string; status: string }> {
+  const json = await driverApiClient.post<{ report: { id: string; status: string } }>(
+    '/driver/incidents',
+    params
+  );
+  return json.report;
+}

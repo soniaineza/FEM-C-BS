@@ -18,7 +18,12 @@ interface AuthState {
   devCode: string | null;
   hydrate: () => Promise<void>;
   signUp: (params: { fullName: string; phone: string; email: string; password: string }) => Promise<void>;
-  logIn: (params: { identifier: string; password: string }) => Promise<Passenger>;
+  logIn: (params: { identifier: string; password: string; remember?: boolean }) => Promise<Passenger>;
+  // A verified rider (WhatsApp code / Google with a verified phone) becomes
+  // the current user; one still missing a verified phone (fresh Google) is
+  // held as pending so the (auth) stack keeps them on the add-phone step.
+  applyAuthResult: (passenger: Passenger) => void;
+  setPending: (passenger: Passenger | null) => void;
   verifyOtp: (code: string) => Promise<void>;
   resendOtp: (purpose?: string) => Promise<void>;
   updateProfile: (passenger: Passenger) => Promise<Passenger>;
@@ -54,6 +59,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       otpDeliveryFailed: !passenger.isVerified && otpSent === false });
     return passenger;
   },
+
+  applyAuthResult: (passenger) => {
+    set({
+      currentUser: passenger.isVerified ? passenger : null,
+      pendingPassenger: passenger.isVerified ? null : passenger,
+      otpDeliveryFailed: false,
+      devCode: null,
+    });
+  },
+
+  setPending: (passenger) => set({ pendingPassenger: passenger }),
 
   verifyOtp: async (code: string) => {
     const pending = get().pendingPassenger;

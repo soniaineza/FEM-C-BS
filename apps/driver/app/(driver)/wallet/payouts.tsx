@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
 import { ErrorMessage } from '@kimu/shared/components/ErrorMessage';
@@ -118,16 +117,14 @@ export default function DriverPayoutsScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('driverPayouts')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('driverPayouts')}</Text>
 
         {loading ? (
           <ActivityIndicator className="mt-8" color="#0E7C4A" />
         ) : error || !balance ? (
           <View className="mt-8 gap-4">
-            <Text className="text-center text-error">{error ?? t('requestFailed')}</Text>
+            <Text className="font-sans text-center text-error">{error ?? t('requestFailed')}</Text>
             <Button title={t('tryAgain')} variant="outline" onPress={load} />
           </View>
         ) : (
@@ -136,7 +133,7 @@ export default function DriverPayoutsScreen() {
               <View className="mt-4 rounded-2xl border border-error/40 bg-error/5 p-4">
                 <Text className="text-xs font-medium text-text-secondary">{t(balance.driverShareRate ? 'driverCommissionOwed' : 'driverCashToRemit')}</Text>
                 <Text className="mt-1 text-2xl font-bold text-error">{formatFare(Math.ceil(balance.owed))}</Text>
-                <Text className="mt-1 text-xs text-text-secondary">
+                <Text className="font-sans mt-1 text-xs text-text-secondary">
                   {t(balance.blocked ? 'driverCommissionBlocked' : balance.driverShareRate ? 'driverCommissionOwedHint' : 'driverCashToRemitHint', { limit: formatFare(balance.debtLimit) })}
                 </Text>
                 <View className="mt-3">
@@ -147,7 +144,7 @@ export default function DriverPayoutsScreen() {
               <View className="mt-4 rounded-2xl border border-border bg-white p-4">
                 <Text className="text-xs font-medium text-text-secondary">{t('driverAvailableBalance')}</Text>
                 <Text className="mt-1 text-2xl font-bold text-primary">{formatFare(Math.floor(balance.available))}</Text>
-                <Text className="mt-1 text-xs text-text-secondary">
+                <Text className="font-sans mt-1 text-xs text-text-secondary">
                   {payoutInProgress
                     ? t('driverPayoutInProgress')
                     : t('driverPayoutHint', { min: formatFare(balance.minPayout) })}
@@ -184,14 +181,14 @@ export default function DriverPayoutsScreen() {
 
             <Text className="mt-7 text-base font-bold text-ink">{t('driverPayoutHistory')}</Text>
             {payouts.length === 0 ? (
-              <Text className="mt-3 text-text-secondary">{t('driverNoPayoutsYet')}</Text>
+              <Text className="font-sans mt-3 text-text-secondary">{t('driverNoPayoutsYet')}</Text>
             ) : (
               <View className="mt-3">
                 {payouts.map((item) => (
                   <View key={item.id} className="mb-3 flex-row items-center justify-between rounded-xl border border-border p-4">
                     <View className="flex-1 pr-3">
                       <Text className="text-base font-semibold text-ink">{formatFare(item.amountReceived ?? item.amount)}</Text>
-                      <Text className="mt-0.5 text-xs text-text-secondary">
+                      <Text className="font-sans mt-0.5 text-xs text-text-secondary">
                         {new Date(item.createdAt).toLocaleDateString()}
                         {item.phone ? ` · ${item.phone}` : ''}
                         {item.fee ? ` · ${t('driverPayoutFee')} ${formatFare(item.fee)}` : ''}
@@ -207,7 +204,7 @@ export default function DriverPayoutsScreen() {
           </>
         )}
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }
 

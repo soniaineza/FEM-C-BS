@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { router } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import {
   submitDriverSupportRequest,
@@ -85,11 +84,9 @@ export default function DriverSupportScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('helpSupportTitle')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('helpSupportTitle')}</Text>
-        <Text className="mt-1 text-text-secondary">{t('helpIntro')}</Text>
+        <Text className="font-sans mt-1 text-text-secondary">{t('helpIntro')}</Text>
 
         {contacts?.whatsappNumber ? (
           <View className="mt-4">
@@ -98,12 +95,12 @@ export default function DriverSupportScreen() {
         ) : null}
         {contacts?.email ? (
           <Pressable className="mt-3" onPress={() => openEmailSupport(contacts.email!)}>
-            <Text className="text-primary">{t('contactSupport')}</Text>
+            <Text className="font-sans text-primary">{t('contactSupport')}</Text>
           </Pressable>
         ) : null}
 
         {sent ? (
-          <Text className="mt-6 text-primary">{t('messageSentConfirmation')}</Text>
+          <Text className="font-sans mt-6 text-primary">{t('messageSentConfirmation')}</Text>
         ) : (
           <View className="mt-6">
             <Text className="text-sm font-medium text-ink">{t('tellUsWhatHappened')}</Text>
@@ -122,7 +119,7 @@ export default function DriverSupportScreen() {
             <View className="mt-4 gap-3">
               <Input label={t('subject')} value={subject} onChangeText={setSubject} />
               <Input label={t('describeIssueHint')} value={message} onChangeText={setMessage} multiline numberOfLines={4} />
-              {error ? <Text className="text-sm text-error">{error}</Text> : null}
+              {error ? <Text className="font-sans text-sm text-error">{error}</Text> : null}
             </View>
 
             <View className="mt-4">
@@ -140,13 +137,13 @@ export default function DriverSupportScreen() {
                 className="mt-2 flex-row items-center justify-between border-b border-border py-3"
                 onPress={() => router.push({ pathname: '/(driver)/account/support/[ticketId]', params: { ticketId: ticket.id } } as any)}
               >
-                <Text className="flex-1 text-ink">{ticket.subject}</Text>
-                <Text className="text-xs text-text-secondary">{t(statusKey(ticket.status) as any)}</Text>
+                <Text className="font-sans flex-1 text-ink">{ticket.subject}</Text>
+                <Text className="font-sans text-xs text-text-secondary">{t(statusKey(ticket.status) as any)}</Text>
               </Pressable>
             ))}
           </>
         ) : null}
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

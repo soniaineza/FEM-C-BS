@@ -1,8 +1,9 @@
 import { Tabs } from 'expo-router';
 
-import { KimuBottomNavigation } from '@kimu/shared/components/KimuBottomNavigation';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 
+// Navigation lives in the side menu (KimuDrawer), not a bottom bar, so the tab
+// bar is hidden — these screens are just the drawer's destinations.
 export default function TabsLayout() {
   const { t } = useTranslation();
 
@@ -12,7 +13,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarShowLabel: false,
       }}
-      tabBar={(props) => <KimuBottomNavigation {...props} />}
+      tabBar={() => null}
     >
       <Tabs.Screen name="index" options={{ title: t('home') }} />
       <Tabs.Screen name="wallet" options={{ title: t('wallet') }} />

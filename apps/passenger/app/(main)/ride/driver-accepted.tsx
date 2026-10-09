@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
-import { View, Text, Pressable, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, Linking, ActivityIndicator, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '@kimu/shared/components/Button';
+import { LiveMap } from '@kimu/shared/components/map/LiveMap';
 import { MapSheet } from '../../../components/map/MapSheet';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
-import { useMapScene } from '../../../hooks/useMapScene';
 import { useTripMap } from '../../../hooks/useTripMap';
 import { cancelRide } from '../../../services/ride-service';
 
@@ -20,13 +20,14 @@ export default function DriverAcceptedScreen() {
   const { ride, driverLocation, serverTimeOffsetMs } = useRideTracking(rideId ?? null);
   usePassengerLocationReporting(!!ride);
   const { scene, etaMinutes } = useTripMap(ride, driverLocation, serverTimeOffsetMs, PADDING);
-  useMapScene(scene);
+  // Map rendered in-screen so the rider can pan/zoom to see the driver coming.
 
   useEffect(() => {
     if (ride && (ride.status === 'pinVerified' || ride.status === 'inProgress' || ride.status === 'arrived' || ride.status === 'paymentPending')) {
       router.replace({ pathname: '/(main)/ride/tracking', params: { rideId: ride.id } });
     }
-    if (ride && ride.status === 'cancelled') {
+    // The trip is over: there is nothing to come back to on this screen.
+    if (ride && (ride.status === 'cancelled' || ride.status === 'completed')) {
       router.replace('/(main)/(tabs)');
     }
   }, [ride]);
@@ -36,7 +37,7 @@ export default function DriverAcceptedScreen() {
       <MapSheet collapsible={false}>
         <View className="flex-row items-center py-4">
           <ActivityIndicator color="#0E7C4A" />
-          <Text className="ml-3 text-text-secondary">{t('waitingDriver')}</Text>
+          <Text className="font-sans ml-3 text-text-secondary">{t('waitingDriver')}</Text>
         </View>
       </MapSheet>
     );
@@ -49,13 +50,18 @@ export default function DriverAcceptedScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      <View style={StyleSheet.absoluteFill}>
+        {scene && scene.camera ? (
+          <LiveMap scene={{ ...scene, camera: scene.camera, interactive: true }} loadingLabel={t('mapLoading')} errorLabel={t('mapError')} retryLabel={t('tryAgain')} />
+        ) : null}
+      </View>
       <MapSheet
         header={
           <View className="mb-3">
             <Text className="text-xl font-bold text-ink">
               {arrived ? t('driverHere') : etaMinutes != null ? t('driverArrivingIn', { minutes: etaMinutes }) : t('driverOnWay')}
             </Text>
-            <Text className="mt-0.5 text-[13px] text-text-secondary" numberOfLines={1}>{ride.pickup.address}</Text>
+            <Text className="font-sans mt-0.5 text-[13px] text-text-secondary" numberOfLines={1}>{ride.pickup.address}</Text>
           </View>
         }
         footer={
@@ -67,7 +73,7 @@ export default function DriverAcceptedScreen() {
           </View>
         }
       >
-        {!driverLocation ? <Text className="mb-3 text-sm text-error">{t('driverLocationUnavailable')}</Text> : null}
+        {!driverLocation ? <Text className="font-sans mb-3 text-sm text-error">{t('driverLocationUnavailable')}</Text> : null}
         <View className="flex-row items-center rounded-2xl border border-border p-3.5">
           <View className="h-12 w-12 items-center justify-center rounded-full bg-ink">
             <Text className="text-base font-bold text-white">{initials}</Text>
@@ -76,7 +82,7 @@ export default function DriverAcceptedScreen() {
             <Text className="text-base font-bold text-ink">{driver.name}</Text>
             <View className="mt-0.5 flex-row items-center">
               <Ionicons name="star" size={13} color="#111" />
-              <Text className="ml-1 text-[13px] text-text-secondary">
+              <Text className="font-sans ml-1 text-[13px] text-text-secondary">
                 {driver.rating > 0 ? driver.rating.toFixed(1) : t('driverNoRatingYet')}
                 {vehicleSummary ? ` · ${vehicleSummary}` : ''}
               </Text>
@@ -108,13 +114,18 @@ export default function DriverAcceptedScreen() {
           </Pressable>
         </View>
 
-        {ride.pin ? (
-          <View className="mt-3 flex-row items-center justify-between rounded-2xl bg-primary/10 px-4 py-3">
-            <View className="flex-1 pr-3">
-              <Text className="text-[13px] font-semibold text-ink">{t('shareYourPin')}</Text>
-              <Text className="mt-0.5 text-xs text-text-secondary">{t('pinHint')}</Text>
-            </View>
-            <Text className="text-2xl font-bold tracking-[6px] text-ink">{ride.pin}</Text>
+        {arrived ? (
+          <View className="mt-3">
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push({ pathname: '/(main)/ride/pair', params: { rideId: ride.id } })}
+              className="h-button w-full flex-row items-center justify-center rounded bg-primary active:opacity-90"
+              style={{ shadowColor: '#0E7C4A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
+            >
+              <Ionicons name="qr-code-outline" size={20} color="#fff" />
+              <Text className="ml-2.5 text-base font-semibold text-white">{t('pairRideButton')}</Text>
+            </Pressable>
+            <Text className="font-sans mt-2 text-center text-xs text-text-secondary">{t('pairRideCardHint')}</Text>
           </View>
         ) : null}
       </MapSheet>

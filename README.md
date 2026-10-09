@@ -39,6 +39,24 @@ rider app.
 
 ## Build the apps
 
+### APKs on this machine (no EAS)
+
+```
+bash scripts/build-apks.sh            # both apps; or: bash scripts/build-apks.sh driver
+```
+
+Before each release raise `expo.android.versionCode` in the app's `app.json`
+(phones refuse to install a lower code over a higher one; the rider app's
+earlier EAS builds reached code 12, so it now starts at 21).
+
+Needs the Android SDK and JDK 17. It writes `build/apk/kimu-<app>-<abi>-release.apk`:
+`arm64-v8a` for phones from about 2016 on, `armeabi-v7a` for older ones, and a
+larger `universal` APK that installs on any phone. Release builds are shrunk
+(R8, resource shrinking, compressed JS bundle; see `expo-build-properties` in
+each `app.json`).
+
+### With EAS
+
 Each app is its own EAS project. From the app's folder:
 
 ```

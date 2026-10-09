@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 import { memo } from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 // Direct port of the repeated _MenuTile/_SettingsTile pattern in
 // profile_screen.dart / settings_screen.dart: a white bordered row, icon +
@@ -25,7 +25,7 @@ export const MenuTile = memo(function MenuTile({
     >
       <Ionicons name={icon} size={20} color={destructive ? '#DC2626' : '#6B7280'} />
       <Text className={`ml-3 flex-1 text-[14.5px] font-semibold ${destructive ? 'text-error' : 'text-ink'}`}>{label}</Text>
-      {trailing ? <Text className="mr-1.5 text-[13.5px] text-text-secondary">{trailing}</Text> : null}
+      {trailing ? <Text className="font-sans mr-1.5 text-[13.5px] text-text-secondary">{trailing}</Text> : null}
       <Ionicons name="chevron-forward" size={20} color="#6B7280" />
     </Pressable>
   );

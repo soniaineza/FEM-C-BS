@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
-import { router, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect, useIsFocused } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { Button } from '@kimu/shared/components/Button';
+import { DriverTopBar } from '../../../components/driver/DriverTopBar';
 import { getDriverEarningsSummary, getDriverEarningsHistory } from '../../../services/driver-profile-service';
 import { DriverEarningEntry, DriverEarningsSummary } from '../../../types/driver';
 import { formatFare } from '@kimu/shared/types/ride';
@@ -27,6 +29,7 @@ function earningStatusKey(status: string): string {
 // commission happen on the payouts screen.
 export default function DriverWalletScreen() {
   const { t } = useTranslation();
+  const isFocused = useIsFocused();
   const [summary, setSummary] = useState<DriverEarningsSummary | null>(null);
   const [history, setHistory] = useState<DriverEarningEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,20 +58,21 @@ export default function DriverWalletScreen() {
   const shown = (bucket?: { amount: number; fares: number }) => (noShare ? bucket?.fares : bucket?.amount) ?? 0;
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
-      <View className="px-5 pb-3 pt-4">
-        <Text className="text-xl text-ink font-display">{t('wallet')}</Text>
-      </View>
+    <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['left', 'right']}>
+      {isFocused ? <StatusBar style="light" /> : null}
+      <DriverTopBar title={t('wallet')} />
 
       {loading ? (
-        <ActivityIndicator className="mt-8" color="#0E7C4A" />
+        <View className="flex-1 bg-bg-light">
+          <ActivityIndicator className="mt-8" color="#0E7C4A" />
+        </View>
       ) : error ? (
-        <View className="mt-8 gap-4 px-5">
-          <Text className="text-center text-error">{error}</Text>
+        <View className="flex-1 gap-4 bg-bg-light px-5 pt-8">
+          <Text className="font-sans text-center text-error">{error}</Text>
           <Button title={t('tryAgain')} variant="outline" onPress={load} />
         </View>
       ) : (
-        <ScrollView contentContainerClassName="px-5 pb-8">
+        <ScrollView className="flex-1 bg-bg-light" contentContainerClassName="px-5 pb-8 pt-4">
           <View
             className="rounded-2xl bg-primary p-5"
             style={{ shadowColor: '#0E7C4A', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 }}
@@ -108,14 +112,14 @@ export default function DriverWalletScreen() {
 
           <Text className="mt-6 text-base font-bold text-ink">{t(noShare ? 'driverRecentFares' : 'driverRecentEarnings')}</Text>
           {history.length === 0 ? (
-            <Text className="mt-3 text-sm text-text-secondary">{t('driverNoEarningsYet')}</Text>
+            <Text className="font-sans mt-3 text-sm text-text-secondary">{t('driverNoEarningsYet')}</Text>
           ) : (
             <View className="mt-3 gap-2.5">
               {history.map((entry) => (
                 <View key={entry.id} className="flex-row items-center justify-between rounded-xl border border-border bg-white p-3.5">
                   <View className="flex-1 pr-3">
                     <Text numberOfLines={1} className="text-[13.5px] font-semibold text-ink">{entry.destAddress}</Text>
-                    <Text className="mt-0.5 text-xs text-text-secondary">
+                    <Text className="font-sans mt-0.5 text-xs text-text-secondary">
                       {entry.distanceKm.toFixed(1)} km · {entry.paymentMethod} · {t(earningStatusKey(entry.status) as any)}
                     </Text>
                   </View>
@@ -136,7 +140,7 @@ function SummaryCard({ label, amount, rides }: { label: string; amount: number; 
     <View className="flex-1 rounded-2xl border border-border bg-white p-4">
       <Text className="text-xs font-medium text-text-secondary">{label}</Text>
       <Text className="mt-1 text-base font-bold text-ink">{formatFare(amount)}</Text>
-      <Text className="mt-0.5 text-[11px] text-text-secondary">{t('driverTripsCount', { count: rides })}</Text>
+      <Text className="font-sans mt-0.5 text-[11px] text-text-secondary">{t('driverTripsCount', { count: rides })}</Text>
     </View>
   );
 }

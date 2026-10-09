@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { DefaultTheme, Stack, ThemeProvider, usePathname } from 'expo-router';
 import { MapStage } from '../../components/map/MapStage';
+import { KimuDrawer } from '../../components/KimuDrawer';
 import { usePushRegistration } from '../../hooks/usePushRegistration';
 import { useLocationPermission } from '../../hooks/useLocationPermission';
 import { useLocationPermissionStore } from '@kimu/shared/stores/useLocationPermissionStore';
@@ -43,6 +44,8 @@ export default function MainLayout() {
           ))}
         </Stack>
       </ThemeProvider>
+      {/* The side menu (replaces the bottom tab bar), opened by the hamburger. */}
+      <KimuDrawer />
     </View>
   );
 }

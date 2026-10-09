@@ -15,10 +15,18 @@
     "test:wallet": "node test/wallet-flow.js",
     "test:money": "node test/driver-money.js",
     "test:maps": "node --test test/maps.test.js",
+    "test:otp-whatsapp": "node --test test/otp-whatsapp.test.js",
     "test:otp": "node test/otp-demo.js",
+    "test:google-auth": "node --test test/google-auth.test.js",
+    "test:google-flow": "node test/google-auth-flow.js",
+    "test:whatsapp-login": "node test/whatsapp-login-flow.js",
+    "test:email-login": "node test/email-login-flow.js",
+    "otp:send-test": "node scripts/send-test-otp.js",
     "test:readiness": "node test/production-readiness.js",
     "test:invariants": "node test/invariants.js",
-    "test:places": "node test/jev-place-search.js"
+    "test:places": "node test/jev-place-search.js",
+    "test:pair-ride": "node test/pair-ride-flow.js",
+    "test:payment-collect": "node test/payment-collect-flow.js"
   },
   "engines": {
     "node": ">=18"
@@ -31,6 +39,7 @@
     "express-rate-limit": "^7.4.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.4.0",
+    "nodemailer": "^10.0.16",
     "pg": "^8.13.1"
   }
 }

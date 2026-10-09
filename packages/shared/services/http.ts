@@ -27,7 +27,7 @@ const REQUEST_TIMEOUT_MS = 45_000;
 function translatedError(kind: 'unreachable' | 'timeout' | 'failed', status?: number): ApiError {
   const key = kind === 'timeout' ? 'networkTimeout' : kind === 'unreachable' ? 'networkUnreachable' : 'requestFailed';
   // Read the locale straight off the zustand store (works outside React;
-  // defaults to 'rw' before hydration, same as the UI's initial render).
+  // defaults to 'en' before hydration, same as the UI's initial render).
   const locale = useLocaleStore.getState().locale;
   return new ApiError(tFor(locale, key), status);
 }

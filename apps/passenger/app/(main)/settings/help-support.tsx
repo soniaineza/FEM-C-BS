@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { router } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { submitRequest, getTickets } from '../../../services/support-service';
 import { SUPPORT_CATEGORY_IDS, SupportTicket } from '@kimu/shared/types/support';
@@ -57,11 +56,9 @@ export default function HelpSupportScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('helpSupportTitle')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('helpSupportTitle')}</Text>
-        <Text className="mt-1 text-text-secondary">{t('helpIntro')}</Text>
+        <Text className="font-sans mt-1 text-text-secondary">{t('helpIntro')}</Text>
 
         {contacts?.whatsappNumber ? (
           <View className="mt-4">
@@ -70,12 +67,12 @@ export default function HelpSupportScreen() {
         ) : null}
         {contacts?.email ? (
           <Pressable className="mt-3" onPress={() => openEmailSupport(contacts.email!)}>
-            <Text className="text-primary">{t('contactSupport')}</Text>
+            <Text className="font-sans text-primary">{t('contactSupport')}</Text>
           </Pressable>
         ) : null}
 
         {sent ? (
-          <Text className="mt-6 text-primary">{t('messageSentConfirmation')}</Text>
+          <Text className="font-sans mt-6 text-primary">{t('messageSentConfirmation')}</Text>
         ) : (
           <View className="mt-6">
             <Text className="text-sm font-medium text-ink">{t('tellUsWhatHappened')}</Text>
@@ -100,7 +97,7 @@ export default function HelpSupportScreen() {
                 multiline
                 numberOfLines={4}
               />
-              {error ? <Text className="text-sm text-error">{error}</Text> : null}
+              {error ? <Text className="font-sans text-sm text-error">{error}</Text> : null}
             </View>
 
             <View className="mt-4">
@@ -119,8 +116,8 @@ export default function HelpSupportScreen() {
                 className="mt-2 flex-row items-center justify-between border-b border-border py-3"
                 onPress={() => router.push({ pathname: '/(main)/settings/support/[ticketId]', params: { ticketId: ticket.id } })}
               >
-                <Text className="flex-1 text-ink">{ticket.subject}</Text>
-                <Text className="text-xs text-text-secondary">{ticket.status}</Text>
+                <Text className="font-sans flex-1 text-ink">{ticket.subject}</Text>
+                <Text className="font-sans text-xs text-text-secondary">{ticket.status}</Text>
               </Pressable>
             ))}
           </>
@@ -130,10 +127,10 @@ export default function HelpSupportScreen() {
         {FAQ_KEYS.map(([q, a]) => (
           <View key={q} className="mt-3">
             <Text className="text-sm font-semibold text-ink">{t(q)}</Text>
-            <Text className="mt-1 text-sm text-text-secondary">{t(a)}</Text>
+            <Text className="font-sans mt-1 text-sm text-text-secondary">{t(a)}</Text>
           </View>
         ))}
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

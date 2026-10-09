@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 import { memo } from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Place } from '../types/place';
 
@@ -36,7 +36,7 @@ export const TripRouteCard = memo(function TripRouteCard({
           <Ionicons name="resize-outline" size={16} color="#6B7280" />
           <Text className="mt-1 text-[13px] font-bold text-ink">{distanceKm.toFixed(1)} km</Text>
           {durationMinutes != null ? (
-            <Text className="mt-1.5 text-xs text-text-secondary">~{durationMinutes} min</Text>
+            <Text className="font-sans mt-1.5 text-xs text-text-secondary">~{durationMinutes} min</Text>
           ) : null}
         </View>
       ) : null}

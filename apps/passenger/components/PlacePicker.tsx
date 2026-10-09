@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { goBack } from '@kimu/shared/utils/navigation';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -301,12 +301,12 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
 
         {showList ? (
           <View style={[styles.results, { maxHeight: windowHeight * 0.5 }]}>
-            {query.trim().length < 2 ? <Text style={styles.resultsTitle}>{t('recentDestinations')}</Text> : null}
+            {query.trim().length < 2 ? <Text className="font-sans" style={styles.resultsTitle}>{t('recentDestinations')}</Text> : null}
             <ScrollView keyboardShouldPersistTaps="handled">
               {list.map((place, i) => (
                 <Pressable key={`${place.address}-${i}`} onPress={() => chooseResult(place)} style={styles.resultRow}>
                   <Ionicons name={query.trim().length < 2 ? 'time-outline' : 'location-outline'} size={18} color={KimuColors.textSecondary} />
-                  <Text numberOfLines={2} style={styles.resultText}>{place.address}</Text>
+                  <Text className="font-sans" numberOfLines={2} style={styles.resultText}>{place.address}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -331,7 +331,7 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
         collapsible={false}
         onHeightChange={setSheetHeight}
         header={
-          <Text style={styles.sheetTitle}>{mode === 'pickup' ? t('setPickup') : t('chooseDestination')}</Text>
+          <Text className="font-sans" style={styles.sheetTitle}>{mode === 'pickup' ? t('setPickup') : t('chooseDestination')}</Text>
         }
         footer={
           <Button
@@ -343,11 +343,11 @@ export function PlacePicker({ mode, initial, fallback, onConfirm }: PlacePickerP
       >
         <View style={styles.addressRow}>
           <View style={[styles.addressIcon, mode === 'destination' && styles.addressIconSquare]} />
-          <Text numberOfLines={2} style={styles.addressText}>
+          <Text className="font-sans" numberOfLines={2} style={styles.addressText}>
             {moving ? t('movePinHint') : resolving || !candidate ? t('findingAddress') : candidate.address}
           </Text>
         </View>
-        {gpsError ? <Text style={styles.error}>{gpsError}</Text> : null}
+        {gpsError ? <Text className="font-sans" style={styles.error}>{gpsError}</Text> : null}
       </MapSheet>
     </View>
   );

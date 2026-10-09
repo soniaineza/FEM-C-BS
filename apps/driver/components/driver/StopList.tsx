@@ -1,5 +1,5 @@
 import { View, Text, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { DriverStop } from '../../services/driver-service';
@@ -46,7 +46,7 @@ export function StopList({
                   {stop.seats > 1 ? ` · ${t('seatsLabel', { count: stop.seats })}` : ''}
                 </Text>
               </View>
-              <Text className="mt-0.5 text-xs text-text-secondary" numberOfLines={1}>{stop.address}</Text>
+              <Text className="font-sans mt-0.5 text-xs text-text-secondary" numberOfLines={1}>{stop.address}</Text>
             </View>
             <Text className="ml-2 text-xs font-semibold text-text-secondary">{stop.etaMinutes} {t('minutesShort')}</Text>
           </Pressable>

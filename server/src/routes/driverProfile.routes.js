@@ -695,6 +695,51 @@ router.post('/support/:id/messages', asyncHandler(async (req, res) => {
 // EMERGENCY / SOS
 // ============================================================
 
+// POST /api/driver/share { rideId } — a live link the driver can send to
+// someone they trust, so a family member can follow the trip they are on.
+// Mirrors the passenger-side /api/share: read-only tracking, no payment or
+// account data, and it expires on its own.
+router.post('/share', asyncHandler(async (req, res) => {
+  const { rideId } = req.body || {};
+  if (!rideId) throw new ApiError(400, 'rideId is required.');
+  const { rows } = await getPool().query(
+    'SELECT id, status FROM rides WHERE id = $1 AND driver_id = $2',
+    [rideId, req.driverId]
+  );
+  const ride = rows[0];
+  if (!ride) throw new ApiError(404, 'Ride not found.');
+  if (['completed', 'cancelled'].includes(ride.status)) {
+    throw new ApiError(400, 'Only active rides can be shared.');
+  }
+
+  const token = crypto.randomBytes(12).toString('hex');
+  const expiresAt = new Date(Date.now() + config.tripShareTtlHours * 60 * 60 * 1000).toISOString();
+  const { rows: shareRows } = await getPool().query(
+    `INSERT INTO trip_shares (token, ride_id, passenger_id, driver_id, expires_at)
+     VALUES ($1, $2, NULL, $3, $4) RETURNING token, expires_at, created_at`,
+    [token, ride.id, req.driverId, expiresAt]
+  );
+  res.status(201).json({ share: shareRows[0] });
+}));
+
+// POST /api/driver/incidents { rideId?, category, details? } — a safety
+// report about a trip. Kept out of the support-ticket queue so a safety
+// matter is never sat behind a billing question.
+router.post('/incidents', asyncHandler(async (req, res) => {
+  const { rideId, category, details } = req.body || {};
+  if (!category || typeof category !== 'string') throw new ApiError(400, 'category is required.');
+  if (rideId) {
+    const ride = await getPool().query('SELECT id FROM rides WHERE id=$1 AND driver_id=$2', [rideId, req.driverId]);
+    if (!ride.rows[0]) throw new ApiError(404, 'Ride not found.');
+  }
+  const { rows } = await getPool().query(
+    `INSERT INTO driver_incident_reports (driver_id, ride_id, category, details)
+     VALUES ($1, $2, $3, $4) RETURNING id, category, status, created_at`,
+    [req.driverId, rideId || null, category.slice(0, 64), (details || '').slice(0, 2000) || null]
+  );
+  res.status(201).json({ report: rows[0] });
+}));
+
 // POST /api/driver/emergency — driver SOS. Same shape as the passenger one
 // (server/src/routes/emergency.routes.js): event recorded for the call
 // center's audit trail, and the response carries the call-center number the

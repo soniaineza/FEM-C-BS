@@ -66,6 +66,7 @@
       <button data-tab="drivers" aria-pressed="true">Drivers to approve</button>
       <button data-tab="cases" aria-pressed="false">Payment cases</button>
       <button data-tab="sos" aria-pressed="false">Emergencies</button>
+      <button data-tab="integrations" aria-pressed="false">Integrations</button>
       <button id="reload">Refresh</button>
     </nav>
     <p id="status" class="muted" role="status"></p>
@@ -267,10 +268,62 @@
     });
   }
 
+  // ---- integrations (Google login, verification codes) ----
+  function renderIntegrations(data) {
+    var list = $('list');
+    var g = data.google || {};
+    var card = el('div', null, 'card');
+    card.appendChild(el('h2', 'Google login'));
+    card.appendChild(el('p', g.enabled ? 'Connected — the rider app shows "Continue with Google".' : 'Not configured — the rider app hides the Google button until the keys are set.', 'tag ' + (g.enabled ? 'ok' : 'wait')));
+    card.appendChild(el('p', 'Client ID: ' + (g.clientId || 'not set'), 'muted'));
+    card.appendChild(el('p', 'Authorized redirect URI to register in the Google Cloud console: ' + (g.redirectUri || 'not available — set PUBLIC_URL on the server'), 'muted'));
+    card.appendChild(el('p', 'The app returns through ' + g.appReturnUrl + (g.webReturnUrl ? ' (phones) and ' + g.webReturnUrl + ' (web)' : '') + '.', 'muted'));
+    card.appendChild(el('p', 'To enable: create a "Web application" OAuth client in the Google Cloud console with that redirect URI, then set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the server environment and restart. Nothing in the apps needs to change.', 'muted'));
+    list.appendChild(card);
+
+    var o = data.otp || {};
+    var wa = o.whatsapp || {};
+    var sms = o.sms || {};
+    var otp = el('div', null, 'card');
+    otp.appendChild(el('h2', 'Verification codes (OTP)'));
+    var line;
+    if (wa.active) line = ['WhatsApp: connected — codes go to WhatsApp' + (sms.configured ? ', with SMS (' + sms.provider + ') as the fallback.' : '. No SMS fallback.'), 'ok'];
+    else if (o.channel === 'whatsapp') line = ['WhatsApp: selected but not configured — set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID.', 'wait'];
+    else line = ['WhatsApp: off (OTP_CHANNEL=sms).' + (sms.configured ? ' Codes go by SMS through ' + sms.provider + '.' : ''), sms.configured ? 'ok' : 'wait'];
+    otp.appendChild(el('p', line[0], 'tag ' + line[1]));
+    otp.appendChild(el('p', 'Template ' + (wa.template || '—') + ' · language ' + (wa.language || '—') + ' · phone number ID ' + (wa.phoneNumberId || 'not set') + ' · Graph API ' + (wa.apiVersion || '—'), 'muted'));
+    if (!o.ready) otp.appendChild(el('p', 'No delivery channel is configured: riders cannot receive codes on this server.', 'error'));
+    var label = el('label', 'Send yourself a test code (international format)');
+    label.htmlFor = 'testPhone';
+    var input = el('input');
+    input.id = 'testPhone';
+    input.type = 'tel';
+    input.placeholder = '+2507XXXXXXXX';
+    input.autocomplete = 'tel';
+    var row = el('div', null, 'row');
+    var send = button('Send test code', 'primary', function () {
+      var phone = input.value.trim();
+      if (!phone) { setStatus('Enter a phone number first.'); return; }
+      send.disabled = true;
+      setStatus('Sending…');
+      call('POST', '/integrations/otp/test', { phone: phone })
+        .then(function (r) { setStatus(r.message); })
+        .catch(function (err) { setStatus('Not sent: ' + err.message); })
+        .finally(function () { send.disabled = false; });
+    });
+    row.appendChild(send);
+    otp.appendChild(label);
+    otp.appendChild(input);
+    otp.appendChild(row);
+    list.appendChild(otp);
+  }
+
   var TABS = {
     drivers: { path: '/drivers?verified=false', render: renderDrivers },
     cases: { path: '/payment-exceptions', render: renderCases },
     sos: { path: '/emergencies', render: renderSos },
+    // Static settings and a form: no automatic refresh (it would wipe the input).
+    integrations: { path: '/integrations', render: renderIntegrations, noRefresh: true },
   };
 
   function load() {
@@ -290,7 +343,7 @@
 
   function scheduleRefresh() {
     stopRefresh();
-    if (!token() || document.hidden) return;
+    if (!token() || document.hidden || TABS[tab].noRefresh) return;
     refreshTimer = setTimeout(function () {
       refreshTimer = null;
       load().catch(function () {});

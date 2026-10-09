@@ -409,6 +409,17 @@ async function generateRidePin(rideId) {
   return pin;
 }
 
+// Characters a rider can read off a screen without confusion (no 0/O/1/I).
+const PAIR_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/** Generates the Pair Ride code the driver shows as a QR at arrival. */
+async function generatePairCode(rideId) {
+  let code = '';
+  for (let i = 0; i < 8; i += 1) code += PAIR_ALPHABET[crypto.randomInt(0, PAIR_ALPHABET.length)];
+  await getPool().query('UPDATE rides SET pair_code = $1 WHERE id = $2', [code, rideId]);
+  return code;
+}
+
 async function rateRide(passengerId, rideId, rating, comment) {
   const value = Number(rating);
   if (!Number.isInteger(value) || value < 1 || value > 5) {
@@ -460,6 +471,7 @@ module.exports = {
   cancelRide,
   changeDestination,
   generateRidePin,
+  generatePairCode,
   rateRide,
   activateScheduledRide,
   matchAndAssign,

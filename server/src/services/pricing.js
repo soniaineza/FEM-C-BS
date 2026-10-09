@@ -6,24 +6,15 @@ const { getFareRoute, getTravelTimes, estimateSeconds } = require('./routing');
 const { eligibleDriverSql } = require('./driverKyc');
 const { MAX_ADDED_MINUTES } = require('./poolPlanner');
 
-// Upfront, server-authoritative pricing in the style of Uber's upfront fares:
-//
-//   subtotal = base + perKm * roadKm + perMinute * roadMinutes
-//   fare     = max(minimumFare, subtotal * surge) + bookingFee
-//   shared   = fare * 0.7 (a second seat adds 25% of that)
-//   rounded UP to the nearest 100 RWF
-//
-// Distance and duration come from the real road route (OSRM), not the
-// straight line. Surge reflects local demand vs available cars around the
-// pickup. A quote is locked for QUOTE_TTL_MS so the price shown is the price
-// charged, even if surge moves while the rider decides.
 
 const SHARED_FACTOR = 0.7;
-// A shared booking may take a second seat. It is priced well under two
-// fares so two people sharing still pay less than a private car.
+
 const MAX_SHARED_SEATS = 2;
 const SHARED_EXTRA_SEAT_FACTOR = 1.25;
-const ROUND_TO = 100;
+// Whole francs. This used to round up to the nearest 100, which quietly broke
+// the published tariff: a true 1 km + 4 km trip is 1800 + 4x1080 = 6120, and
+// rounding served 6200. The fare table is what the rider is charged.
+const ROUND_TO = 1;
 const SURGE_RADIUS_KM = 3;
 const MAX_SURGE = 2.0;
 const QUOTE_TTL_MS = 5 * 60 * 1000;
@@ -105,10 +96,33 @@ async function pickupEtas(point) {
   return etas;
 }
 
+/**
+ * Distance money under Kimu's published tariff, which is tiered rather than
+ * one flat rate per km:
+ *   - the base fare already covers the first `included_km`
+ *   - every km from there up to `long_distance_km` costs `fare_per_km`
+ *   - every km beyond that costs `fare_per_km_long`
+ *
+ * A class with no tier columns set falls back to the flat rate, so an
+ * operator-added vehicle still prices sensibly.
+ */
+function distanceFareFor(vehicle, distanceKm) {
+  const includedKm = Number(vehicle.included_km || 0);
+  const nearRate = Number(vehicle.fare_per_km || 0);
+  const longFromKm = vehicle.long_distance_km == null ? Infinity : Number(vehicle.long_distance_km);
+  const farRate = vehicle.fare_per_km_long == null ? nearRate : Number(vehicle.fare_per_km_long);
+
+  // Kilometres in the normal band, then the long-distance band. Both clamp at
+  // zero so a trip shorter than the included distance costs only the base.
+  const nearKm = Math.max(0, Math.min(distanceKm, longFromKm) - includedKm);
+  const farKm = Math.max(0, distanceKm - Math.max(longFromKm, includedKm));
+  return nearKm * nearRate + farKm * farRate;
+}
+
 /** Itemised fare for one vehicle class over a known road route. */
 function priceFor(vehicle, { distanceKm, durationMinutes }, rideType, surge, seats = 1) {
   const base = Number(vehicle.base_fare);
-  const distanceFare = distanceKm * Number(vehicle.fare_per_km);
+  const distanceFare = distanceFareFor(vehicle, distanceKm);
   const timeFare = durationMinutes * Number(vehicle.per_minute || 0);
   const bookingFee = Number(vehicle.booking_fee || 0);
   const minimumFare = Number(vehicle.min_fare || 0);
@@ -132,14 +146,41 @@ function priceFor(vehicle, { distanceKm, durationMinutes }, rideType, surge, sea
     minimumApplied,
     sharedDiscountPercent: rideType === 'shared' ? Math.round((1 - SHARED_FACTOR) * 100) : 0,
     seats,
+    // The published rates this fare was built from, so a receipt can be
+    // checked against the fare table without another lookup.
+    tariff: tariffOf(vehicle),
     total: rounded,
   };
 }
 
-function routeSummary(route) {
+/** The published fare table for one vehicle class, as the apps display it. */
+function tariffOf(vehicle) {
   return {
-    distanceKm: Math.round((route.distanceMeters / 1000) * 100) / 100,
-    durationMinutes: Math.max(1, Math.round(route.durationSeconds / 60)),
+    currency: 'RWF',
+    baseFare: Math.round(Number(vehicle.base_fare || 0)),
+    includedKm: Number(vehicle.included_km || 0),
+    perKm: Math.round(Number(vehicle.fare_per_km || 0)),
+    longDistanceKm: vehicle.long_distance_km == null ? null : Number(vehicle.long_distance_km),
+    perKmLong: vehicle.fare_per_km_long == null ? null : Math.round(Number(vehicle.fare_per_km_long)),
+    // Published so riders know the policy. Nothing measures waiting time yet,
+    // so no waiting money is ever added to a fare.
+    waitingFee: vehicle.waiting_fee == null ? null : Math.round(Number(vehicle.waiting_fee)),
+    waitingFeeMinutes: vehicle.waiting_fee_minutes == null ? null : Number(vehicle.waiting_fee_minutes),
+    freeWaitingMinutes: vehicle.free_waiting_minutes == null ? null : Number(vehicle.free_waiting_minutes),
+  };
+}
+
+function routeSummary(route) {
+  const distanceKm = Math.round((route.distanceMeters / 1000) * 100) / 100;
+  const providerMinutes = Math.round(route.durationSeconds / 60);
+  // Keep the ETA in step with the distance. A realistic Kigali city pace is
+  // about 22 km/h (~2.7 min per km), so the shown minutes never drop below
+  // that even when a provider returns an optimistic free-flow duration — the
+  // minutes always track the kilometres.
+  const cityPaceMinutes = Math.round((distanceKm / 22) * 60);
+  return {
+    distanceKm,
+    durationMinutes: Math.max(1, providerMinutes, cityPaceMinutes),
   };
 }
 
@@ -231,4 +272,4 @@ async function fareForRide(vehicle, pickup, destination, rideType, quoteId, seat
   return { ...trip, fare: priceFor(vehicle, trip, rideType, surge.multiplier, seats), locked: false };
 }
 
-module.exports = { quoteTrip, fareForRide, priceFor, surgeAt, roundUp, normalizeSeats, QUOTE_TTL_MS };
+module.exports = { quoteTrip, fareForRide, priceFor, distanceFareFor, tariffOf, surgeAt, roundUp, normalizeSeats, QUOTE_TTL_MS };

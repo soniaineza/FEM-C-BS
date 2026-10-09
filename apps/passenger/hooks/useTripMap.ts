@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { MapCar, MapPadding, MapScene } from '@kimu/shared/components/map/map-types';
 import { distanceM, projectOnRoute } from '@kimu/shared/components/map/trackInterpolation';
-import { CAR_COLOR_NAMES } from '@kimu/shared/components/map/carModel';
+import { CAR_COLOR_NAMES } from '@kimu/shared/components/map/carColors';
 import { getRoute } from '@kimu/shared/services/location-service';
 import type { DriverLocation } from '../services/ride-service';
 import type { Ride } from '@kimu/shared/types/ride';

@@ -11,6 +11,9 @@ function passengerToJson(row) {
     emergencyContactPhone: row.emergency_contact_phone,
     isProfileComplete: row.is_profile_complete,
     isVerified: Boolean(row.verified_at),
+    // How this rider can sign in: a Google-only account has no password yet.
+    hasPassword: Boolean(row.password_hash),
+    googleLinked: Boolean(row.google_sub),
   };
 }
 
@@ -23,6 +26,16 @@ function vehicleToJson(row) {
     baseFare: Number(row.base_fare),
     farePerKm: Number(row.fare_per_km),
     etaMinutes: row.eta_minutes,
+    // Kimu's published tariff: the base covers the first includedKm, then
+    // farePerKm applies up to longDistanceKm and farePerKmLong beyond it.
+    // Waiting is published for information only — nothing measures waiting
+    // time, so no waiting money is added to a fare.
+    includedKm: row.included_km == null ? null : Number(row.included_km),
+    longDistanceKm: row.long_distance_km == null ? null : Number(row.long_distance_km),
+    farePerKmLong: row.fare_per_km_long == null ? null : Number(row.fare_per_km_long),
+    waitingFee: row.waiting_fee == null ? null : Number(row.waiting_fee),
+    waitingFeeMinutes: row.waiting_fee_minutes == null ? null : Number(row.waiting_fee_minutes),
+    freeWaitingMinutes: row.free_waiting_minutes == null ? null : Number(row.free_waiting_minutes),
   };
 }
 
@@ -126,6 +139,9 @@ function rideToJson(row, { passengerView = false } = {}) {
     // The trip PIN is a passenger-held secret. Driver routes use the default
     // view, including when they SELECT r.* from the rides table.
     pin: passengerView ? row.ride_pin || null : null,
+    // The Pair Ride code is the mirror image: the driver shows it as a QR, the
+    // rider scans it. Only the driver's view carries it.
+    pairCode: passengerView ? null : row.pair_code || null,
     cancellationReason: row.cancellation_reason || null,
     cancelledBy: row.cancelled_by || null,
     scheduledFor: row.scheduled_for || null,

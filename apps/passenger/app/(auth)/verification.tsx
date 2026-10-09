@@ -80,12 +80,12 @@ export default function VerificationScreen() {
       >
         <View className="w-full max-w-[440px] self-center">
           <Text className="text-center text-2xl text-ink font-display">{t('verifyAccount')}</Text>
-          <Text className="mt-2 text-center leading-relaxed text-text-secondary">
+          <Text className="font-sans mt-2 text-center leading-relaxed text-text-secondary">
             {t('verificationCodeSent')}
           </Text>
           {otpDeliveryFailed ? (
             <View className="mt-4 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3">
-              <Text className="text-center text-sm text-danger">{t('otpDeliveryFailed')}</Text>
+              <Text className="font-sans text-center text-sm text-danger">{t('otpDeliveryFailed')}</Text>
             </View>
           ) : null}
 

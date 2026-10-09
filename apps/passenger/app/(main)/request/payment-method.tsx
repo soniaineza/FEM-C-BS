@@ -1,16 +1,17 @@
+import { useEffect } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { router } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
 import { getBookablePaymentMethods } from '../../../services/ride-service';
 import { PaymentMethod } from '@kimu/shared/types/payment';
 import { useAuthStore } from '../../../stores/useAuthStore';
+import { usePaymentPrefStore } from '../../../stores/usePaymentPrefStore';
 
 export default function PaymentMethodScreen() {
   const { t } = useTranslation();
@@ -19,9 +20,30 @@ export default function PaymentMethodScreen() {
   const paymentPhone = useRideWizardStore((s) => s.paymentPhone);
   const setPaymentPhone = useRideWizardStore((s) => s.setPaymentPhone);
   const accountPhone = useAuthStore((s) => s.currentUser?.phone ?? '');
+  const defaultId = usePaymentPrefStore((s) => s.defaultId);
+  const hydratePref = usePaymentPrefStore((s) => s.hydrate);
+  const prefHydrated = usePaymentPrefStore((s) => s.isHydrated);
 
   // Only methods the backend can actually charge (no 'card' placeholder).
   const methods = getBookablePaymentMethods();
+
+  useEffect(() => {
+    hydratePref();
+  }, [hydratePref]);
+
+  // The method starred on the Payments screen is pre-selected on a new
+  // booking, so the rider only taps here when paying a different way.
+  useEffect(() => {
+    // Wait for the saved default to load, or the starting value would be
+    // locked in before the rider's own choice is even read.
+    if (!prefHydrated || paymentMethod) return;
+    const preferred = methods.find((m) => m.id === defaultId);
+    if (!preferred) return;
+    setPaymentMethod(preferred);
+    if (preferred.type === 'mobileMoney' && !paymentPhone) setPaymentPhone(accountPhone);
+    // Methods are a constant list, so only the saved default drives this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultId, prefHydrated, paymentMethod]);
 
   function choose(method: PaymentMethod) {
     setPaymentMethod(method);
@@ -34,10 +56,8 @@ export default function PaymentMethodScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('paymentMethod')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2">
-        <BackHeader />
-        <Text className="mt-1 text-xl text-ink font-display">{t('paymentMethod')}</Text>
 
         <View className="mt-4">
           {methods.map((item) => {
@@ -68,7 +88,7 @@ export default function PaymentMethodScreen() {
               placeholder="07XXXXXXXX"
               prefixIcon="call-outline"
             />
-            <Text className="mt-1.5 text-xs text-text-secondary">{t('paymentPhoneHint')}</Text>
+            <Text className="font-sans mt-1.5 text-xs text-text-secondary">{t('paymentPhoneHint')}</Text>
           </View>
         ) : null}
 
@@ -76,6 +96,6 @@ export default function PaymentMethodScreen() {
           <Button title={t('continueLabel')} onPress={proceed} disabled={!paymentMethod} />
         </View>
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

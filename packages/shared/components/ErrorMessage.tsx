@@ -1,6 +1,6 @@
 import { View, Text, Pressable } from 'react-native';
 import { memo } from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 // Direct port of lib/widgets/error_message.dart: a tinted banner (6%-opacity
 // red fill, 30%-opacity red border) with an error icon, used for every
@@ -28,7 +28,7 @@ export const ErrorMessage = memo(function ErrorMessage({
       }
     >
       <Ionicons name="alert-circle-outline" color="#DC2626" size={20} />
-      <Text className={`ml-2.5 flex-1 text-[13.5px] leading-5 ${dark ? 'text-dark-text' : 'text-ink'}`}>{message}</Text>
+      <Text className={`font-sans ml-2.5 flex-1 text-[13.5px] leading-5 ${dark ? 'text-dark-text' : 'text-ink'}`}>{message}</Text>
       {retryLabel && onRetry ? (
         <Pressable onPress={onRetry}>
           <Text className="ml-2 font-semibold text-primary">{retryLabel}</Text>

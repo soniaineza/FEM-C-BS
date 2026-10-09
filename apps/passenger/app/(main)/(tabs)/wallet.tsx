@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, Pressable } from 'react-native';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
-import { Ionicons } from '@expo/vector-icons';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
+import { useDrawerStore } from '../../../stores/useDrawerStore';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
@@ -31,9 +32,8 @@ export default function WalletScreen() {
   useFocusEffect(load);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
+    <ScreenShell title={t('wallet')} onMenu={() => useDrawerStore.getState().setOpen(true)} menuLabel={t('menu')} background="bg-bg-light">
       <View className="px-5 pt-4">
-        <Text className="text-xl text-ink font-display">{t('wallet')}</Text>
 
         <View
           className="mt-4 rounded-2xl bg-primary p-5"
@@ -61,7 +61,7 @@ export default function WalletScreen() {
         {!loading && error ? (
           <View className="mt-10 items-center">
             <Ionicons name="cloud-offline-outline" size={40} color="#6B7280" />
-            <Text className="mt-3 text-center text-text-secondary">{error}</Text>
+            <Text className="font-sans mt-3 text-center text-text-secondary">{error}</Text>
             <View className="mt-4 min-w-[160px]">
               <Button title={t('tryAgain')} variant="outline" onPress={load} />
             </View>
@@ -69,7 +69,7 @@ export default function WalletScreen() {
         ) : !loading && (wallet?.transactions.length ?? 0) === 0 ? (
           <View className="mt-10 items-center">
             <Ionicons name="receipt-outline" size={40} color="#6B7280" />
-            <Text className="mt-3 text-text-secondary">{t('walletTransactionsEmpty')}</Text>
+            <Text className="font-sans mt-3 text-text-secondary">{t('walletTransactionsEmpty')}</Text>
           </View>
         ) : (
           <FlatList
@@ -79,7 +79,7 @@ export default function WalletScreen() {
           />
         )}
       </View>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }
 
@@ -94,7 +94,7 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
       />
       <View className="ml-3 flex-1">
         <Text className="text-[14px] font-semibold capitalize text-ink">{transaction.source.replace(/_/g, ' ')}</Text>
-        <Text className="text-xs text-text-secondary">{new Date(transaction.createdAt).toLocaleDateString()}</Text>
+        <Text className="font-sans text-xs text-text-secondary">{new Date(transaction.createdAt).toLocaleDateString()}</Text>
       </View>
       <Text className={`text-base font-bold ${isCredit ? 'text-primary' : 'text-error'}`}>
         {isCredit ? '+' : '-'}

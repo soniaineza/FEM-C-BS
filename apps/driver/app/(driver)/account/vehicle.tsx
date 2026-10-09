@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { goBack } from '@kimu/shared/utils/navigation';
 
 import { Button } from '@kimu/shared/components/Button';
@@ -88,10 +89,8 @@ export default function DriverVehicleScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('driverYourVehicle')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('driverYourVehicle')}</Text>
 
         <View className="mt-6 gap-4">
           <Input label={t('driverMake')} value={make} onChangeText={setMake} prefixIcon="car-outline" />
@@ -107,6 +106,6 @@ export default function DriverVehicleScreen() {
           <Button title={t('save')} onPress={handleSave} loading={saving} />
         </View>
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

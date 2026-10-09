@@ -1,10 +1,12 @@
 import { View, Text, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
 import { MenuTile } from '@kimu/shared/components/MenuTile';
 import { SectionTitle } from '@kimu/shared/components/SectionTitle';
+import { DriverTopBar } from '../../../components/driver/DriverTopBar';
 import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 
@@ -19,21 +21,22 @@ function initialsFor(name: string): string {
 // screenshot's bottom tab bar: Home / My Rides / Wallet / More).
 export default function DriverMoreScreen() {
   const { t } = useTranslation();
+  const isFocused = useIsFocused();
   const currentDriver = useDriverAuthStore((s) => s.currentDriver);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerClassName="px-5 pb-6 pt-6">
-        <Text className="text-xl text-ink font-display">{t('account')}</Text>
-
-        <View className="mt-4 flex-row items-center rounded-2xl border border-border bg-white p-4">
+    <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['left', 'right']}>
+      {isFocused ? <StatusBar style="light" /> : null}
+      <DriverTopBar title={t('account')} />
+      <ScrollView className="flex-1 bg-bg-light" contentContainerClassName="px-5 pb-6 pt-5">
+        <View className="flex-row items-center rounded-2xl border border-border bg-white p-4">
           <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
             <Text className="text-xl font-bold text-primary">{initialsFor(currentDriver?.fullName ?? '')}</Text>
           </View>
           <View className="ml-3.5 flex-1">
             <Text className="text-[17px] font-bold text-ink">{currentDriver?.fullName || t('driver')}</Text>
-            <Text className="text-[13.5px] text-text-secondary">{currentDriver?.phone}</Text>
-            <Text className="mt-0.5 text-[13.5px] text-text-secondary">
+            <Text className="font-sans text-[13.5px] text-text-secondary">{currentDriver?.phone}</Text>
+            <Text className="font-sans mt-0.5 text-[13.5px] text-text-secondary">
               {currentDriver?.rating != null ? (
                 <>
                   <Ionicons name="star" size={13} color="#F97316" /> {currentDriver.rating.toFixed(1)}
@@ -41,7 +44,7 @@ export default function DriverMoreScreen() {
               ) : (
                 t('driverNoRatingYet')
               )}{' '}
-              <Text className="text-text-secondary">·</Text> {t('driverTripsCount', { count: currentDriver?.totalTrips ?? 0 })}
+              <Text className="font-sans text-text-secondary">·</Text> {t('driverTripsCount', { count: currentDriver?.totalTrips ?? 0 })}
             </Text>
           </View>
         </View>
@@ -49,7 +52,7 @@ export default function DriverMoreScreen() {
         {!currentDriver?.verified ? (
           <View className="mt-3 rounded-xl border border-warning bg-white p-3.5">
             <Text className="text-xs font-semibold text-warning">{t('driverVerificationPending')}</Text>
-            <Text className="mt-0.5 text-xs text-text-secondary">{t('driverUploadDocumentsHint')}</Text>
+            <Text className="font-sans mt-0.5 text-xs text-text-secondary">{t('driverUploadDocumentsHint')}</Text>
           </View>
         ) : null}
 

@@ -26,7 +26,7 @@ export default function DriverWelcomeScreen() {
       <SafeAreaViewPlaceholder className="flex-1">
         <View className="px-6 pt-5">
           <Text className="text-2xl font-bold text-white" style={{ letterSpacing: -0.5 }}>
-            Kimu <Text className="text-white/80">Drive</Text>
+            Kimu <Text className="font-sans text-white/80">Drive</Text>
           </Text>
           <View className="mt-2 h-[3px] w-9 rounded-full bg-accent" />
         </View>
@@ -34,7 +34,7 @@ export default function DriverWelcomeScreen() {
         <View className="flex-1 justify-center px-6">
           <View className="w-full max-w-[440px] self-center">
             <Text className="text-center text-[32px] leading-tight text-white font-display">{t('driverTagline')}</Text>
-            <Text className="mt-3 text-center text-base leading-relaxed text-white/80">{t('driverTaglineSub')}</Text>
+            <Text className="font-sans mt-3 text-center text-base leading-relaxed text-white/80">{t('driverTaglineSub')}</Text>
 
             <Pressable
               accessibilityRole="button"

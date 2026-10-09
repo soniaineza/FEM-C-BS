@@ -102,16 +102,21 @@ export async function verifyDriverRidePin(rideId: string, pin: string): Promise<
   await driverApiClient.post(`/drivers/rides/${rideId}/verify-pin`, { pin });
 }
 
-export interface CompleteTripResult {
-  ride: Ride;
-  payment: { id: string; amount: number; method: string; status: string; state: string };
+// Pair Ride: once the rider has scanned the driver's QR (ride is pinVerified),
+// the driver taps Start to begin the trip.
+export async function startDriverTrip(rideId: string): Promise<void> {
+  await driverApiClient.post(`/drivers/rides/${rideId}/start`);
 }
 
-export async function completeDriverTrip(rideId: string): Promise<CompleteTripResult> {
-  const json = await driverApiClient.post<{ ride: any; payment: CompleteTripResult['payment'] }>(
-    `/drivers/rides/${rideId}/complete-trip`
-  );
-  return { ride: await resolveOne(json.ride), payment: json.payment };
+export async function completeDriverTrip(rideId: string): Promise<{ ride: Ride }> {
+  const json = await driverApiClient.post<{ ride: any }>(`/drivers/rides/${rideId}/complete-trip`);
+  return { ride: await resolveOne(json.ride) };
+}
+
+// The driver types the passenger's mobile-money number; the server sends the
+// MTN/Airtel prompt to it for the passenger to approve.
+export async function chargeDriverRide(rideId: string, phone: string): Promise<{ method: string; payment: { status: string } }> {
+  return driverApiClient.post(`/drivers/rides/${rideId}/charge`, { phone });
 }
 
 export async function cancelDriverRide(rideId: string, reason?: string): Promise<Ride> {

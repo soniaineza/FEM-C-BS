@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch, Modal } from 'react-native';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StatusBar } from 'expo-status-bar';
 
 import { Button } from '@kimu/shared/components/Button';
+import { DriverTopBar } from '../../../components/driver/DriverTopBar';
 import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
 import { useDriverActiveRide } from '../../../hooks/useDriverActiveRide';
+import { useOnlineSince } from '../../../hooks/useOnlineSince';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { setDriverStatus, acceptDriverRide, declineDriverRide } from '../../../services/driver-service';
-import { getDriverEarningsSummary } from '../../../services/driver-profile-service';
+import { getDriverEarningsSummary, getDriverEarningsHistory } from '../../../services/driver-profile-service';
 import { driverCanGoActive, DriverEarningsSummary } from '../../../types/driver';
 import { formatFare } from '@kimu/shared/types/ride';
 import { ApiError } from '../../../services/driver-api-client';
 
 const OFFER_COUNTDOWN_SECONDS = 20;
+
+type IconName = keyof typeof Ionicons.glyphMap;
 
 function initialsFor(name: string): string {
   const trimmed = name.trim();
@@ -24,24 +28,27 @@ function initialsFor(name: string): string {
   return trimmed.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 }
 
-function greetingKey(): 'driverGoodMorning' | 'driverGoodAfternoon' | 'driverGoodEvening' {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'driverGoodMorning';
-  if (hour < 18) return 'driverGoodAfternoon';
-  return 'driverGoodEvening';
+// Hermes ships a trimmed Intl, and Kinyarwanda has no date format there, so a
+// bad locale falls back rather than throwing on the driver's home screen.
+function todayLabel(locale: string): string {
+  const now = new Date();
+  try {
+    return now.toLocaleDateString(locale === 'rw' ? 'en-GB' : locale, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return now.toDateString();
+  }
 }
 
-// Driver Home — matches the reference driver-home screenshot: green banner
-// (brand mark + profile badge), a greeting card with online status pill, a
-// three-stat row (active rides / rating / today's earnings), and a
-// full-width "Go Online" / "Go Offline" action. The offer overlay and
-// trip-in-progress banner replace the screenshot's "Private Ride / Share
-// Ride" shortcut cards, which don't apply to a driver's own home screen
-// (those exist verbatim on the passenger side already) — see the migration
-// report for that call.
+// Driver home, in the shape of the reference driver app: the shift status and
+// its toggle on top, the two things a driver actually starts from here, then
+// the day's takings along the bottom. Navigation lives in the side drawer.
 export default function DriverHomeScreen() {
   const isFocused = useIsFocused();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   // Bottom sheets render inside a transparent full-screen Modal, which gets
   // no SafeArea automatically — the OfferOverlay pads its own bottom edge by
   // the device's system inset so Accept/Decline never sit behind the gesture
@@ -53,14 +60,22 @@ export default function DriverHomeScreen() {
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [toggleError, setToggleError] = useState<string | undefined>();
   const isOnline = currentDriver?.status === 'active' || currentDriver?.status === 'busy';
+  const minutesOnline = useOnlineSince(isOnline);
 
   const { rides, primaryRide } = useDriverActiveRide(!!currentDriver);
 
   const [summary, setSummary] = useState<DriverEarningsSummary | null>(null);
+  const [lastTripAmount, setLastTripAmount] = useState<number | null>(null);
   useFocusEffect(
     useCallback(() => {
       refreshDriver().catch(() => {});
       getDriverEarningsSummary().then(setSummary).catch(() => {});
+      getDriverEarningsHistory()
+        .then((entries) => {
+          const latest = entries[0];
+          setLastTripAmount(latest ? latest.netAmount : null);
+        })
+        .catch(() => {});
     }, [refreshDriver])
   );
 
@@ -75,7 +90,14 @@ export default function DriverHomeScreen() {
 
   const offeredRide = primaryRide && primaryRide.status === 'driverAssigned' ? primaryRide : null;
   const tripInProgress = primaryRide && primaryRide.status !== 'driverAssigned' ? primaryRide : null;
-  const activeRideCount = rides.filter((r) => r.status !== 'driverAssigned').length;
+  // The rider pairs by QR at the pickup, so that step is the one the second
+  // action opens; before and after it there is nothing to pair with.
+  const pairableRide = tripInProgress && tripInProgress.status === 'driverArrived' ? tripInProgress : null;
+
+  // The driver's own share where Kimu takes a commission; otherwise the full
+  // fares, which is what they actually hold at the end of the day.
+  const keepsShare = Boolean(summary?.balance?.driverShareRate);
+  const dayTotal = summary ? (keepsShare ? summary.today.amount : summary.today.fares) : null;
 
   async function handleToggleOnline() {
     if (!currentDriver) return;
@@ -111,107 +133,112 @@ export default function DriverHomeScreen() {
     declineDriverRide(offeredRide.id).catch(() => {});
   }
 
+  function openTrip(rideId: string) {
+    router.push({ pathname: '/(driver)/journey', params: { rideId } } as any);
+  }
+
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['top', 'left', 'right']}>
+    <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['left', 'right']}>
       {/* See the passenger home: white icons only while this header shows. */}
       {isFocused ? <StatusBar style="light" /> : null}
-      <View className="bg-primary px-5 pb-8 pt-3">
-        <View className="flex-row items-center">
-          <View className="h-11 w-11 items-center justify-center rounded-xl bg-white">
-            <Text className="text-2xl font-bold text-primary">K</Text>
-          </View>
-          <View className="ml-3 flex-1">
-            <Text className="text-xl font-bold text-white">Kimu Transport</Text>
-            <Text className="text-xs font-medium tracking-wide text-white/85">{t('driverRoleLabel')}</Text>
-          </View>
-          <Pressable
-            className="h-11 w-11 items-center justify-center rounded-full bg-white/20"
-            onPress={() => router.push('/(driver)/(tabs)/more' as any)}
-          >
-            <Ionicons name="person-outline" color="#fff" size={22} />
-          </Pressable>
-        </View>
-      </View>
+      <DriverTopBar code={currentDriver?.licenseNumber || currentDriver?.vehiclePlate || null} />
 
-      <ScrollView className="-mt-5 flex-1 rounded-t-[28px] bg-bg-light" contentContainerClassName="px-5 pb-6 pt-5">
-        <View
-          className="flex-row items-center rounded-2xl border border-border bg-white p-4"
-          style={{ shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 }}
-        >
+      <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-6">
+        <View className="flex-row items-center px-5 pb-5 pt-5">
           <View className="h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
             <Text className="text-lg font-bold text-primary">{initialsFor(currentDriver?.fullName ?? '')}</Text>
           </View>
           <View className="ml-3.5 flex-1">
-            <Text className="text-[13px] text-text-secondary">{t(greetingKey())},</Text>
-            <Text className="text-lg font-bold text-ink">{currentDriver?.fullName?.split(' ')[0] || t('driverRoleLabel')}</Text>
-          </View>
-          <View className={`flex-row items-center rounded-full px-3 py-1.5 ${gpsStale ? 'bg-warning/10' : isOnline ? 'bg-primary/10' : 'bg-gray-light'}`}>
-            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: gpsStale ? '#D97706' : isOnline ? '#0E7C4A' : '#9CA3AF' }} />
-            <Text className={`ml-1.5 text-xs font-semibold ${gpsStale ? 'text-warning' : isOnline ? 'text-primary' : 'text-text-secondary'}`}>
-              {gpsStale ? t('driverGpsStale') : isOnline ? t('driverOnline') : t('driverOffline')}
+            <Text className={`text-[22px] font-bold ${isOnline ? 'text-primary' : 'text-text-secondary'}`}>
+              {isOnline ? t('driverOnline') : t('driverOffline')}
+            </Text>
+            <Text className="font-sans mt-0.5 text-[13px] text-text-secondary">
+              {gpsStale
+                ? t('driverGpsStale')
+                : minutesOnline != null
+                  ? t('driverMinutesOnline', { minutes: minutesOnline })
+                  : currentDriver?.fullName || ''}
             </Text>
           </View>
+          <Switch
+            accessibilityLabel={isOnline ? t('driverGoOffline') : t('driverGoOnline')}
+            value={isOnline}
+            disabled={togglingOnline}
+            onValueChange={handleToggleOnline}
+            trackColor={{ false: '#E5E7EB', true: 'rgba(14,124,74,0.45)' }}
+            thumbColor={isOnline ? '#0E7C4A' : '#FFFFFF'}
+            ios_backgroundColor="#E5E7EB"
+          />
         </View>
 
-        <View
-          className="mt-3.5 flex-row items-center justify-around rounded-2xl border border-border bg-white py-4"
-          style={{ shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 }}
-        >
-          <StatColumn icon="car-outline" value={String(activeRideCount)} label={t('driverActiveRides')} />
-          <View className="h-10 w-px bg-border" />
-          <StatColumn icon="star" value={currentDriver?.rating != null ? currentDriver.rating.toFixed(1) : '5.0'} label={t('driverRatingLabel')} iconColor="#F97316" />
-          <View className="h-10 w-px bg-border" />
-          <StatColumn icon="wallet-outline" value={summary ? formatFare(summary.balance?.driverShareRate ? summary.today.amount : summary.today.fares) : '—'} label={t(summary && !summary.balance?.driverShareRate ? 'driverFaresToday' : 'driverTodaysEarnings')} />
-        </View>
+        {toggleError ? (
+          <Text className="font-sans px-5 pb-3 text-[13px] text-error">{toggleError}</Text>
+        ) : null}
 
         {!currentDriver?.verified ? (
-          <View className="mt-3.5 flex-row items-center rounded-2xl border border-warning bg-white p-4">
+          <View className="mx-5 mb-4 flex-row items-center rounded-2xl border border-warning bg-accent-soft p-4">
             <Ionicons name="alert-circle-outline" size={20} color="#D97706" />
-            <Text className="ml-2.5 flex-1 text-[13px] text-ink">{t('driverVerificationPendingBody')}</Text>
+            <Text className="font-sans ml-2.5 flex-1 text-[13px] text-ink">{t('driverVerificationPendingBody')}</Text>
           </View>
         ) : null}
 
-        <View className="mt-3.5">
-          {togglingOnline ? (
-            <View className="h-button w-full items-center justify-center rounded bg-primary/80">
-              <ActivityIndicator color="#fff" />
-            </View>
-          ) : (
-            <Button
-              title={isOnline ? t('driverGoOffline') : t('driverGoOnline')}
-              icon={isOnline ? 'power' : 'location'}
-              onPress={handleToggleOnline}
-              variant={isOnline ? 'outline' : 'primary'}
-            />
-          )}
-          {toggleError ? <Text className="mt-2 text-xs text-error">{toggleError}</Text> : null}
+        {/* The reference app's two big actions, held together by one rail so
+            they read as a single block rather than two unrelated cards. */}
+        <View className="border-y border-border">
+          <ActionRow
+            icon="car-sport-outline"
+            label={t('driverStartATrip')}
+            hint={
+              tripInProgress
+                ? tripInProgress.destination.address
+                : isOnline
+                  // Online with nothing assigned: waiting, not something to fix.
+                  ? t('driverTripEmptyTitle')
+                  : t('driverTripEmptyHint')
+            }
+            enabled={!!tripInProgress || !isOnline}
+            onPress={() => (tripInProgress ? openTrip(tripInProgress.id) : handleToggleOnline())}
+          />
+          <View className="h-px bg-border" />
+          <ActionRow
+            icon="qr-code-outline"
+            label={t('driverPairWithTrip')}
+            hint={pairableRide ? t('driverShowQrSubtitle') : t('driverTripEmptyTitle')}
+            enabled={!!pairableRide}
+            onPress={() => pairableRide && openTrip(pairableRide.id)}
+          />
         </View>
 
-        {tripInProgress ? (
-          <Pressable
-            className="mt-3.5 flex-row items-center rounded-2xl border border-primary bg-white p-4"
-            onPress={() => router.push({ pathname: '/(driver)/journey', params: { rideId: tripInProgress.id } } as any)}
-          >
-            <View className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
-              <Ionicons name="navigate" size={20} color="#0E7C4A" />
-            </View>
-            <View className="ml-3 flex-1">
-              <Text className="text-[15px] font-bold text-ink">{t('driverTripInProgress')}</Text>
-              <Text numberOfLines={1} className="text-[13px] text-text-secondary">{tripInProgress.destination.address}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-          </Pressable>
+        <View className="flex-row items-center justify-between px-5 py-4">
+          <Text className="text-[14px] font-medium text-text-secondary">{todayLabel(locale)}</Text>
+          <View className="flex-row items-center">
+            <Ionicons name="car-outline" size={18} color="#6B7280" />
+            <Text className="ml-2 text-[14px] font-semibold text-ink">{currentDriver?.vehiclePlate || '—'}</Text>
+          </View>
+        </View>
+
+        <View className="mx-5 flex-row rounded-2xl border border-border bg-gray-light py-4">
+          <ShiftStat
+            value={lastTripAmount != null ? formatFare(lastTripAmount) : '—'}
+            label={t('driverLastTrip')}
+          />
+          <View className="w-px bg-border" />
+          <ShiftStat
+            value={summary ? String(summary.today.rides) : '—'}
+            label={t('driverTripsShort')}
+          />
+          <View className="w-px bg-border" />
+          <ShiftStat
+            value={dayTotal != null ? formatFare(dayTotal) : '—'}
+            label={t('driverDayTotal')}
+          />
+        </View>
+
+        {rides.length > 1 ? (
+          <Text className="font-sans px-5 pt-4 text-[13px] text-text-secondary">
+            {t('driverTripsCount', { count: rides.length })}
+          </Text>
         ) : null}
-
-        <View className="mt-3.5 gap-3">
-          <Pressable className="flex-row items-center justify-between rounded-2xl border border-border bg-white p-4" onPress={() => router.push('/(driver)/wallet/payouts' as any)}>
-            <View className="flex-row items-center">
-              <Ionicons name="cash-outline" size={20} color="#0E7C4A" />
-              <Text className="ml-3 text-[14.5px] font-semibold text-ink">{t('driverPayouts')}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-          </Pressable>
-        </View>
       </ScrollView>
 
       <OfferOverlay
@@ -228,22 +255,46 @@ export default function DriverHomeScreen() {
   );
 }
 
-function StatColumn({
+function ActionRow({
   icon,
-  value,
   label,
-  iconColor = '#0E7C4A',
+  hint,
+  enabled,
+  onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
-  value: string;
+  icon: IconName;
   label: string;
-  iconColor?: string;
+  hint: string;
+  enabled: boolean;
+  onPress: () => void;
 }) {
   return (
-    <View className="items-center px-2">
-      <Ionicons name={icon} size={20} color={iconColor} />
-      <Text className="mt-1.5 text-base font-bold text-ink">{value}</Text>
-      <Text className="mt-0.5 text-[11px] text-text-secondary">{label}</Text>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !enabled }}
+      disabled={!enabled}
+      onPress={onPress}
+      className={`flex-row items-center px-5 py-6 ${enabled ? 'active:bg-primary-soft' : 'opacity-45'}`}
+    >
+      <View className="flex-1 pr-4">
+        <Text className="text-[22px] font-semibold text-ink">{label}</Text>
+        <Text className="font-sans mt-1 text-[13px] text-text-secondary" numberOfLines={1}>{hint}</Text>
+      </View>
+      <View className="h-14 w-14 items-center justify-center rounded-full border border-primary/40">
+        <Ionicons name={icon} size={26} color="#0E7C4A" />
+      </View>
+    </Pressable>
+  );
+}
+
+function ShiftStat({ value, label }: { value: string; label: string }) {
+  return (
+    <View className="flex-1 items-center px-1">
+      <Text className="text-[17px] font-bold text-primary" numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      <Text className="font-sans mt-1 text-center text-[11px] text-text-secondary" numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -323,16 +374,16 @@ function OfferOverlay({
           <View className="mt-4 gap-3">
             <View className="flex-row items-start">
               <Ionicons name="ellipse" size={12} color="#0E7C4A" style={{ marginTop: 4 }} />
-              <Text className="ml-2.5 flex-1 text-[14.5px] text-ink">{pickupAddress}</Text>
+              <Text className="font-sans ml-2.5 flex-1 text-[14.5px] text-ink">{pickupAddress}</Text>
             </View>
             <View className="flex-row items-start">
               <Ionicons name="location" size={14} color="#F97316" style={{ marginTop: 2 }} />
-              <Text className="ml-2 flex-1 text-[14.5px] text-ink">{destinationAddress}</Text>
+              <Text className="font-sans ml-2 flex-1 text-[14.5px] text-ink">{destinationAddress}</Text>
             </View>
           </View>
 
           <View className="mt-4 flex-row items-center justify-between rounded-xl bg-gray-light px-4 py-3">
-            <Text className="text-sm text-text-secondary">{distanceKm ? `${distanceKm.toFixed(1)} km` : ''}</Text>
+            <Text className="font-sans text-sm text-text-secondary">{distanceKm ? `${distanceKm.toFixed(1)} km` : ''}</Text>
             <Text className="text-lg font-bold text-primary">{fare}</Text>
           </View>
 

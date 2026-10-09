@@ -93,7 +93,7 @@ export default function DriverProfileSetupScreen() {
         </View>
 
         <Text className="mt-7 text-base font-bold text-ink">{t('driverYourVehicle')}</Text>
-        <Text className="mt-1.5 text-xs leading-5 text-text-secondary">{t('driverVehicleHint')}</Text>
+        <Text className="font-sans mt-1.5 text-xs leading-5 text-text-secondary">{t('driverVehicleHint')}</Text>
         <View className="mt-4 gap-4">
           <Input label={t('driverMake')} value={vehicleMake} onChangeText={setVehicleMake} prefixIcon="car-outline" />
           <Input label={t('driverModel')} value={vehicleModel} onChangeText={setVehicleModel} prefixIcon="car-sport-outline" />

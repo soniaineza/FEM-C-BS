@@ -159,6 +159,8 @@ export interface Ride {
   finalFare?: number;
   rating?: number;
   pin?: string;
+  // Pair Ride: the driver-only code shown as a QR for the rider to scan.
+  pairCode?: string;
   scheduledFor?: string;
   appliedDiscount?: number;
   isPooled: boolean;
@@ -229,6 +231,7 @@ export function rideFromBackendJson(
     finalFare: json.finalFare ?? undefined,
     rating: json.rating ?? undefined,
     pin: json.pin ?? undefined,
+    pairCode: json.pairCode ?? undefined,
     scheduledFor: json.scheduledFor ?? undefined,
     appliedDiscount: json.appliedDiscount ?? undefined,
     isPooled: Boolean(json.isPooled),

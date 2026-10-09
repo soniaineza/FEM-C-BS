@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { Button } from '@kimu/shared/components/Button';
+import { DriverTopBar } from '../../../../components/driver/DriverTopBar';
 import { getDriverRideHistory } from '../../../../services/driver-service';
 import { Ride, formatFare, rideStatusKey } from '@kimu/shared/types/ride';
 
@@ -21,6 +23,7 @@ const FILTER_KEYS: Record<(typeof FILTERS)[number], string> = {
 // the migration report for what a full calendar view would add.
 export default function DriverTripsScreen() {
   const { t } = useTranslation();
+  const isFocused = useIsFocused();
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
@@ -44,12 +47,11 @@ export default function DriverTripsScreen() {
   });
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
-      <View className="px-5 pb-3 pt-4">
-        <Text className="text-xl text-ink font-display">{t('driverMyRides')}</Text>
-      </View>
+    <SafeAreaViewPlaceholder className="flex-1 bg-primary" edges={['left', 'right']}>
+      {isFocused ? <StatusBar style="light" /> : null}
+      <DriverTopBar title={t('driverMyRides')} />
 
-      <View className="flex-row gap-2 px-5">
+      <View className="flex-row gap-2 bg-bg-light px-5 pt-4">
         {FILTERS.map((f) => (
           <Pressable
             key={f}
@@ -62,17 +64,17 @@ export default function DriverTripsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator className="mt-8" color="#0E7C4A" />
+        <View className="flex-1 bg-bg-light"><ActivityIndicator className="mt-8" color="#0E7C4A" /></View>
       ) : error ? (
-        <View className="mt-8 gap-4 px-5">
-          <Text className="text-center text-error">{error}</Text>
+        <View className="flex-1 gap-4 bg-bg-light px-5 pt-8">
+          <Text className="font-sans text-center text-error">{error}</Text>
           <Button title={t('tryAgain')} variant="outline" onPress={load} />
         </View>
       ) : filtered.length === 0 ? (
-        <Text className="mt-8 text-center text-text-secondary">{t('driverNoTripsYet')}</Text>
+        <View className="flex-1 bg-bg-light"><Text className="font-sans mt-8 text-center text-text-secondary">{t('driverNoTripsYet')}</Text></View>
       ) : (
         <FlatList
-          className="mt-3 px-5"
+          className="flex-1 bg-bg-light px-5 pt-3"
           data={filtered}
           keyExtractor={(r) => r.id}
           renderItem={({ item }) => (
@@ -83,11 +85,11 @@ export default function DriverTripsScreen() {
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 pr-3">
                   <Text numberOfLines={1} className="text-[14.5px] font-semibold text-ink">{item.pickup.address}</Text>
-                  <Text numberOfLines={1} className="mt-0.5 text-[13px] text-text-secondary">{item.destination.address}</Text>
+                  <Text numberOfLines={1} className="font-sans mt-0.5 text-[13px] text-text-secondary">{item.destination.address}</Text>
                 </View>
                 <Text className="font-bold text-primary">{formatFare(item.finalFare ?? item.estimatedFare)}</Text>
               </View>
-              <Text className="mt-2 text-xs text-text-secondary">{t(rideStatusKey(item.status))}</Text>
+              <Text className="font-sans mt-2 text-xs text-text-secondary">{t(rideStatusKey(item.status))}</Text>
             </Pressable>
           )}
         />

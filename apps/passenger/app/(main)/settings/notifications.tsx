@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { Button } from '@kimu/shared/components/Button';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { getNotifications, markAsRead, markAllRead } from '../../../services/notification-service';
@@ -35,11 +34,9 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('notifications')} back background="bg-white" backLabel={t('back')}>
       <View className="flex-1 px-6 pt-2">
-        <BackHeader />
         <View className="mt-2 flex-row items-center justify-between">
-          <Text className="text-xl text-ink font-display">{t('notifications')}</Text>
           {items.some((i) => !i.read) ? (
             <Pressable
               onPress={async () => {
@@ -49,24 +46,24 @@ export default function NotificationsScreen() {
                 } catch { setError(t('requestFailed')); }
               }}
             >
-              <Text className="text-sm text-primary">{t('markAllRead')}</Text>
+              <Text className="font-sans text-sm text-primary">{t('markAllRead')}</Text>
             </Pressable>
           ) : null}
         </View>
 
-        {error && items.length > 0 ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
+        {error && items.length > 0 ? <Text className="font-sans mt-3 text-sm text-error">{error}</Text> : null}
 
         {loading ? (
           <ActivityIndicator className="mt-8" color="#0E7C4A" />
         ) : error && items.length === 0 ? (
           <View className="mt-8 gap-4">
-            <Text className="text-center text-error">{error}</Text>
+            <Text className="font-sans text-center text-error">{error}</Text>
             <Button title={t('tryAgain')} variant="outline" onPress={load} />
           </View>
         ) : items.length === 0 ? (
           <View className="mt-8 items-center">
             <Text className="text-base font-medium text-ink">{t('noNotificationsYet')}</Text>
-            <Text className="mt-1 text-center text-text-secondary">{t('notificationsEmptySubtitle')}</Text>
+            <Text className="font-sans mt-1 text-center text-text-secondary">{t('notificationsEmptySubtitle')}</Text>
           </View>
         ) : (
           <FlatList
@@ -79,12 +76,12 @@ export default function NotificationsScreen() {
                   {!item.read ? <View className="h-2 w-2 rounded-full bg-accent" /> : null}
                   <Text className="text-base font-medium text-ink">{item.title}</Text>
                 </View>
-                <Text className="mt-1 text-sm text-text-secondary">{item.body}</Text>
+                <Text className="font-sans mt-1 text-sm text-text-secondary">{item.body}</Text>
               </Pressable>
             )}
           />
         )}
       </View>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

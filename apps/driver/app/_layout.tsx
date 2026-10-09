@@ -6,15 +6,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { DialogHost } from '@kimu/shared/components/DialogHost';
+import { PerfOverlay } from '@kimu/shared/components/PerfOverlay';
 import * as SplashScreen from 'expo-splash-screen';
 import { Platform, BackHandler } from 'react-native';
-import {
-  useFonts,
-  Poppins_400Regular,
-  Poppins_500Medium,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
+// Only the weights the styles use (see packages/shared/tailwind-preset.js):
+// Poppins is the display face, Inter the body face.
+import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -22,6 +19,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
+import { AppLockGate } from '../components/driver/AppLockGate';
 import { useDriverAuthStore } from '../stores/useDriverAuthStore';
 import { useLocaleStore } from '@kimu/shared/stores/useLocaleStore';
 import { configureNotificationHandler } from '@kimu/shared/utils/notifications';
@@ -36,18 +34,11 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 setAppApiClient(driverApiClient);
 configureNotificationHandler();
 
-// Set Inter as the native body family. Large screen titles explicitly use
-// Poppins through the font-display utility; controls and body text use Inter.
-if (Platform.OS !== 'web') {
-  const originalText = require('react-native').Text;
-  if (originalText) {
-    originalText.defaultProps = {
-      ...originalText.defaultProps,
-      allowFontScaling: false,
-      style: [{ fontFamily: 'Inter_400Regular' }, ...(originalText.defaultProps?.style ?? [])],
-    };
-  }
-}
+// The body font is not set here. React 19 removed defaultProps for function
+// components and RN 0.86's Text is one, so the old Text.defaultProps block
+// silently did nothing: unclassed text fell back to the phone's system font
+// and the font-scaling lock never applied. Every <Text className="font-sans"> now carries an
+// explicit font-* class instead (font-sans = Inter_400Regular).
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -55,9 +46,6 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    Poppins_400Regular,
-    Poppins_500Medium,
-    Poppins_600SemiBold,
     Poppins_700Bold,
   });
 
@@ -129,6 +117,11 @@ export default function RootLayout() {
     </Stack>
     {/* appAlert() dialogs on web (react-native-web's Alert.alert is a no-op). */}
     <DialogHost />
+    {/* Covers everything above while the app is PIN-locked, so no screen
+        behind it needs to know about locking. */}
+    <AppLockGate />
+    {/* Frame-rate and slow-step readout; renders nothing unless switched on. */}
+    <PerfOverlay />
     </KeyboardProvider>
     </GestureHandlerRootView>
   );

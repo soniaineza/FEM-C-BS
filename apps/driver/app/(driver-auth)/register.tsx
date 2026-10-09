@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { router } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
 import { ErrorMessage } from '@kimu/shared/components/ErrorMessage';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useDriverAuthStore } from '../../stores/useDriverAuthStore';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { validators } from '@kimu/shared/utils/validators';
@@ -55,11 +54,9 @@ export default function DriverRegisterScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('driverBecomeDriver')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
-        <BackHeader />
-        <Text className="mt-4 text-2xl text-ink font-display">{t('driverBecomeDriver')}</Text>
-        <Text className="mt-1 text-text-secondary">{t('driverCreateAccountSubtitle')}</Text>
+        <Text className="font-sans mt-1 text-text-secondary">{t('driverCreateAccountSubtitle')}</Text>
 
         <View className="mt-8 gap-4">
           <Input label={t('fullName')} value={fullName} onChangeText={setFullName} prefixIcon="person-outline" />
@@ -92,12 +89,12 @@ export default function DriverRegisterScreen() {
         </View>
 
         <View className="mt-6 flex-row justify-center">
-          <Text className="text-text-secondary">{t('alreadyHaveAccount')} </Text>
+          <Text className="font-sans text-text-secondary">{t('alreadyHaveAccount')} </Text>
           <Pressable onPress={() => router.push('/(driver-auth)/login')}>
             <Text className="font-semibold text-primary">{t('login')}</Text>
           </Pressable>
         </View>
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

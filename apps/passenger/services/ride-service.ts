@@ -168,6 +168,13 @@ export async function cancelRide(rideId: string, reason?: string): Promise<Ride>
   return resolveRideFromBackendJson(json.ride, await ridesCatalogues());
 }
 
+// Pair Ride: the rider scanned (or typed) the driver's QR code. This verifies
+// the car and moves the ride to pinVerified so the driver can start it.
+export async function pairRide(code: string): Promise<Ride> {
+  const json = await apiClient.post<{ ride: any }>('/rides/pair', { code: code.trim().toUpperCase() });
+  return resolveRideFromBackendJson(json.ride, await ridesCatalogues());
+}
+
 export async function changeDestination(rideId: string, destination: Place): Promise<Ride> {
   const json = await apiClient.post<{ ride: any }>(`/rides/${rideId}/change-destination`, { destination });
   return resolveRideFromBackendJson(json.ride, await ridesCatalogues());

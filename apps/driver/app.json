@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kimu Drive",
     "slug": "kimu-driver",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "scheme": "kimudrive",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -22,7 +22,8 @@
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
-      ]
+      ],
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -58,11 +59,22 @@
               "arm64-v8a",
               "armeabi-v7a"
             ],
-            "enableMinifyInReleaseBuilds": false,
-            "enableShrinkResourcesInReleaseBuilds": false
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableBundleCompression": true,
+            "useLegacyPackaging": true,
+            "extraProguardRules": "# The map runs inside a WebView (an Expo DOM component). R8 must leave the\n# bridge between the page and native intact, or the map never calls back and\n# the screen sits on \"Loading map\" for ever.\n-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }\n-keepattributes JavascriptInterface\n# @expo/dom-webview, the WebView DOM components use by default. Its native\n# package really is expo.modules.webview (under node_modules/@expo/dom-webview,\n# not node_modules/expo), and its message events are Kotlin records whose\n# field names must survive R8 or the $$dom_ready handshake never completes.\n-keep class expo.modules.webview.** { *; }\n# react-native-webview, used when useExpoDOMWebView is false (LiveMap).\n-keep class com.reactnativecommunity.webview.** { *; }\n"
           }
         }
-      ]
+      ],
+      "@kimu/shared/plugins/withAbiSplits",
+      [
+        "@kimu/shared/plugins/withNdkVersion",
+        {
+          "version": "28.2.13676358"
+        }
+      ],
+      "@kimu/shared/plugins/withWindowsSafeHermes"
     ],
     "experiments": {
       "typedRoutes": true
@@ -70,9 +82,6 @@
     "extra": {
       "router": {}
     },
-    "owner": "soniaineza",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    }
+    "owner": "soniaineza"
   }
 }

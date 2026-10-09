@@ -44,11 +44,8 @@ interface Shared {
 let shared: Shared | null = null;
 
 /** Hex for a car colour name as drivers enter it ("Red", "Silver"...). */
-export const CAR_COLOR_NAMES: Record<string, string> = {
-  white: '#f8fafc', black: '#1f2937', silver: '#c0c4ca', grey: '#8b9098', gray: '#8b9098',
-  red: '#c8102e', blue: '#1d4ed8', green: '#15803d', yellow: '#eab308', orange: '#ea580c',
-  brown: '#78350f', beige: '#d6c7a1', gold: '#b8923a', maroon: '#7f1d1d', navy: '#1e3a8a',
-};
+// Re-exported so this module stays the one place the map imports from.
+export { CAR_COLOR_NAMES } from './carColors';
 
 function shadowTexture(): THREE.Texture {
   const size = 64;

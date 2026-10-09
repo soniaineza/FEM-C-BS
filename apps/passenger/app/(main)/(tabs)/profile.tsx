@@ -1,6 +1,7 @@
 import { View, Text, ScrollView } from 'react-native';
 import { appAlert } from '@kimu/shared/utils/dialog';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
+import { useDrawerStore } from '../../../stores/useDrawerStore';
 import { router } from 'expo-router';
 
 import { MenuTile } from '@kimu/shared/components/MenuTile';
@@ -29,9 +30,8 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light" edges={['top', 'left', 'right']}>
+    <ScreenShell title={t('profile')} onMenu={() => useDrawerStore.getState().setOpen(true)} menuLabel={t('menu')} background="bg-bg-light">
       <ScrollView contentContainerClassName="px-5 pb-6 pt-4">
-        <Text className="text-xl text-ink font-display">{t('profile')}</Text>
 
         <View className="mt-4 flex-row items-center rounded-2xl border border-border bg-white p-4">
           <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(14,124,74,0.12)' }}>
@@ -39,8 +39,8 @@ export default function ProfileScreen() {
           </View>
           <View className="ml-3.5 flex-1">
             <Text className="text-[17px] font-bold text-ink">{currentUser?.fullName || 'Passenger'}</Text>
-            <Text className="text-[13.5px] text-text-secondary">{currentUser?.phone}</Text>
-            {currentUser?.email ? <Text className="text-[13.5px] text-text-secondary">{currentUser.email}</Text> : null}
+            <Text className="font-sans text-[13.5px] text-text-secondary">{currentUser?.phone}</Text>
+            {currentUser?.email ? <Text className="font-sans text-[13.5px] text-text-secondary">{currentUser.email}</Text> : null}
           </View>
         </View>
 
@@ -77,6 +77,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

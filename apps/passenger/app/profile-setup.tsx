@@ -71,7 +71,7 @@ export default function ProfileSetupScreen() {
           >
             <Text className="text-3xl font-bold text-primary">{initialsFor(fullName)}</Text>
           </View>
-          <Text className="mt-3 text-center text-xs text-text-secondary">{t('profilePhotoHint')}</Text>
+          <Text className="font-sans mt-3 text-center text-xs text-text-secondary">{t('profilePhotoHint')}</Text>
         </View>
 
         <View className="mt-6 gap-4">
@@ -93,7 +93,7 @@ export default function ProfileSetupScreen() {
         </View>
 
         <Text className="mt-7 text-base font-bold text-ink">{t('emergencyContactOptional')}</Text>
-        <Text className="mt-1.5 text-xs leading-5 text-text-secondary">{t('emergencyContactHint')}</Text>
+        <Text className="font-sans mt-1.5 text-xs leading-5 text-text-secondary">{t('emergencyContactHint')}</Text>
         <View className="mt-4 gap-4">
           <Input
             label={t('emergencyContactName')}

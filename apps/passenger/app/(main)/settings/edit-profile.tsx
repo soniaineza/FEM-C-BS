@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { View, Text } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { goBack } from '@kimu/shared/utils/navigation';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { validators } from '@kimu/shared/utils/validators';
@@ -52,10 +51,8 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white">
+    <ScreenShell title={t('editProfile')} back background="bg-white" backLabel={t('back')}>
       <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow px-6 pt-2 pb-8">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('editProfile')}</Text>
 
         <View className="mt-6 gap-4">
           <Input label={t('fullName')} value={fullName} onChangeText={setFullName} autoCapitalize="words" />
@@ -63,13 +60,13 @@ export default function EditProfileScreen() {
           <Input label={t('email')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
           <Input label={t('emergencyContactName')} value={emergencyName} onChangeText={setEmergencyName} />
           <Input label={t('emergencyContactPhone')} value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" />
-          {error ? <Text className="text-sm text-error">{error}</Text> : null}
+          {error ? <Text className="font-sans text-sm text-error">{error}</Text> : null}
         </View>
 
         <View className="mt-8">
           <Button title={t('saveChanges')} onPress={handleSave} loading={loading} />
         </View>
       </KeyboardAwareScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

@@ -16,9 +16,10 @@ interface LocaleState {
   setLocale: (locale: Locale) => Promise<void>;
 }
 
-// Default locale is rw (Kinyarwanda), matching the Flutter app's default.
+// English is the default until the rider picks a language (the switch is on
+// the first screen); Kinyarwanda and French are one tap away.
 export const useLocaleStore = create<LocaleState>((set) => ({
-  locale: 'rw',
+  locale: 'en',
   hasChosenLanguage: false,
   isHydrated: false,
   hydrate: async () => {
@@ -27,7 +28,7 @@ export const useLocaleStore = create<LocaleState>((set) => ({
       AsyncStorage.getItem(CHOSEN_KEY),
     ]);
     set({
-      locale: stored === 'rw' || stored === 'fr' || stored === 'en' ? stored : 'rw',
+      locale: stored === 'rw' || stored === 'fr' || stored === 'en' ? stored : 'en',
       hasChosenLanguage: chosen === '1',
       isHydrated: true,
     });

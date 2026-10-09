@@ -14,6 +14,8 @@ const { confirmCashPayment } = require('../services/payments');
 const { transitionRide } = require('../services/rideStateMachine');
 const paypack = require('../services/paypackClient');
 const { signAdminToken, verifyToken } = require('../utils/jwt');
+const { otpStatus, sendTestCode } = require('../services/otpSender');
+const googleAuth = require('../services/googleAuth');
 const {
   getDriverBalance,
   approvePayout,
@@ -88,6 +90,38 @@ function documentToJson(d) {
     contentType: d.content_type ?? null,
   };
 }
+
+// Which outside services are wired up (never their secrets): whether the
+// apps show "Continue with Google", and where verification codes go.
+router.get('/integrations', asyncHandler(async (req, res) => {
+  res.json({ google: googleAuth.status(req), otp: otpStatus() });
+}));
+
+// Sends one real verification code to a phone and/or e-mail through the live
+// channel, so the WhatsApp / SMS / SMTP setup is proven before riders depend
+// on it. Pass phone, email, or both.
+router.post('/integrations/otp/test', asyncHandler(async (req, res) => {
+  const phone = String((req.body || {}).phone || '').trim();
+  const email = String((req.body || {}).email || '').trim().toLowerCase();
+  if (!phone && !email) throw new ApiError(400, 'Enter a phone number or an email address to send the test to.');
+  if (phone && !/^\+?\d{9,15}$/.test(phone.replace(/[\s-]/g, ''))) {
+    throw new ApiError(400, 'Enter the phone number in international format, e.g. +2507XXXXXXXX.');
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ApiError(400, 'Enter a valid email address.');
+  }
+  try {
+    const result = await sendTestCode({ phone, email });
+    res.json({
+      ...result,
+      message: result.channel === 'none'
+        ? 'No delivery channel is configured on this server, so nothing was sent.'
+        : `A code was sent to ${result.to} through ${result.channel}. Check there.`,
+    });
+  } catch (err) {
+    throw new ApiError(502, `Not delivered: ${err.message}`);
+  }
+}));
 
 // Operators need an authenticated queue for every SOS, including SMS delivery
 // failures. Sending an SMS alone is not an incident workflow.

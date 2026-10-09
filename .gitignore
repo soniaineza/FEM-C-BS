@@ -53,3 +53,9 @@ server/*.log
 *.apk
 *.aab
 *.ipa
+
+# local APK builds (see build-apks in README)
+/build/
+
+# Local test artifacts (APKs, cPanel zips) — never commit
+/Claude outputs/

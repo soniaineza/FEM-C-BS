@@ -1,26 +1,25 @@
 import { Pressable, Text, ActivityIndicator, View, PressableProps } from 'react-native';
 import { memo } from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ButtonProps extends Omit<PressableProps, 'children'> {
   title: string;
   loading?: boolean;
   variant?: 'primary' | 'outline' | 'text';
-  // Matches primary_button.dart's `destructive` flag: white bg, red border
-  // and text, no shadow — used for "delete account" style actions.
+  
   destructive?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
+  // Where the icon sits relative to the title (default left).
+  iconPosition?: 'left' | 'right';
 }
 
-// Mirrors primary_button.dart / app_theme.dart's elevatedButtonTheme: full
-// width, 52px tall, 12px radius, filled brand green by default, with a soft
-// brand-tinted shadow lifting it off the page.
 export const Button = memo(function Button({
   title,
   loading,
   variant = 'primary',
   destructive = false,
   icon,
+  iconPosition = 'left',
   disabled,
   className,
   ...rest
@@ -52,7 +51,7 @@ export const Button = memo(function Button({
           <ActivityIndicator color={destructive ? '#DC2626' : variant === 'primary' ? '#fff' : '#0E7C4A'} />
         ) : (
           <>
-            {icon ? (
+            {icon && iconPosition === 'left' ? (
               <Ionicons
                 name={icon}
                 size={20}
@@ -61,6 +60,14 @@ export const Button = memo(function Button({
               />
             ) : null}
             <Text className={`font-semibold text-base ${textColor}`}>{title}</Text>
+            {icon && iconPosition === 'right' ? (
+              <Ionicons
+                name={icon}
+                size={20}
+                color={destructive ? '#DC2626' : variant === 'primary' ? '#fff' : '#0E7C4A'}
+                style={{ marginLeft: 10 }}
+              />
+            ) : null}
           </>
         )}
       </Pressable>

@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { appAlert } from '@kimu/shared/utils/dialog';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
-import { Ionicons } from '@expo/vector-icons';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '@kimu/shared/components/Button';
 import { ErrorMessage } from '@kimu/shared/components/ErrorMessage';
 import { MenuTile } from '@kimu/shared/components/MenuTile';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useDriverAuthStore } from '../../../stores/useDriverAuthStore';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { ApiError } from '../../../services/driver-api-client';
@@ -44,28 +43,26 @@ export default function DriverSettingsScreen() {
   }
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
+    <ScreenShell title={t('settings')} back background="bg-bg-light" backLabel={t('back')}>
       <ScrollView contentContainerClassName="px-5 pb-8 pt-2">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('settings')}</Text>
 
         <View className="mt-4">
           <MenuTile icon="log-out-outline" label={t('logout')} onPress={confirmLogout} />
         </View>
 
-        <Text className="mt-3 text-xs leading-5 text-text-secondary">{t('driverLocationDisclosure')}</Text>
+        <Text className="font-sans mt-3 text-xs leading-5 text-text-secondary">{t('driverLocationDisclosure')}</Text>
 
         <Text className="mt-8 text-base font-bold text-error">{t('deleteAccount')}</Text>
-        <Text className="mt-2 text-sm text-text-secondary">{t('deleteAccountWarning')}</Text>
+        <Text className="font-sans mt-2 text-sm text-text-secondary">{t('deleteAccountWarning')}</Text>
         <Pressable className="mt-4 flex-row items-start" onPress={() => setConfirmDelete((v) => !v)}>
           <Ionicons name={confirmDelete ? 'checkbox' : 'checkbox-outline'} size={22} color={confirmDelete ? '#DC2626' : '#6B7280'} />
-          <Text className="ml-2.5 flex-1 text-sm leading-5 text-ink">{t('deleteAccountConfirm')}</Text>
+          <Text className="font-sans ml-2.5 flex-1 text-sm leading-5 text-ink">{t('deleteAccountConfirm')}</Text>
         </Pressable>
         {error ? <View className="mt-3"><ErrorMessage message={error} /></View> : null}
         <View className="mt-4">
           <Button title={t('deleteMyAccount')} destructive disabled={!confirmDelete} loading={deleting} onPress={handleDelete} />
         </View>
       </ScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

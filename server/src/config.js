@@ -115,6 +115,37 @@ const config = {
   // Shared secret used to authenticate Paypack webhook deliveries.
   paypackWebhookSecret: process.env.PAYPACK_WEBHOOK_SECRET || '',
 
+  // Where verification codes go (services/otpSender.js): 'whatsapp' sends a
+  // WhatsApp message through Meta's WhatsApp Cloud API and falls back to the
+  // SMS provider below if WhatsApp cannot deliver; 'sms' uses only SMS.
+  otpChannel: (process.env.OTP_CHANNEL || (process.env.WHATSAPP_ACCESS_TOKEN ? 'whatsapp' : 'sms')).toLowerCase(),
+  // WhatsApp Cloud API (Meta for Developers > WhatsApp > API setup): a
+  // permanent system-user access token, the sender phone number's ID, and an
+  // approved *authentication* template with a copy-code button.
+  whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
+  whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+  whatsappOtpTemplate: process.env.WHATSAPP_OTP_TEMPLATE || 'kimu_otp',
+  // Must be the exact locale the template was created in ('en' and 'en_US'
+  // are different templates to Meta; Kinyarwanda is 'rw_RW').
+  whatsappTemplateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US',
+  // Graph API versions live about two years; v24.0 is supported until
+  // February 2028. An expired version rolls forward on Meta's side, but keep
+  // this current.
+  whatsappApiVersion: process.env.WHATSAPP_API_VERSION || 'v24.0',
+
+  // Email delivery for OTP codes (services/otpSender.js), used when the
+  // rider signs in with an e-mail, and as the last fallback after WhatsApp
+  // and SMS. Any SMTP server works (Gmail app password, SendGrid, Mailgun,
+  // your own). Set SMTP_HOST + SMTP_USER + SMTP_PASS to turn it on.
+  smtpHost: process.env.SMTP_HOST || '',
+  smtpPort: Number(process.env.SMTP_PORT || 587),
+  // true for port 465 (implicit TLS); false for 587/25 (STARTTLS).
+  smtpSecure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : Number(process.env.SMTP_PORT || 587) === 465,
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  // The From address shown on the e-mail; defaults to the SMTP user.
+  smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+
   // SMS delivery for OTP codes (services/otpSender.js): 'pindo',
   // 'africastalking' or 'generic' (JSON POST to SMS_GATEWAY_URL).
   smsProvider: (
@@ -126,6 +157,40 @@ const config = {
   atUsername: process.env.AT_USERNAME || '',
   // Sender ID shown on the SMS. Most providers require it to be registered.
   smsSenderName: process.env.SMS_SENDER_NAME || 'KIMU',
+
+  // ---- Public addresses ----
+  // Where this API is reachable from the internet, without a trailing slash
+  // (Render sets RENDER_EXTERNAL_URL automatically). Google is told to send
+  // people back to <publicUrl>/api/auth/google/callback, so it must be the
+  // exact address registered in the Google Cloud console.
+  publicUrl: (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, ''),
+  // Where the rider web app lives. It is served by this same server, so the
+  // default is the public URL above; set WEB_APP_URL only when the web app is
+  // hosted elsewhere. Google sign-in on the web returns to <webAppUrl>/auth/google.
+  webAppUrl: (process.env.WEB_APP_URL || process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, ''),
+  // The rider app's deep-link scheme (apps/passenger/app.json "scheme"):
+  // Google sign-in on a phone returns to <appScheme>://auth/google.
+  appScheme: process.env.APP_SCHEME || 'femcabs',
+
+  // ---- Google sign-in (services/googleAuth.js) ----
+  // A "Web application" OAuth client from the Google Cloud console. Both
+  // values stay on the server; the apps only ever see whether Google login
+  // is available (GET /api/auth/providers). Leave both empty and the apps
+  // hide the Google button.
+  googleClientId: (process.env.GOOGLE_CLIENT_ID || '').trim(),
+  googleClientSecret: (process.env.GOOGLE_CLIENT_SECRET || '').trim(),
+  // Normally derived from PUBLIC_URL; set only to register a different
+  // callback address with Google.
+  googleRedirectUri: (process.env.GOOGLE_REDIRECT_URI || '').trim(),
+  // Google's endpoints. Overridable only for the local test suite, which
+  // stands in a fake Google (see lockDownHostedServer()).
+  googleAuthUrl: process.env.GOOGLE_AUTH_URL || 'https://accounts.google.com/o/oauth2/v2/auth',
+  googleTokenUrl: process.env.GOOGLE_TOKEN_URL || 'https://oauth2.googleapis.com/token',
+  googleJwksUrl: process.env.GOOGLE_JWKS_URL || 'https://www.googleapis.com/oauth2/v3/certs',
+  googleIssuers: ['https://accounts.google.com', 'accounts.google.com'],
+  // How long a one-time login code handed to the app after Google sign-in
+  // stays valid (seconds). It is exchanged for a session within moments.
+  loginCodeTtlSeconds: Number(process.env.LOGIN_CODE_TTL_SECONDS || 300),
 
   // Optional integration key retained for trusted scripts; the operator page
   // authenticates with the username/password and a short-lived JWT instead.
@@ -196,6 +261,14 @@ const requestedDevSwitches = Object.keys(DEV_SWITCHES).filter((key) => config[ke
 function lockDownHostedServer() {
   if (config.localDatabase) return;
   for (const key of requestedDevSwitches) config[key] = false;
+  // Only the real Google may vouch for a Google account on a hosted server.
+  const googleOverrides = ['GOOGLE_AUTH_URL', 'GOOGLE_TOKEN_URL', 'GOOGLE_JWKS_URL'].filter((k) => process.env[k]);
+  if (googleOverrides.length) {
+    config.googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
+    config.googleTokenUrl = 'https://oauth2.googleapis.com/token';
+    config.googleJwksUrl = 'https://www.googleapis.com/oauth2/v3/certs';
+    console.warn(`[security] ignored on a hosted database: ${googleOverrides.join(', ')}. Google's own endpoints are used.`);
+  }
   if (requestedDevSwitches.length) {
     console.warn(
       `[security] ignored on a hosted database: ${requestedDevSwitches.map((k) => DEV_SWITCHES[k]).join(', ')}. ` +
@@ -253,9 +326,17 @@ function ensureConfig() {
     if (process.env.NOMINATIM_URL && /nominatim\.openstreetmap\.org/.test(config.nominatimUrl)) problems.push('NOMINATIM_URL (public service disallowed)');
     if (process.env.NOMINATIM_REVERSE_URL && /nominatim\.openstreetmap\.org/.test(config.nominatimReverseUrl)) problems.push('NOMINATIM_REVERSE_URL (public service disallowed)');
 
-    // Real OTP delivery.
-    if (!['pindo', 'africastalking', 'generic'].includes(config.smsProvider)) {
-      problems.push('SMS_PROVIDER (pindo | africastalking | generic)');
+    // Real OTP delivery: at least one of the three channels must be set up —
+    // WhatsApp, SMS, or e-mail (SMTP). They are tried in that order.
+    const hasWhatsapp = Boolean(config.whatsappAccessToken && config.whatsappPhoneNumberId);
+    const hasSms = ['pindo', 'africastalking', 'generic'].includes(config.smsProvider);
+    const hasEmail = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
+    if (!hasWhatsapp && !hasSms && !hasEmail) {
+      problems.push('an OTP channel: WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID, or SMS_PROVIDER (+ keys), or SMTP_HOST + SMTP_USER + SMTP_PASS');
+    }
+    // A WhatsApp token with no phone-number id (or the reverse) is a mistake.
+    if (Boolean(config.whatsappAccessToken) !== Boolean(config.whatsappPhoneNumberId)) {
+      problems.push('both WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID (set both or neither)');
     }
     if (config.mapRoutingProvider === 'geoapify' && !config.mapRoutingApiKey) problems.push('MAP_ROUTING_API_KEY');
     if (config.mapGeocodingProvider === 'geoapify' && !config.mapGeocodingApiKey) problems.push('MAP_GEOCODING_API_KEY');
@@ -276,6 +357,13 @@ function ensureConfig() {
     }
     if (process.env.SUPPORT_EMAIL && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.supportEmail)) {
       problems.push('SUPPORT_EMAIL (a valid e-mail address)');
+    }
+
+    // Google sign-in is optional, but half a configuration is a mistake.
+    if (config.googleClientId && !config.googleClientSecret) problems.push('GOOGLE_CLIENT_SECRET');
+    if (config.googleClientSecret && !config.googleClientId) problems.push('GOOGLE_CLIENT_ID');
+    if (config.googleClientId && !config.publicUrl && !config.googleRedirectUri) {
+      problems.push('PUBLIC_URL (needed to build the Google callback address)');
     }
 
     // Without operator credentials no driver can ever be verified.

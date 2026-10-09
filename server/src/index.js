@@ -9,6 +9,7 @@ const { startScheduler } = require('./services/scheduler');
 const { retireSeedAccounts } = require('./services/seedAccounts');
 
 const authRoutes = require('./routes/auth.routes');
+const googleAuthRoutes = require('./routes/googleAuth.routes');
 const vehiclesRoutes = require('./routes/vehicles.routes');
 const placesRoutes = require('./routes/places.routes');
 const ridesRoutes = require('./routes/rides.routes');
@@ -71,6 +72,7 @@ async function main() {
 
   app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
+  app.use('/api/auth/google', googleAuthRoutes);
   app.use('/api/auth', authRoutes);
   app.use('/api/vehicles', vehiclesRoutes);
   app.use('/api/places', placesRoutes);

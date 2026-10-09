@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
+import { LiveMap } from '@kimu/shared/components/map/LiveMap';
 import { MapSheet } from '../../../components/map/MapSheet';
 import { clockIn } from '../../../components/FareBreakdownView';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
-import { useMapScene } from '../../../hooks/useMapScene';
 import { useTripMap } from '../../../hooks/useTripMap';
 import { getPaymentForRide, initiatePayment, refreshPaymentStatus, retryPayment } from '../../../services/payment-service';
 import { PaymentRecord, isPaymentSettled, isPaymentUnpaidFinal } from '@kimu/shared/types/payment';
@@ -20,7 +20,9 @@ export default function TrackingScreen() {
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const { ride, driverLocation, serverTimeOffsetMs } = useRideTracking(rideId ?? null);
   const { scene, etaMinutes } = useTripMap(ride, driverLocation, serverTimeOffsetMs, PADDING);
-  useMapScene(scene);
+  // The map is rendered inside this screen (not the shared canvas behind the
+  // navigator) so the rider can actually pan and zoom it to see where the
+  // driver is; the camera follows the car again shortly after they let go.
 
   const [payment, setPayment] = useState<PaymentRecord | null>(null);
   const [payLoading, setPayLoading] = useState(false);
@@ -34,23 +36,25 @@ export default function TrackingScreen() {
 
   useEffect(() => {
     if (!ride || (ride.status !== 'paymentPending' && ride.status !== 'arrived')) return;
-    getPaymentForRide(ride.id).then((p) => {
-      if (p) setPayment(p);
-      else if (ride.status === 'paymentPending') initiatePayment(ride.id).then(setPayment).catch(() => setPaymentError(t('paymentPendingNotice')));
-    }).catch(() => setPaymentError(t('paymentPendingNotice')));
+    // The driver collects the fare — they send the mobile-money prompt to the
+    // rider's number or confirm cash — so the rider just watches the payment
+    // appear and settle, never creating it here.
+    getPaymentForRide(ride.id).then((p) => { if (p) setPayment(p); }).catch(() => {});
   }, [ride?.status, ride?.id]);
 
   // While a mobile-money request is waiting on the rider's phone, follow it
   // so an approval, a decline or an expiry shows up without a manual check.
-  const waitingOnProvider = !!ride && ride.status === 'paymentPending' && !!payment && payment.method !== 'cash' && payment.status === 'pending';
+  // Poll while the fare is being collected and not yet settled: this picks up
+  // the payment the moment the driver sends the prompt, then its settlement.
+  const awaitingUnsettled = !!ride && (ride.status === 'paymentPending' || ride.status === 'arrived') && !(payment && isPaymentSettled(payment.status));
   useEffect(() => {
-    if (!waitingOnProvider || !ride) return;
+    if (!awaitingUnsettled || !ride) return;
     const timer = setInterval(() => {
       getPaymentForRide(ride.id).then((p) => { if (p) setPayment(p); }).catch(() => {});
-    }, 5000);
+    }, 4000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waitingOnProvider, ride?.id]);
+  }, [awaitingUnsettled, ride?.id]);
 
   async function handleRetry() {
     if (!ride) return;
@@ -103,25 +107,30 @@ export default function TrackingScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      <View style={StyleSheet.absoluteFill}>
+        {scene && scene.camera ? (
+          <LiveMap scene={{ ...scene, camera: scene.camera, interactive: true }} loadingLabel={t('mapLoading')} errorLabel={t('mapError')} retryLabel={t('tryAgain')} />
+        ) : null}
+      </View>
       <MapSheet
         header={
           <View className="mb-3">
             <Text className="text-xl font-bold text-ink">
               {awaitingPayment ? t('preparePayment') : etaMinutes != null ? t('tripEndsAt', { time: clockIn(etaMinutes) }) : t('tripInProgress')}
             </Text>
-            <Text className="mt-0.5 text-[13px] text-text-secondary" numberOfLines={1}>
+            <Text className="font-sans mt-0.5 text-[13px] text-text-secondary" numberOfLines={1}>
               {awaitingPayment ? formatFare(ride.finalFare ?? ride.estimatedFare) : `${t('onTheWayToDestination')} · ${ride.destination.address}`}
             </Text>
           </View>
         }
         footer={<Button title={t('safety')} variant="outline" icon="shield-checkmark-outline" onPress={() => router.push({ pathname: '/(main)/ride/safety', params: { rideId: ride.id } })} />}
       >
-        {!driverLocation && !awaitingPayment ? <Text className="mb-3 text-sm text-error">{t('driverLocationUnavailable')}</Text> : null}
+        {!driverLocation && !awaitingPayment ? <Text className="font-sans mb-3 text-sm text-error">{t('driverLocationUnavailable')}</Text> : null}
         {ride.driver ? (
           <View className="flex-row items-center rounded-2xl border border-border p-3">
             <View className="flex-1">
               <Text className="text-[15px] font-bold text-ink">{ride.driver.name}</Text>
-              <Text className="text-[13px] text-text-secondary">{ride.driver.vehicleColor} {ride.driver.vehicleModel}</Text>
+              <Text className="font-sans text-[13px] text-text-secondary">{ride.driver.vehicleColor} {ride.driver.vehicleModel}</Text>
             </View>
             <View className="rounded-lg border-2 border-ink px-2 py-0.5">
               <Text className="text-xs font-bold tracking-wider text-ink">{ride.driver.licensePlate}</Text>
@@ -134,10 +143,10 @@ export default function TrackingScreen() {
             <Text className="text-base font-semibold text-ink">{t('preparePayment')}</Text>
             {payment ? (
               isPaymentSettled(payment.status) ? (
-                <Text className="mt-2 text-primary">{t('depositReceived')}</Text>
+                <Text className="font-sans mt-2 text-primary">{t('depositReceived')}</Text>
               ) : payment.method === 'cash' ? (
                 <View className="mt-3">
-                  <Text className="text-sm text-text-secondary">{t(ride.cashDisputedAt ? 'cashUnderReview' : 'cashAwaitingDriver')}</Text>
+                  <Text className="font-sans text-sm text-text-secondary">{t(ride.cashDisputedAt ? 'cashUnderReview' : 'cashAwaitingDriver')}</Text>
                   {ride.cashDisputedAt ? (
                     <View className="mt-3">
                       <Button title={t('backHome')} onPress={() => router.replace('/(main)/(tabs)')} />
@@ -162,9 +171,12 @@ export default function TrackingScreen() {
                 </View>
               )
             ) : (
-              <ActivityIndicator className="mt-3" color="#0E7C4A" />
+              <View className="mt-3 flex-row items-center">
+                <ActivityIndicator color="#0E7C4A" />
+                <Text className="font-sans ml-3 flex-1 text-sm text-text-secondary">{t('waitingForDriverPayment')}</Text>
+              </View>
             )}
-            {paymentError ? <Text className="mt-2 text-error">{paymentError}</Text> : null}
+            {paymentError ? <Text className="font-sans mt-2 text-error">{paymentError}</Text> : null}
           </View>
         ) : null}
       </MapSheet>

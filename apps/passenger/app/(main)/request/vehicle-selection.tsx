@@ -3,7 +3,7 @@ import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { appAlert } from '@kimu/shared/utils/dialog';
 import { router, useIsFocused } from 'expo-router';
 import { goBack } from '@kimu/shared/utils/navigation';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -147,7 +147,7 @@ export default function VehicleSelectionScreen() {
           <View className="mb-2 flex-row items-center justify-between">
             <Text className="text-lg font-bold text-ink">{t('chooseRide')}</Text>
             {quote ? (
-              <Text className="text-xs text-text-secondary">
+              <Text className="font-sans text-xs text-text-secondary">
                 {quote.route.distanceKm.toFixed(1)} km · {quote.route.durationMinutes} min
               </Text>
             ) : null}
@@ -165,7 +165,7 @@ export default function VehicleSelectionScreen() {
           <ActivityIndicator className="my-8" color="#0E7C4A" />
         ) : loadError ? (
           <View className="my-4">
-            <Text className="text-text-secondary">{loadError}</Text>
+            <Text className="font-sans text-text-secondary">{loadError}</Text>
             <View className="mt-3 self-start">
               <Button title={t('retryLabel')} variant="outline" onPress={load} />
             </View>
@@ -175,7 +175,7 @@ export default function VehicleSelectionScreen() {
             {quote.surge.multiplier > 1 ? (
               <View className="mb-2 flex-row items-center rounded-xl bg-warning/10 px-3 py-2">
                 <Ionicons name="flash" size={16} color="#F97316" />
-                <Text className="ml-2 flex-1 text-xs text-warning">{t('surgeNotice')}</Text>
+                <Text className="font-sans ml-2 flex-1 text-xs text-warning">{t('surgeNotice')}</Text>
               </View>
             ) : null}
             {quote.shared ? (
@@ -198,13 +198,13 @@ export default function VehicleSelectionScreen() {
                     ))}
                   </View>
                 </View>
-                <Text className="mt-1.5 text-xs text-text-secondary">
+                <Text className="font-sans mt-1.5 text-xs text-text-secondary">
                   {t('sharedDetourNotice', { minutes: quote.shared.maxAddedMinutes })}
                 </Text>
               </View>
             ) : null}
             {quote.route.source === 'estimate' ? (
-              <Text className="mb-2 text-xs text-text-secondary">{t('routeEstimateNotice')}</Text>
+              <Text className="font-sans mb-2 text-xs text-text-secondary">{t('routeEstimateNotice')}</Text>
             ) : null}
             {quote.options.map((option) => (
               <VehicleRow
@@ -259,9 +259,9 @@ function VehicleRow({
           <View className="flex-row items-center">
             <Text className="text-[15px] font-bold text-ink">{option.name}</Text>
             <Ionicons name="person" size={12} color="#6B7280" style={{ marginLeft: 8 }} />
-            <Text className="ml-0.5 text-xs text-text-secondary">{option.capacity}</Text>
+            <Text className="font-sans ml-0.5 text-xs text-text-secondary">{option.capacity}</Text>
           </View>
-          <Text className="mt-0.5 text-xs text-text-secondary">
+          <Text className="font-sans mt-0.5 text-xs text-text-secondary">
             {eta == null
               ? t('noCarsNearby')
               : `${t('minAway', { minutes: eta })} · ${t('dropoffAt', { time: clockIn(eta + durationMinutes) })}`}

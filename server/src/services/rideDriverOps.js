@@ -3,9 +3,11 @@ const bcrypt = require('bcryptjs');
 const { getPool } = require('../db');
 const { ApiError } = require('../utils/asyncHandler');
 const { transitionRide } = require('./rideStateMachine');
-const { generateRidePin, changeDestination, matchAndAssign } = require('./rideService');
+const { generateRidePin, generatePairCode, changeDestination, matchAndAssign } = require('./rideService');
 const { pushNotification } = require('./notify');
+const { pushDriverNotification } = require('./driverNotify');
 const { createPaymentForRide, chargePayment } = require('./payments');
+const { toE164 } = require('./otpSender');
 const { recordSample } = require('./driverTrails');
 const { releaseDriver } = require('./driverMatcher');
 const { planStops } = require('./poolPlanner');
@@ -259,13 +261,66 @@ async function markArrived(driverId, rideId) {
   await transitionRide(rideId, 'driverArrived', { changedBy: 'driver' });
 
   const pin = await generateRidePin(rideId);
+  // Also mint the Pair Ride code the driver shows as a QR for the rider to scan.
+  await generatePairCode(rideId);
   await pushNotification(ride.passenger_id, {
     title: 'Your driver has arrived',
-    body: `Meet ${ride.driver_name}. Your ride PIN is ${pin}.`,
+    body: `Meet ${ride.driver_name}. Scan their QR to start, or share PIN ${pin}.`,
     type: 'ride',
     rideId,
   });
-  // Never return the code to the driver who must request it from the rider.
+  // Never return the PIN to the driver who must request it from the rider.
+}
+
+/**
+ * Pair Ride: the rider scanned (or typed) the driver's code, which verified
+ * the car and moved the ride to pinVerified. The driver now taps Start, which
+ * this begins — the same transition the PIN path makes, kept as a separate
+ * step so the driver confirms before the meter effectively runs.
+ */
+async function startTrip(driverId, rideId) {
+  const ride = await getActiveRideById(driverId, rideId);
+  if (!ride) throw new ApiError(404, 'No assigned ride found.');
+  if (ride.status === 'inProgress') return; // idempotent: a double tap is harmless
+  if (ride.status !== 'pinVerified') {
+    throw new ApiError(400, 'The trip can only start once the rider has paired.');
+  }
+  await transitionRide(rideId, 'inProgress', { changedBy: 'driver' });
+  await pushNotification(ride.passenger_id, {
+    title: 'Ride started',
+    body: 'Your driver started the trip. Buckle up!',
+    type: 'ride',
+    rideId,
+  });
+}
+
+/**
+ * Pair Ride, rider side: the rider scanned the driver's QR (or typed the
+ * code). Verifies it against their arrived ride and moves it to pinVerified,
+ * so the driver's Start button unlocks. Guessing is bounded by the route's
+ * rate limiter.
+ */
+async function pairByCode(passengerId, code) {
+  const value = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{8}$/.test(value)) throw new ApiError(400, 'That pairing code is not valid.');
+  const { rows } = await getPool().query(
+    `SELECT * FROM rides WHERE passenger_id = $1 AND status = 'driverArrived' ORDER BY created_at DESC LIMIT 1`,
+    [passengerId]
+  );
+  const ride = rows[0];
+  if (!ride) throw new ApiError(404, 'You have no ride waiting to start. Ask the driver to confirm they have arrived.');
+  if (!ride.pair_code || ride.pair_code !== value) {
+    throw new ApiError(400, "That code does not match your driver's. Check the screen and try again.");
+  }
+  await transitionRide(ride.id, 'pinVerified', { changedBy: 'passenger' });
+  await pushDriverNotification(ride.driver_id, {
+    title: 'Rider paired',
+    body: 'Your rider scanned the code. Tap Start to begin the trip.',
+    type: 'ride',
+    rideId: ride.id,
+  });
+  const { rows: updated } = await getPool().query('SELECT * FROM rides WHERE id = $1', [ride.id]);
+  return updated[0];
 }
 
 async function verifyPin(driverId, rideId, pin) {
@@ -310,17 +365,49 @@ async function completeTrip(driverId, rideId) {
   await transitionRide(rideId, 'arrived', { changedBy: 'driver' });
   await transitionRide(rideId, 'paymentPending', { changedBy: 'payments' });
 
-  const updated = await getPool().query('SELECT * FROM rides WHERE id = $1', [rideId]);
-  const payment = await createPaymentForRide(updated.rows[0]);
-  const paymentAfter = await chargePayment(payment, updated.rows[0]);
-
-  // Wallet and mobile-money fares are collected by the platform, so the
-  // driver is free for the next ride now rather than waiting on the rider's
-  // phone. A cash fare keeps them here until they confirm they were paid.
-  if (updated.rows[0].payment_method !== 'cash') await releaseDriver(driverId);
-
+  // The fare is not charged automatically. The driver now collects it: they
+  // ask the passenger for their mobile-money number and send the MTN/Airtel
+  // prompt (chargeRide below), or confirm cash. The driver stays on this ride
+  // until the money is in.
   const { rows } = await getPool().query('SELECT * FROM rides WHERE id = $1', [rideId]);
-  return { ride: rows[0], payment: paymentAfter || payment };
+  return { ride: rows[0] };
+}
+
+/** MTN (078/079) or Airtel (072/073) Rwandan number -> the matching method. */
+function momoMethodFor(phone) {
+  const digits = toE164(phone).replace(/\D/g, '');
+  const prefix = digits.startsWith('250') ? digits.slice(3, 5) : '';
+  if (['78', '79'].includes(prefix)) return 'mtn_momo';
+  if (['72', '73'].includes(prefix)) return 'airtel_money';
+  return null;
+}
+
+/**
+ * The driver collects the fare by mobile money: they type the passenger's
+ * number, and this sends the MTN/Airtel prompt to it. The passenger approves
+ * on their phone; once the provider confirms, the ride settles and completes.
+ */
+async function chargeRide(driverId, rideId, phone) {
+  const ride = await getActiveRideById(driverId, rideId);
+  if (!ride) throw new ApiError(404, 'No assigned ride found.');
+  if (ride.status !== 'paymentPending') {
+    throw new ApiError(400, 'You can request payment only after completing the trip.');
+  }
+  const method = momoMethodFor(phone);
+  if (!method) throw new ApiError(400, 'Enter a valid MTN (078/079) or Airtel (072/073) number.');
+  const e164 = toE164(phone);
+  await getPool().query('UPDATE rides SET payment_method = $2, payment_phone = $3 WHERE id = $1', [rideId, method, e164]);
+  const { rows } = await getPool().query('SELECT * FROM rides WHERE id = $1', [rideId]);
+  const payment = await createPaymentForRide(rows[0]);
+  const charged = await chargePayment(payment, rows[0]);
+  await releaseDriver(driverId);
+  await pushNotification(ride.passenger_id, {
+    title: 'Approve your payment',
+    body: `Approve the ${method === 'mtn_momo' ? 'MTN MoMo' : 'Airtel Money'} prompt on your phone to pay for your trip.`,
+    type: 'payment',
+    rideId,
+  });
+  return { payment: charged || payment, method };
 }
 
 /** Driver-initiated cancellation of an already-accepted ride (before pickup
@@ -367,7 +454,10 @@ module.exports = {
   declineRide,
   markArrived,
   verifyPin,
+  startTrip,
+  pairByCode,
   completeTrip,
+  chargeRide,
   cancelRideAsDriver,
   changeDestinationAsDriver,
 };

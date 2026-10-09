@@ -21,7 +21,7 @@ export function DialogHost() {
           onPress={(e) => e.stopPropagation()}
         >
           <Text className="text-lg font-bold text-ink">{dialog.title}</Text>
-          {dialog.message ? <Text className="mt-2 text-[15px] leading-5 text-text-secondary">{dialog.message}</Text> : null}
+          {dialog.message ? <Text className="font-sans mt-2 text-[15px] leading-5 text-text-secondary">{dialog.message}</Text> : null}
           <View className="mt-5 flex-row flex-wrap justify-end gap-2">
             {dialog.buttons.map((b, i) => (
               <Pressable

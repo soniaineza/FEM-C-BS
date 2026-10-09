@@ -7,7 +7,7 @@ import { useEffect, useRef } from 'react';
 import type { DOMProps } from 'expo/dom';
 
 import type { MapCar, MapMarker, MapRoute, MapScene, LngLat } from './map-types';
-import { KIGALI_CENTER } from './map-types';
+import { KIGALI_CENTER, SERVICE_AREA_BOUNDS, SERVICE_AREA_MIN_ZOOM } from './map-types';
 import { CAR_LENGTH_M, createCar, createLights, loadCarModels } from './carModel';
 import { RENDER_DELAY_MS, Track, distanceM, lerpAngle, projectOnRoute } from './trackInterpolation';
 
@@ -29,6 +29,16 @@ const USER_IDLE_MS = 8000; // after panning, wait this long before re-following
 const REMOVE_AFTER_MS = 4000; // a car missing from updates fades out after this
 const EMPTY_FC = { type: 'FeatureCollection', features: [] } as const;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
+/** How long the base style may take before the map reports it as failed. */
+const STYLE_TIMEOUT_MS = 15000;
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
 
 interface Props {
   scene: MapScene;
@@ -36,6 +46,8 @@ interface Props {
   styleUrl?: string;
   onReady?: () => Promise<void>;
   onError?: (message: string) => Promise<void>;
+  /** Progress inside the WebView, so a failure can say how far it got. */
+  onStage?: (stage: string) => Promise<void>;
   onPress?: (latitude: number, longitude: number) => Promise<void>;
   onCenterChanged?: (latitude: number, longitude: number) => Promise<void>;
   onUserGesture?: () => Promise<void>;
@@ -69,6 +81,15 @@ class CarLayer implements maplibregl.CustomLayerInterface {
   private camera = new THREE.Camera();
   private scene = new THREE.Scene();
   private nextFrame: ReturnType<typeof setTimeout> | null = null;
+  // Scratch objects reused every frame. render() runs ~30 times a second and
+  // allocated two Matrix4 per car plus two more for the camera each time, so
+  // a busy map churned hundreds of short-lived objects a second and the GC
+  // pauses showed up as stutter on cheaper phones.
+  private readonly scratchScale = new THREE.Matrix4();
+  private readonly scratchTranslate = new THREE.Matrix4();
+  private readonly scratchProjection = new THREE.Matrix4();
+  private readonly scratchOrigin = new THREE.Matrix4();
+  private readonly scratchRoll = new THREE.Quaternion();
 
   onAdd(map: maplibregl.Map, gl: WebGLRenderingContext | WebGL2RenderingContext) {
     this.map = map;
@@ -159,6 +180,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
     const t = now + this.serverOffsetMs - RENDER_DELAY_MS;
     const zoom = this.map.getZoom();
     let moving = false;
+    let hasAssigned = false;
     // Relative-to-centre rendering: the GPU works in 32-bit floats, and an
     // absolute Web-Mercator position (~0.58) only resolves to ~1.4 m there —
     // cars tore into shards from zoom ~19. Cars are placed relative to an
@@ -170,12 +192,13 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       const st = entry.track.sample(t);
       if (!st) continue;
       moving = moving || st.moving;
+      hasAssigned = hasAssigned || entry.assigned;
       // Turn the wheels by the distance covered (scaled with the drawn size).
       const wheels = entry.group.userData.wheels as THREE.Object3D[] | undefined;
       if (wheels?.length && (st.lat !== entry.lat || st.lng !== entry.lng)) {
         const movedM = distanceM(entry.lat, entry.lng, st.lat, st.lng);
         entry.wheelAngle = (entry.wheelAngle + movedM / (entry.group.userData.wheelRadiusM * entry.scale)) % (Math.PI * 2);
-        const roll = new THREE.Quaternion().setFromAxisAngle(X_AXIS, entry.wheelAngle);
+        const roll = this.scratchRoll.setFromAxisAngle(X_AXIS, entry.wheelAngle);
         for (const w of wheels) w.quaternion.copy(roll).multiply(w.userData.baseQuaternion);
       }
       entry.lat = st.lat;
@@ -198,8 +221,8 @@ class CarLayer implements maplibregl.CustomLayerInterface {
 
       const m = entry.group.matrix;
       m.makeRotationZ((-entry.heading * Math.PI) / 180);
-      m.premultiply(new THREE.Matrix4().makeScale(s, -s, s));
-      m.premultiply(new THREE.Matrix4().makeTranslation(mc.x - origin.x, mc.y - origin.y, mc.z - origin.z));
+      m.premultiply(this.scratchScale.makeScale(s, -s, s));
+      m.premultiply(this.scratchTranslate.makeTranslation(mc.x - origin.x, mc.y - origin.y, mc.z - origin.z));
       entry.group.matrixWorldNeedsUpdate = true;
 
       const ring = entry.group.getObjectByName('ring');
@@ -209,15 +232,14 @@ class CarLayer implements maplibregl.CustomLayerInterface {
       }
     }
 
-    this.camera.projectionMatrix = new THREE.Matrix4()
+    this.camera.projectionMatrix = this.scratchProjection
       .fromArray(args.defaultProjectionData.mainMatrix as unknown as number[])
-      .multiply(new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z));
+      .multiply(this.scratchOrigin.makeTranslation(origin.x, origin.y, origin.z));
     this.renderer.resetState();
     this.renderer.render(this.scene, this.camera);
 
     // ~30 fps while anything moves or pulses; idle maps cost nothing.
     if (this.cars.size && !this.nextFrame) {
-      const hasAssigned = [...this.cars.values()].some((c) => c.assigned);
       this.nextFrame = setTimeout(() => {
         this.nextFrame = null;
         this.map.triggerRepaint();
@@ -281,7 +303,7 @@ function fitPadding(map: maplibregl.Map, padding: { top: number; bottom: number;
   return { top, bottom, left, right };
 }
 
-export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, onCenterChanged, onUserGesture }: Props) {
+export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, onPress, onCenterChanged, onUserGesture }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const carsRef = useRef<CarLayer | null>(null);
@@ -292,8 +314,8 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
   const lastUserGestureAt = useRef(0);
   const routeAnim = useRef<{ key: string; startedAt: number } | null>(null);
   const lastFollowAt = useRef(0);
-  const callbacks = useRef({ onReady, onError, onPress, onCenterChanged, onUserGesture });
-  callbacks.current = { onReady, onError, onPress, onCenterChanged, onUserGesture };
+  const callbacks = useRef({ onReady, onError, onStage, onPress, onCenterChanged, onUserGesture });
+  callbacks.current = { onReady, onError, onStage, onPress, onCenterChanged, onUserGesture };
   sceneRef.current = scene;
   const appliedStyle = useRef<string>('');
 
@@ -362,6 +384,10 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
   // ---------- one-time map setup ----------
   useEffect(() => {
     if (!container.current) return;
+    // The first thing the page says to native. If this never arrives, the
+    // WebView itself did not run the page; if it does and nothing follows,
+    // the map could not be built.
+    callbacks.current.onStage?.('page booted');
     let map: maplibregl.Map;
     try {
       const cam = scene.camera;
@@ -382,6 +408,10 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
         pitchWithRotate: false,
         touchPitch: false,
         interactive: scene.interactive !== false,
+        // Kimu drives in Rwanda only: the map cannot be dragged or zoomed out
+        // past the service area, so a stray swipe never loses the trip.
+        maxBounds: SERVICE_AREA_BOUNDS,
+        minZoom: SERVICE_AREA_MIN_ZOOM,
         fadeDuration: 150,
       });
     } catch (err) {
@@ -390,6 +420,17 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
     }
     map.touchZoomRotate.disableRotation();
     mapRef.current = map;
+    const styleHost = hostOf(appliedStyle.current);
+    callbacks.current.onStage?.('map created, loading style from ' + styleHost);
+    // A style request that hangs raises no error event at all, so on a slow
+    // or filtered mobile network the map would wait for ever in silence.
+    // Name the host so a tester's screenshot says which server to blame.
+    const styleTimer = setTimeout(() => {
+      if (mapRef.current !== map || loadedRef.current) return;
+      callbacks.current.onError?.(
+        'The map style did not load from ' + styleHost + ' within ' + STYLE_TIMEOUT_MS / 1000 + 's.'
+      );
+    }, STYLE_TIMEOUT_MS);
     if (process.env.NODE_ENV !== 'production') {
       // Dev/test hook: lets end-to-end tests drive the camera and inspect cars.
       const w = window as unknown as { __kimuMaps?: unknown[] };
@@ -399,6 +440,8 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onPress, 
     // Fires for the first style and again after setStyle(): everything the
     // engine draws on top of the base map is (re)installed here.
     map.on('style.load', () => {
+      clearTimeout(styleTimer);
+      callbacks.current.onStage?.('style loaded');
       installLayers(map);
       if (loadedRef.current) applyScene(sceneRef.current, true);
     });

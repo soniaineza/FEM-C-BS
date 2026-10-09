@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { View, Text, Pressable, Modal, ScrollView } from 'react-native';
 import { appAlert } from '@kimu/shared/utils/dialog';
-import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { MenuTile } from '@kimu/shared/components/MenuTile';
-import { BackHeader } from '@kimu/shared/components/BackHeader';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { Locale } from '@kimu/shared/locales';
 
@@ -23,10 +22,8 @@ export default function SettingsScreen() {
   const [langModalOpen, setLangModalOpen] = useState(false);
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-bg-light">
+    <ScreenShell title={t('settings')} back background="bg-bg-light" backLabel={t('back')}>
       <ScrollView contentContainerClassName="px-5 pb-6 pt-2">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('settings')}</Text>
 
         <View className="mt-4">
           <MenuTile icon="notifications-outline" label={t('notifications')} onPress={() => router.push('/(main)/settings/notifications')} />
@@ -52,7 +49,7 @@ export default function SettingsScreen() {
           <MenuTile icon="document-text-outline" label={t('termsOfService')} onPress={() => router.push('/(main)/settings/terms')} />
         </View>
 
-        <Text className="mt-3 text-xs leading-5 text-text-secondary">{t('locationNotice')}</Text>
+        <Text className="font-sans mt-3 text-xs leading-5 text-text-secondary">{t('locationNotice')}</Text>
       </ScrollView>
 
       <Modal visible={langModalOpen} animationType="slide" transparent>
@@ -68,13 +65,13 @@ export default function SettingsScreen() {
                   setLangModalOpen(false);
                 }}
               >
-                <Text className="text-base text-ink">{languageNames[l]}</Text>
-                {locale === l ? <Text className="text-primary">{t('ok')}</Text> : null}
+                <Text className="font-sans text-base text-ink">{languageNames[l]}</Text>
+                {locale === l ? <Text className="font-sans text-primary">{t('ok')}</Text> : null}
               </Pressable>
             ))}
           </View>
         </View>
       </Modal>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }

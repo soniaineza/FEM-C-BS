@@ -26,9 +26,12 @@ export function MapStage() {
   // focused, so no active owner means there is no stage to render.
   if (!scene || !owner) return null;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    // box-none lets touches in the open area above the sheet reach the map so
+    // the rider can pan and zoom it during the trip; the map follows the car
+    // again a few seconds after they let go.
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <LiveMap
-        scene={{ ...scene, interactive: false }}
+        scene={{ ...scene, interactive: true }}
         loadingLabel={t('mapLoading')}
         errorLabel={t('mapError')}
         retryLabel={t('tryAgain')}

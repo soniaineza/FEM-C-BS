@@ -4,6 +4,8 @@ const { getPool } = require('../db');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { rideToJson, paymentToJson, receiptToJson } = require('../utils/serialize');
 const { requireAuth } = require('../middleware/auth');
+const { apiLimiter } = require('../middleware/rateLimit');
+const { pairByCode } = require('../services/rideDriverOps');
 const { onRideEvent } = require('../services/rideEvents');
 const {
   computeEstimate,
@@ -304,6 +306,18 @@ router.post(
     const { reason } = req.body || {};
     const ride = await cancelRide(req.passengerId, req.params.id, reason);
     res.json({ ride: riderRideToJson(ride) });
+  })
+);
+
+// POST /api/rides/pair { code } — Pair Ride: the rider scanned (or typed) the
+// driver's QR code, which verifies the car and moves the ride to pinVerified
+// so the driver can start it. Rate limited per rider to bound guessing.
+router.post(
+  '/pair',
+  apiLimiter({ max: 15, keyGenerator: (req) => `pair:${req.passengerId}` }),
+  asyncHandler(async (req, res) => {
+    const ride = await pairByCode(req.passengerId, (req.body || {}).code);
+    res.json({ paired: true, ride: riderRideToJson(ride) });
   })
 );
 

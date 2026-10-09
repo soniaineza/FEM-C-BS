@@ -146,10 +146,40 @@ ALTER TABLE rides ADD COLUMN IF NOT EXISTS payment_phone TEXT;
 -- Set when the driver did not confirm a cash fare in time: the ride is with
 -- an operator (payment_exceptions) and no longer blocks the rider or driver.
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS cash_disputed_at TIMESTAMPTZ;
+-- Pair Ride: a per-trip code the driver shows as a QR once they arrive. The
+-- rider scans it (or types it) to pair and verify the car; the driver then
+-- starts the trip. Driver-held, short-lived, never shown to the rider.
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS pair_code TEXT;
 -- A closed account keeps its row (rides, payments and wallet history hang
 -- off it) with the personal details removed.
 ALTER TABLE passengers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE drivers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- Google sign-in (services/googleAuth.js). A rider created from a Google
+-- account has no password, and no phone until the app collects one and
+-- verifies it with a code; google_sub is Google's stable account id.
+-- Passwordless sign-in: a rider who starts with WhatsApp has only a phone,
+-- one who starts with Google has only an e-mail. Name is filled in later on
+-- the profile step. The unique indexes still forbid duplicates among the
+-- rows that DO have a value.
+ALTER TABLE passengers ALTER COLUMN phone DROP NOT NULL;
+ALTER TABLE passengers ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE passengers ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE passengers ALTER COLUMN full_name DROP NOT NULL;
+ALTER TABLE passengers ADD COLUMN IF NOT EXISTS google_sub TEXT UNIQUE;
+ALTER TABLE passengers ADD COLUMN IF NOT EXISTS google_linked_at TIMESTAMPTZ;
+-- One-time codes the browser hands the app after a Google sign-in; the app
+-- exchanges one for a session within minutes. Only the hash is stored.
+CREATE TABLE IF NOT EXISTS login_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  passenger_id UUID NOT NULL REFERENCES passengers(id) ON DELETE CASCADE,
+  code_hash TEXT NOT NULL UNIQUE,
+  provider TEXT NOT NULL DEFAULT 'google',
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_login_codes_expires ON login_codes (expires_at);
 
 CREATE TABLE IF NOT EXISTS ride_status_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -468,3 +498,57 @@ ALTER TABLE rides ADD COLUMN IF NOT EXISTS surge_multiplier DOUBLE PRECISION;
 
 -- Direction of travel, so maps can orient the car.
 ALTER TABLE drivers ADD COLUMN IF NOT EXISTS current_heading DOUBLE PRECISION;
+
+-- Kimu's published tariff (the fare table shown on Fare Info and Tariff).
+-- The fare is tiered by distance rather than one flat per-km rate:
+--   base_fare            covers the first `included_km`
+--   fare_per_km          each km from there to `long_distance_km`
+--   fare_per_km_long     each km beyond `long_distance_km`
+-- Waiting is published so riders know the policy, but nothing measures
+-- waiting time yet, so no waiting money is added to any fare — see
+-- services/pricing.js.
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS included_km DOUBLE PRECISION;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS long_distance_km DOUBLE PRECISION;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fare_per_km_long DOUBLE PRECISION;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS waiting_fee DOUBLE PRECISION;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS waiting_fee_minutes INTEGER;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS free_waiting_minutes INTEGER;
+
+-- Set unconditionally, unlike the seeds above: the published table is the
+-- single source of truth for what a rider is charged, so a stale rate left
+-- over from the old flat pricing must not survive. Every class is on the one
+-- tariff. per_minute, booking_fee and the old min_fare are cleared because
+-- the published table has no time, booking or minimum component — the base
+-- fare is the minimum.
+UPDATE vehicles SET
+  base_fare = 1800,
+  included_km = 1,
+  fare_per_km = 1080,
+  long_distance_km = 30,
+  fare_per_km_long = 900,
+  waiting_fee = 1500,
+  waiting_fee_minutes = 15,
+  free_waiting_minutes = 15,
+  per_minute = 0,
+  booking_fee = 0,
+  min_fare = 1800;
+
+-- A driver may share their own live trip with someone they trust, the same
+-- way a rider can. The share then belongs to the driver rather than the
+-- passenger, so passenger_id becomes optional and the driver is recorded.
+ALTER TABLE trip_shares ADD COLUMN IF NOT EXISTS driver_id UUID REFERENCES drivers(id) ON DELETE CASCADE;
+ALTER TABLE trip_shares ALTER COLUMN passenger_id DROP NOT NULL;
+
+-- Safety reports a driver files about a trip. Read by an operator; kept
+-- separate from support tickets so a safety matter is never queued behind a
+-- billing question.
+CREATE TABLE IF NOT EXISTS driver_incident_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  driver_id UUID NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+  ride_id UUID REFERENCES rides(id) ON DELETE SET NULL,
+  category TEXT NOT NULL,
+  details TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_driver_incidents_driver ON driver_incident_reports (driver_id, created_at DESC);

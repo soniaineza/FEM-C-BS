@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '@kimu/shared/components/Button';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
@@ -72,6 +72,12 @@ export default function SearchingDriverScreen() {
         }
         return;
       }
+      // A ride that already finished belongs in Your Rides, not back in the
+      // booking flow.
+      if (ride.status === 'completed') {
+        router.replace('/(main)/(tabs)');
+        return;
+      }
       router.replace({ pathname: '/(main)/ride/driver-accepted', params: { rideId: ride.id } });
     }
   }, [ride]);
@@ -99,7 +105,7 @@ export default function SearchingDriverScreen() {
           <Ionicons name="car-outline" size={36} color="#0E7C4A" />
         </View>
         <Text className="mt-5 text-xl text-ink font-display">{t('searchTimedOutTitle')}</Text>
-        <Text className="mt-2 text-center leading-relaxed text-text-secondary">{t('searchTimedOutBody')}</Text>
+        <Text className="font-sans mt-2 text-center leading-relaxed text-text-secondary">{t('searchTimedOutBody')}</Text>
         <View className="mt-8 w-full">
           <Button title={t('backHome')} onPress={() => router.replace('/(main)/(tabs)')} />
         </View>
@@ -124,7 +130,7 @@ export default function SearchingDriverScreen() {
         }
         footer={<Button title={t('cancelRide')} variant="outline" onPress={handleCancel} loading={cancelling} />}
       >
-        <Text className="leading-relaxed text-text-secondary">{t('matchingDriver')}</Text>
+        <Text className="font-sans leading-relaxed text-text-secondary">{t('matchingDriver')}</Text>
         {cars.length ? (
           <Text className="mt-1 text-xs font-semibold text-primary">
             {cars.length === 1 ? t('oneDriverNearby') : t('multipleDriversNearby', { count: cars.length })}
@@ -132,7 +138,7 @@ export default function SearchingDriverScreen() {
         ) : null}
         {searchSlow ? (
           <View className="mt-3 w-full rounded-xl border border-border bg-bg-light px-4 py-3" accessibilityRole="text">
-            <Text className="text-center text-sm text-text-secondary">
+            <Text className="font-sans text-center text-sm text-text-secondary">
               {t('searchTimedOutCountdown', { minutes: `${minutes}:${String(seconds).padStart(2, '0')}` })}
             </Text>
           </View>

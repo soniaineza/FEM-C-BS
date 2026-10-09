@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StatusBar } from 'expo-status-bar';
 
 import { Button } from '@kimu/shared/components/Button';
@@ -10,6 +10,7 @@ import { LocationField } from '../../../components/LocationField';
 import { RideMap } from '@kimu/shared/components/RideMap';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { useRideWizardStore } from '../../../stores/useRideWizardStore';
+import { useDrawerStore } from '../../../stores/useDrawerStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useActiveRideRestore } from '../../../hooks/useActiveRideRestore';
 import { useNearbyCars } from '../../../hooks/useNearbyCars';
@@ -181,21 +182,21 @@ export default function HomeScreen() {
           rounded={false}
         />
 
-        <View className="absolute left-3 right-3 top-3 sm:left-4 sm:right-4 flex-row items-start justify-between gap-3" pointerEvents="box-none">
-          <View className="max-w-[75%] flex-1 rounded-2xl border border-border bg-white px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm">
+        <View className="absolute left-3 right-3 top-3 sm:left-4 sm:right-4 flex-row items-start gap-3" pointerEvents="box-none">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('menu')}
+            className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full border border-border bg-white shadow-sm"
+            onPress={() => useDrawerStore.getState().setOpen(true)}
+          >
+            <Ionicons name="menu" color="#0E7C4A" size={24} />
+          </Pressable>
+          <View className="flex-1 rounded-2xl border border-border bg-white px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm">
             <Text className="text-sm sm:text-base font-bold text-ink" numberOfLines={1}>{t('homeGreetingPrefix')} {firstName}</Text>
             <Text className="mt-0.5 text-[11px] sm:text-xs font-medium text-primary">
               {nearbyCars.length === 1 ? t('oneDriverNearby') : t('multipleDriversNearby', { count: nearbyCars.length })}
             </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('profile')}
-            className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full border border-border bg-white shadow-sm"
-            onPress={() => router.push('/(main)/(tabs)/profile')}
-          >
-            <Ionicons name="person-outline" color="#0E7C4A" size={22} />
-          </Pressable>
         </View>
 
         <Pressable
@@ -226,7 +227,7 @@ export default function HomeScreen() {
             </View>
             <View className="ml-3 flex-1">
               <Text className="text-[15px] font-bold text-ink">{t('activeRideTitle')}</Text>
-              <Text numberOfLines={1} className="text-[13px] text-text-secondary">{activeRide.destination.address}</Text>
+              <Text numberOfLines={1} className="font-sans text-[13px] text-text-secondary">{activeRide.destination.address}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#C2410C" />
           </Pressable>
@@ -244,7 +245,7 @@ export default function HomeScreen() {
         </View>
 
         {locationHint && !pickup ? (
-          <Text className="mt-2 px-1 text-xs leading-4 text-text-secondary">{locationHint}</Text>
+          <Text className="font-sans mt-2 px-1 text-xs leading-4 text-text-secondary">{locationHint}</Text>
         ) : null}
 
         {savedPlaces.length > 0 ? (
@@ -271,33 +272,37 @@ export default function HomeScreen() {
           </ScrollView>
         ) : null}
 
-        <View className="mt-4 flex-row gap-2" accessibilityRole="radiogroup">
+        <Text className="mt-5 text-[13px] font-semibold uppercase tracking-wide text-text-secondary">{t('selectYourRide')}</Text>
+        <View className="mt-2.5 flex-row gap-3" accessibilityRole="radiogroup">
           <RideOptionCard
             selected={rideType === 'private'}
             title={t('privateRide')}
-            icon="car-sport-outline"
+            subtitle={t('privateRideShort')}
+            icon="car-sport"
             onPress={() => setRideType('private')}
           />
           <RideOptionCard
             selected={rideType === 'shared'}
             title={t('shareRide')}
-            icon="people-outline"
+            subtitle={t('shareRideShort')}
+            icon="people"
             onPress={() => setRideType('shared')}
           />
         </View>
-        <Text className="mt-2 text-xs text-text-secondary">
+        <Text className="font-sans mt-2.5 text-xs leading-4 text-text-secondary">
           {rideType === 'private' ? t('privateRideDescription') : t('shareRideDescription')}
         </Text>
 
           </ScrollView>
           <View className="border-t border-border bg-white px-4 sm:px-5 pb-4 pt-3">
           <Button
-            title={t('findRide')}
+            title={rideType === 'private' ? t('continueWithPrivate') : t('continueWithShare')}
             icon="arrow-forward"
+            iconPosition="right"
             onPress={findRide}
             disabled={!pickup || !destination || !canRequestRide}
           />
-          {checking ? <Text className="mt-2 text-center text-xs text-text-secondary">{t('checkingActiveRide')}</Text> : null}
+          {checking ? <Text className="font-sans mt-2 text-center text-xs text-text-secondary">{t('checkingActiveRide')}</Text> : null}
           </View>
         </View>
       </View>
@@ -305,14 +310,18 @@ export default function HomeScreen() {
   );
 }
 
+// A ride-type tile in the reference layout: a round icon chip over a title and
+// a short label, the selected one ringed and tinted in Kimu green.
 function RideOptionCard({
   selected,
   title,
+  subtitle,
   icon,
   onPress,
 }: {
   selected: boolean;
   title: string;
+  subtitle: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
 }) {
@@ -322,16 +331,24 @@ function RideOptionCard({
       accessibilityState={{ checked: selected }}
       aria-checked={selected}
       accessibilityLabel={title}
-      className="min-h-11 sm:min-h-12 flex-1 flex-row items-center justify-center rounded-xl px-2 sm:px-3 py-2.5 sm:py-3"
+      className="flex-1 flex-row items-center rounded-2xl px-3 py-3"
       style={{
         backgroundColor: selected ? '#E9F4EE' : '#FFFFFF',
-        borderWidth: 1,
+        borderWidth: selected ? 1.5 : 1,
         borderColor: selected ? '#0E7C4A' : '#E5E7EB',
       }}
       onPress={onPress}
     >
-      <Ionicons name={icon} size={19} color={selected ? '#0E7C4A' : '#6B7280'} />
-      <Text className={`ml-2 text-sm font-semibold ${selected ? 'text-primary' : 'text-ink'}`}>{title}</Text>
+      <View
+        className="h-10 w-10 items-center justify-center rounded-full"
+        style={{ backgroundColor: selected ? '#0E7C4A' : '#F1F3F5' }}
+      >
+        <Ionicons name={icon} size={21} color={selected ? '#FFFFFF' : '#6B7280'} />
+      </View>
+      <View className="ml-2.5 flex-1">
+        <Text className={`text-[15px] font-bold ${selected ? 'text-primary' : 'text-ink'}`} numberOfLines={1}>{title}</Text>
+        <Text className="font-sans text-[11px] text-text-secondary" numberOfLines={1}>{subtitle}</Text>
+      </View>
     </Pressable>
   );
 }

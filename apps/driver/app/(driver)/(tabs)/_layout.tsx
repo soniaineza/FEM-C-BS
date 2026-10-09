@@ -1,24 +1,18 @@
 import { Tabs } from 'expo-router';
 
-import { KimuBottomNavigation } from '@kimu/shared/components/KimuBottomNavigation';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 
-// Four tabs matching the reference driver shell (Home / My Rides / Wallet /
-// More), rendered by the same shared KimuBottomNavigation component as the
-// passenger app — one bar implementation, no duplicated styling. This also
-// removes the old fixed 72px item widths that misaligned on narrow/wide
-// devices. Labels come from the locale dictionary so they follow the app
-// language.
+// The four main destinations still live as tab routes so their URLs and
+// navigation state stay put, but the bar itself is gone: the reference driver
+// app navigates from the side drawer, so DriverDrawer is the only menu and
+// `tabBar` renders nothing.
 export default function DriverTabsLayout() {
   const { t } = useTranslation();
 
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-      }}
-      tabBar={(props) => <KimuBottomNavigation {...props} />}
+      screenOptions={{ headerShown: false }}
+      tabBar={() => null}
     >
       <Tabs.Screen name="index" options={{ title: t('home') }} />
       <Tabs.Screen name="trips" options={{ title: t('driverMyRides') }} />

@@ -4,7 +4,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
 import { router } from 'expo-router';
 import { goBack } from '@kimu/shared/utils/navigation';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '@kimu/shared/components/Button';
 import { Input } from '@kimu/shared/components/Input';
@@ -16,11 +16,6 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { validators } from '@kimu/shared/utils/validators';
 import { ApiError } from '../../services/api-client';
 
-// Two-step login: identifier first, then password. Splitting the fields keeps
-// each step minimal (one question per screen) without changing what the
-// backend receives — step 2 still POSTs the same { identifier, password } to
-// /auth/login. Google sign-in is deliberately NOT rendered: the backend has
-// no Google auth endpoint, and the UI must never pretend otherwise.
 export default function LoginScreen() {
   const { t } = useTranslation();
   const logIn = useAuthStore((s) => s.logIn);
@@ -86,7 +81,7 @@ export default function LoginScreen() {
             <Text className="mt-10 text-center text-[26px] font-bold leading-tight text-ink">
               {step === 'identifier' ? t('welcomeTo') : t('welcomeBack')}
             </Text>
-            <Text className="mt-2 text-center text-[15px] leading-relaxed text-text-secondary">
+            <Text className="font-sans mt-2 text-center text-[15px] leading-relaxed text-text-secondary">
               {step === 'identifier' ? t('loginTagline') : t('loginPasswordHint', { identifier: identifier.trim() })}
             </Text>
 
@@ -149,7 +144,7 @@ export default function LoginScreen() {
             </View>
 
             <View className="mt-7 flex-row justify-center">
-              <Text className="text-text-secondary">{t('noAccount')}</Text>
+              <Text className="font-sans text-text-secondary">{t('noAccount')}</Text>
               <Pressable onPress={() => router.push('/(auth)/signup')} hitSlop={8}>
                 <Text className="font-semibold text-primary">{t('signUp')}</Text>
               </Pressable>

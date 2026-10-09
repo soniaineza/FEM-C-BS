@@ -1,6 +1,6 @@
 import { Pressable, View, Text } from 'react-native';
 import { memo } from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Place } from '@kimu/shared/types/place';
 

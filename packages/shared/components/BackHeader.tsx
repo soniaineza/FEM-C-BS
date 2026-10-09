@@ -1,6 +1,6 @@
 import { View, Text, Pressable } from 'react-native';
 import { memo } from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { goBack } from '../utils/navigation';
 
 interface BackHeaderProps {

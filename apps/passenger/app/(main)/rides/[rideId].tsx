@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { ScreenShell } from '@kimu/shared/components/ScreenShell';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
@@ -46,7 +47,7 @@ export default function RideDetailsScreen() {
         <View className="flex-1 px-6 pt-2">
           <BackHeader />
           <View className="mt-10 items-center">
-            <Text className="text-center text-text-secondary">{error}</Text>
+            <Text className="font-sans text-center text-text-secondary">{error}</Text>
             <View className="mt-4 min-w-[160px]">
               <Button title={t('tryAgain')} variant="outline" onPress={load} />
             </View>
@@ -59,17 +60,15 @@ export default function RideDetailsScreen() {
   if (!ride) return null;
 
   return (
-    <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top', 'left', 'right']}>
+    <ScreenShell title={t('rideDetails')} back background="bg-white" backLabel={t('back')}>
       <ScrollView contentContainerClassName="px-6 pt-2 pb-10">
-        <BackHeader />
-        <Text className="mt-2 text-xl text-ink font-display">{t('rideDetails')}</Text>
 
         <View className="mt-4 gap-2 rounded border border-border p-4">
-          <Text className="text-ink">{ride.pickup.address}</Text>
-          <Text className="text-ink">{ride.destination.address}</Text>
+          <Text className="font-sans text-ink">{ride.pickup.address}</Text>
+          <Text className="font-sans text-ink">{ride.destination.address}</Text>
           <View className="mt-2 flex-row justify-between">
-            <Text className="text-text-secondary">{ride.distanceKm.toFixed(1)} km</Text>
-            <Text className="text-text-secondary">
+            <Text className="font-sans text-text-secondary">{ride.distanceKm.toFixed(1)} km</Text>
+            <Text className="font-sans text-text-secondary">
               {ride.durationMinutes} {t('minutesShort')}
             </Text>
           </View>
@@ -77,13 +76,13 @@ export default function RideDetailsScreen() {
             <Text className="text-base font-semibold text-ink">{t('finalFare')}</Text>
             <Text className="text-lg font-bold text-primary">{formatFare(ride.finalFare ?? ride.estimatedFare)}</Text>
           </View>
-          <Text className="mt-1 text-xs text-text-secondary">{t(rideStatusKey(ride.status))}</Text>
+          <Text className="font-sans mt-1 text-xs text-text-secondary">{t(rideStatusKey(ride.status))}</Text>
         </View>
 
         {ride.driver ? (
           <View className="mt-4 rounded border border-border p-4">
             <Text className="text-base font-semibold text-ink">{ride.driver.name}</Text>
-            <Text className="mt-1 text-sm text-text-secondary">
+            <Text className="font-sans mt-1 text-sm text-text-secondary">
               {ride.driver.vehicleColor} {ride.driver.vehicleModel} - {ride.driver.licensePlate}
             </Text>
           </View>
@@ -95,6 +94,6 @@ export default function RideDetailsScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaViewPlaceholder>
+    </ScreenShell>
   );
 }
