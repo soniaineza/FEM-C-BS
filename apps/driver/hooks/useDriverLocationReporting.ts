@@ -13,14 +13,9 @@ import {
   stopDriverBackgroundLocation,
   DriverLocationMode,
   DRIVER_LOCATION_INTERVAL_MS,
+  driverFixOf as fixOf,
 } from '../utils/driver-background-location';
 
-/** A phone fix in the shape the server wants: with its accuracy and the
- * moment the phone took it, so the server can judge whether to trust it. */
-function fixOf(position: Location.LocationObject) {
-  const { latitude, longitude, heading, accuracy } = position.coords;
-  return { latitude, longitude, heading: heading ?? undefined, accuracy: accuracy ?? undefined, recordedAt: position.timestamp };
-}
 
 // The "allow all the time" explanation is shown at most once per launch — a
 // driver who said "Not now" keeps working with foreground-only reporting.

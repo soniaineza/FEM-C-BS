@@ -6,7 +6,9 @@ const { ApiError } = require('../../utils/asyncHandler');
 // so anything malformed or outside the area Kimu serves is rejected before
 // it is stored, priced or sent to a provider.
 
-// Rwanda with a margin for border towns and GPS error.
+// Rwanda with a margin for border towns and GPS error. The apps fence their
+// maps to exactly this box (SERVICE_AREA_BOUNDS in
+// packages/shared/components/map/map-types.ts); change both together.
 const SERVICE_AREA = { minLat: -3.1, maxLat: -0.8, minLng: 28.6, maxLng: 31.2 };
 
 function isValidCoordinate(latitude, longitude) {
@@ -27,10 +29,11 @@ function inServiceArea(latitude, longitude) {
 
 /** Parses "lat,lng" (or separate values) into a point, or throws a 400. */
 function parsePoint(value, name) {
-  let latitude;
-  let longitude;
-  if (Array.isArray(value)) [latitude, longitude] = value.map(Number);
-  else [latitude, longitude] = String(value ?? '').split(',').map((part) => (part.trim() === '' ? NaN : Number(part)));
+  // Exactly two parts: "-1.95,30.06,junk" is malformed, not "-1.95,30.06".
+  const parts = Array.isArray(value) ? value : String(value ?? '').split(',');
+  const [latitude, longitude] = parts.length === 2
+    ? parts.map((part) => (String(part ?? '').trim() === '' ? NaN : Number(part)))
+    : [NaN, NaN];
   if (!isValidCoordinate(latitude, longitude)) {
     throw new ApiError(400, `${name} must be "latitude,longitude".`, 'INVALID_COORDINATES');
   }
@@ -79,4 +82,28 @@ function assessLocationSample(previous, sample, now, limits) {
   return { accepted: true };
 }
 
-module.exports = { isValidCoordinate, inServiceArea, parsePoint, assessLocationSample, SERVICE_AREA };
+// Below this the phone has not really moved since its last fix.
+const STATIONARY_METERS = 3;
+
+/**
+ * The heading worth storing for a driver's fix, or null when it is unknown.
+ * Phones report "no heading" as a number: iOS sends course -1 and Android
+ * sends bearing 0, and a stored 0 turned every parked car on the map to
+ * face north. A fix that is out of range, or taken where the car has not
+ * moved, carries no direction.
+ *
+ * @param {unknown} heading as the phone sent it
+ * @param {{latitude:number, longitude:number}|null} previous last accepted fix
+ * @param {{latitude:number, longitude:number}} sample this fix
+ */
+function cleanHeading(heading, previous, sample) {
+  if (heading == null || heading === '') return null;
+  const value = Number(heading);
+  if (!Number.isFinite(value) || value < 0 || value > 360) return null;
+  if (previous && haversineKm(previous.latitude, previous.longitude, sample.latitude, sample.longitude) * 1000 < STATIONARY_METERS) {
+    return null;
+  }
+  return value % 360;
+}
+
+module.exports = { isValidCoordinate, inServiceArea, parsePoint, assessLocationSample, cleanHeading, SERVICE_AREA };

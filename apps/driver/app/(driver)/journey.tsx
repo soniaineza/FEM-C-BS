@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
@@ -14,11 +14,14 @@ import { SwipeToStart } from '../../components/driver/SwipeToStart';
 import { PhonePad, PhoneScope } from '../../components/driver/PhonePad';
 import { useDriverRideDetails } from '../../hooks/useDriverRideDetails';
 import { useDriverStops } from '../../hooks/useDriverStops';
+import { useDriverJourneyRoute } from '../../hooks/useDriverJourneyRoute';
+import { useDriverPositionStore } from '../../stores/useDriverPositionStore';
+import type { MapCar, TrailSample } from '@kimu/shared/components/map/map-types';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { markDriverArrived, startDriverTrip, completeDriverTrip, chargeDriverRide, confirmDriverCashPayment, cancelDriverRide } from '../../services/driver-service';
 import { QrCode } from '../../components/QrCode';
-import { formatFare, RoutePoint } from '@kimu/shared/types/ride';
-import { MapDefaults, getRoute } from '@kimu/shared/services/location-service';
+import { formatFare } from '@kimu/shared/types/ride';
+import { MapDefaults } from '@kimu/shared/services/location-service';
 import { ApiError } from '../../services/driver-api-client';
 
 // Reason sent to the backend stays a stable English id (stored verbatim as
@@ -53,16 +56,33 @@ export default function DriverJourneyScreen() {
   // clear of the gesture bar / 3-button nav.
   const insets = useSafeAreaInsets();
 
-  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
-  // Polyline from pickup → destination so the driver sees the whole planned
-  // path, not just two pins. Fetched once per ride (route is static).
-  useEffect(() => {
-    if (!ride) return;
-    getRoute({ from: ride.pickup, to: ride.destination }).then((route) => {
-      setRoutePoints(route?.points ?? []);
-    }).catch(() => setRoutePoints([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ride?.id]);
+  // Where the driver is (from the location reporter), drawn as their car
+  // and animated along its recent fixes.
+  const fix = useDriverPositionStore((s) => s.fix);
+  const fixTrail = useDriverPositionStore((s) => s.trail);
+  const driverCar = useMemo<MapCar[]>(
+    () => fix
+      ? [{
+          id: 'driver',
+          latitude: fix.latitude,
+          longitude: fix.longitude,
+          heading: fix.heading,
+          assigned: true,
+          // Phone timestamps, on the same clock as the map (no server offset).
+          trail: fixTrail.map((f) => [f.recordedAt, f.latitude, f.longitude, f.heading] as TrailSample),
+        }]
+      : [],
+    [fix, fixTrail]
+  );
+  // On the way to the pickup the map routes from the driver to the rider;
+  // after pickup it shows the booked pickup → destination route.
+  const routePoints = useDriverJourneyRoute(
+    ride?.id ?? null,
+    ride?.pickup ?? null,
+    ride?.destination ?? null,
+    ride?.status === 'driverArriving',
+    fix
+  );
 
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | undefined>();
@@ -340,6 +360,7 @@ export default function DriverJourneyScreen() {
               center={center}
               markers={markers}
               routePolyline={routePoints}
+              cars={driverCar}
               retryLabel={t('tryAgain')}
               loadingLabel={t('mapLoading')}
               errorLabel={t('mapError')}

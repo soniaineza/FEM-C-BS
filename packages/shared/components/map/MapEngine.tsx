@@ -9,7 +9,7 @@ import type { DOMProps } from 'expo/dom';
 import type { MapCar, MapMarker, MapRoute, MapScene, LngLat } from './map-types';
 import { KIGALI_CENTER, SERVICE_AREA_BOUNDS, SERVICE_AREA_MIN_ZOOM } from './map-types';
 import { CAR_LENGTH_M, createCar, createLights, loadCarModels } from './carModel';
-import { RENDER_DELAY_MS, Track, distanceM, lerpAngle, projectOnRoute } from './trackInterpolation';
+import { Track, distanceM, lerpAngle, projectOnRoute } from './trackInterpolation';
 
 // The map engine: MapLibre GL JS over OpenFreeMap's OpenStreetMap vector
 // tiles, with 3D buildings and three.js 3D cars in a custom layer that shares
@@ -177,7 +177,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
 
   render(_gl: WebGLRenderingContext | WebGL2RenderingContext, args: maplibregl.CustomRenderMethodInput) {
     const now = Date.now();
-    const t = now + this.serverOffsetMs - RENDER_DELAY_MS;
+    const serverNow = now + this.serverOffsetMs;
     const zoom = this.map.getZoom();
     let moving = false;
     let hasAssigned = false;
@@ -189,7 +189,7 @@ class CarLayer implements maplibregl.CustomLayerInterface {
     const origin = maplibregl.MercatorCoordinate.fromLngLat(this.map.getCenter(), 0);
 
     for (const entry of this.cars.values()) {
-      const st = entry.track.sample(t);
+      const st = entry.track.sample(entry.track.renderTime(serverNow));
       if (!st) continue;
       moving = moving || st.moving;
       hasAssigned = hasAssigned || entry.assigned;
@@ -288,18 +288,29 @@ function boundsOf(points: [number, number][]): maplibregl.LngLatBounds | null {
  * and MapLibre then refuses to compute a camera at all (the map would stay
  * wherever it was, often nowhere near the ride). Keep at least 30% of each
  * axis for the content, shrinking the padding proportionally when needed.
+ *
+ * `reserved` is padding the map already holds: a 'center' camera eases to
+ * its padding, and MapLibre keeps it. When fitting bounds MapLibre adds the
+ * requested padding on top of that, so only the part not yet reserved is
+ * asked for, within what the canvas has left.
  */
-function fitPadding(map: maplibregl.Map, padding: { top: number; bottom: number; left: number; right: number }) {
+function fitPadding(
+  map: maplibregl.Map,
+  padding: { top: number; bottom: number; left: number; right: number },
+  reserved: { top?: number; bottom?: number; left?: number; right?: number } = {}
+) {
   const { width, height } = map.getCanvas().getBoundingClientRect();
-  const clamp = (a: number, b: number, size: number) => {
-    const max = Math.max(0, size * 0.7);
-    const total = Math.max(0, a) + Math.max(0, b);
-    if (!size || total <= max) return [Math.max(0, a), Math.max(0, b)];
+  const clamp = (a: number, b: number, ra: number, rb: number, size: number) => {
+    a = Math.max(0, a - ra);
+    b = Math.max(0, b - rb);
+    const max = Math.max(0, size * 0.7 - ra - rb);
+    const total = a + b;
+    if (!size || total <= max) return [a, b];
     const k = max / total;
-    return [Math.floor(Math.max(0, a) * k), Math.floor(Math.max(0, b) * k)];
+    return [Math.floor(a * k), Math.floor(b * k)];
   };
-  const [top, bottom] = clamp(padding.top, padding.bottom, height);
-  const [left, right] = clamp(padding.left, padding.right, width);
+  const [top, bottom] = clamp(padding.top, padding.bottom, reserved.top ?? 0, reserved.bottom ?? 0, height);
+  const [left, right] = clamp(padding.left, padding.right, reserved.left ?? 0, reserved.right ?? 0, width);
   return { top, bottom, left, right };
 }
 
@@ -507,7 +518,10 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, 
     const next = styleUrl || DEFAULT_STYLE_URL;
     if (!map || next === appliedStyle.current) return;
     appliedStyle.current = next;
-    carsRef.current = null;
+    // Keep carsRef: MapLibre usually carries the custom car layer across a
+    // style diff, and installLayers() only builds a new one when the layer is
+    // really gone. Clearing it here left the map with a layer but no handle,
+    // so every later scene update was skipped and the map froze.
     map.setStyle(next);
   }, [styleUrl]);
 
@@ -617,21 +631,21 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, 
   function applyCamera(s: MapScene, animate: boolean) {
     const map = mapRef.current!;
     const cam = s.camera;
-    const padding = fitPadding(map, cam.padding ?? { top: 60, bottom: 60, left: 40, right: 40 });
+    const wanted = cam.padding ?? { top: 60, bottom: 60, left: 40, right: 40 };
     const duration = animate ? 800 : 0;
     if (cam.mode === 'center' && cam.center) {
       map.easeTo({
         center: [cam.center.longitude, cam.center.latitude],
         zoom: cam.zoom ?? map.getZoom(),
         pitch: cam.pitch ?? 0,
-        padding,
+        padding: fitPadding(map, wanted),
         duration,
       });
       return;
     }
     const bounds = boundsOf(interestingPoints(s));
     if (!bounds) return;
-    const cameraOpts = map.cameraForBounds(bounds, { padding, maxZoom: cam.zoom ?? 16.5 });
+    const cameraOpts = map.cameraForBounds(bounds, { padding: fitPadding(map, wanted, map.getPadding()), maxZoom: cam.zoom ?? 16.5 });
     if (cameraOpts) map.easeTo({ ...cameraOpts, pitch: cam.pitch ?? 0, duration });
   }
 
@@ -655,7 +669,7 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, 
     const bounds = boundsOf(pts);
     if (!bounds) return;
     const cameraOpts = map.cameraForBounds(bounds, {
-      padding: fitPadding(map, s.camera.padding ?? { top: 80, bottom: 80, left: 50, right: 50 }),
+      padding: fitPadding(map, s.camera.padding ?? { top: 80, bottom: 80, left: 50, right: 50 }, map.getPadding()),
       maxZoom: s.camera.zoom ?? 16.5,
     });
     if (cameraOpts) map.easeTo({ ...cameraOpts, pitch: s.camera.pitch ?? 45, duration: 1100, easing: (x) => x });

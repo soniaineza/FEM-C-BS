@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 
 import { reportDriverLocation } from '../services/driver-service';
+import { useDriverPositionStore } from '../stores/useDriverPositionStore';
 
 // Keeps an online driver's GPS flowing to the backend while the app is in
 // the background or the phone is locked (Android foreground service / iOS
@@ -19,21 +20,34 @@ const DRIVER_LOCATION_TASK = 'kimu-driver-location';
 export type DriverLocationMode = 'idle' | 'trip';
 export const DRIVER_LOCATION_INTERVAL_MS: Record<DriverLocationMode, number> = { idle: 15000, trip: 4000 };
 
+// Slower than walking pace the phone's direction is noise.
+const MIN_HEADING_SPEED_MPS = 0.5;
+
+/**
+ * A phone fix in the shape the server wants: with its accuracy and the
+ * moment the phone took it, so the server can judge whether to trust it.
+ * Also becomes the driver's latest known position for the app's own map.
+ *
+ * Phones report "no direction" as a number — iOS sends course -1, Android
+ * sends bearing 0 when it has none (typically when standing still) — and a
+ * car drawn with it turns to face north. Those are sent as no heading.
+ */
+export function driverFixOf(position: Location.LocationObject) {
+  const { latitude, longitude, heading, accuracy, speed } = position.coords;
+  const moving = speed == null || speed >= MIN_HEADING_SPEED_MPS;
+  const direction = heading != null && Number.isFinite(heading) && heading >= 0 && moving ? heading % 360 : undefined;
+  useDriverPositionStore.getState().setFix({ latitude, longitude, heading: direction ?? null, recordedAt: position.timestamp });
+  return { latitude, longitude, heading: direction, accuracy: accuracy ?? undefined, recordedAt: position.timestamp };
+}
+
 if (Platform.OS !== 'web') {
   TaskManager.defineTask<{ locations: Location.LocationObject[] }>(DRIVER_LOCATION_TASK, async ({ data, error }) => {
     if (error) return;
     const latest = data?.locations?.[data.locations.length - 1];
     if (!latest) return;
-    const { latitude, longitude, heading, accuracy } = latest.coords;
     // A dropped report is not fatal — the next fix retries. With no driver
     // session (signed out) the request is rejected and nothing is recorded.
-    await reportDriverLocation({
-      latitude,
-      longitude,
-      heading: heading ?? undefined,
-      accuracy: accuracy ?? undefined,
-      recordedAt: latest.timestamp,
-    }).catch(() => {});
+    await reportDriverLocation(driverFixOf(latest)).catch(() => {});
   });
 }
 

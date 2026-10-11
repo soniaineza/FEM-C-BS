@@ -89,10 +89,15 @@ export const KIGALI_CENTER: LngLat = { latitude: -1.9441, longitude: 30.0619 };
  * small margin: panning stops at the edge instead of drifting off to an empty
  * ocean the rider then has to find their way back from.
  * [[west, south], [east, north]]
+ *
+ * Must equal the server's SERVICE_AREA (server/src/services/maps/geo.js):
+ * a pin dropped anywhere the map can reach has to be one the server accepts
+ * for an address lookup and a ride. tests/map/server-invariants.test.mjs
+ * checks the two agree.
  */
 export const SERVICE_AREA_BOUNDS: [[number, number], [number, number]] = [
-  [28.45, -3.30],
-  [31.35, -0.65],
+  [28.6, -3.1],
+  [31.2, -0.8],
 ];
 
 /** Zoomed out any further than this, nothing in the service area is legible. */

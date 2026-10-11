@@ -13,7 +13,7 @@ const { releaseDriver } = require('./driverMatcher');
 const { planStops } = require('./poolPlanner');
 const { config } = require('../config');
 const { publishRideEvent } = require('./rideEvents');
-const { isValidCoordinate, assessLocationSample } = require('./maps/geo');
+const { isValidCoordinate, assessLocationSample, cleanHeading: headingOf } = require('./maps/geo');
 
 const DRIVER_ACTIVE_RIDE_STATUSES = [
   'driverAssigned',
@@ -158,7 +158,7 @@ async function updateDriverLocation(driverId, { latitude, longitude, heading, ac
   if (!verdict.accepted) return verdict;
 
   const state = last[0]?.status === 'busy' ? 'on_trip' : last[0]?.status === 'active' ? 'available' : 'offline';
-  const cleanHeading = Number.isFinite(Number(heading)) && heading != null ? Number(heading) : null;
+  const cleanHeading = headingOf(heading, previous, { latitude, longitude });
   await getPool().query(
     `INSERT INTO driver_locations (driver_id, latitude, longitude, heading, accuracy, device_recorded_at, state, recorded_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7, now())
