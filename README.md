@@ -84,6 +84,11 @@ Driver KYC documents and profile/vehicle photos are uploaded as private files
 Only the uploading driver and authenticated operators can retrieve them.
 Operators must review the actual files and verify the originals in person;
 document references alone cannot satisfy driver approval.
+The operator approval queue also has a per-driver **Delete application**
+action. It permanently removes the pending applicant's personal profile and
+uploaded documents and frees the phone number for a fresh registration.
+Financial and trip records are retained; applications with an active trip or
+unsettled driver balance cannot be removed.
 
 Before using the Vercel URL, set `ADMIN_USERNAME` and a strong
 `ADMIN_PASSWORD` (at least 12 characters) in the Render service's environment

@@ -32,3 +32,11 @@ test('operator distinguishes an empty admin document response from an unsubmitte
   assert.match(operator, /The admin API returned no document records for this driver/);
   assert.match(operator, /Required documents missing from the admin list/);
 });
+
+test('operator confirms before deleting a driver application and uses the admin delete route', () => {
+  const operator = fs.readFileSync(path.join(root, 'operator/index.html'), 'utf8');
+  assert.match(operator, /button\('Delete application', 'danger'/);
+  assert.match(operator, /window\.confirm\(/);
+  assert.match(operator, /call\('DELETE', '\/drivers\/' \+ encodeURIComponent\(d\.id\) \+ '\/application'\)/);
+  assert.match(operator, /phone number will be freed for a new application/);
+});

@@ -530,6 +530,84 @@ async function newDriver() {
   note(`driver ${phone} registered (unverified)`);
 }
 
+async function exercisePendingApplicationRemoval() {
+  const phone = uniquePhone();
+  const reg = await api('POST', '/drivers/register', {
+    fullName: 'Application removal test',
+    phone,
+    password: 'secret123',
+    licenseNumber: `RW${seq}`,
+  });
+  if (reg.status !== 201) {
+    violations.push(`pending application removal setup failed (${reg.status})`);
+    return;
+  }
+
+  const driverId = reg.data.driver.id;
+  const token = reg.data.token;
+  const uploaded = await uploadDriverDocument('license', 'removal-test.png', token);
+  if (uploaded.status !== 201) {
+    violations.push(`pending application removal document setup failed (${uploaded.status})`);
+    return;
+  }
+  const unauthorized = await api('DELETE', `/admin/drivers/${driverId}/application`);
+  if (unauthorized.status !== 401) {
+    violations.push(`pending application deletion without operator auth returned ${unauthorized.status}`);
+  }
+
+  const removed = await admin('DELETE', `/drivers/${driverId}/application`);
+  const state = await q(
+    `SELECT deleted_at IS NOT NULL AS closed, phone FROM drivers WHERE id = $1`,
+    [driverId]
+  );
+  const remainingDocs = await q(
+    'SELECT COUNT(*)::int AS count FROM driver_documents WHERE driver_id = $1',
+    [driverId]
+  );
+  if (
+    removed.status !== 204 ||
+    !state[0]?.closed ||
+    !state[0]?.phone?.startsWith('deleted:') ||
+    remainingDocs[0]?.count !== 0
+  ) {
+    violations.push(`pending application deletion failed: status=${removed.status} state=${JSON.stringify(state[0])} documents=${remainingDocs[0]?.count}`);
+    return;
+  }
+
+  const reused = await api('POST', '/drivers/register', {
+    fullName: 'Application replacement test',
+    phone,
+    password: 'secret123',
+    licenseNumber: `RW${seq}`,
+  });
+  if (reused.status !== 201) {
+    violations.push(`phone number was not freed after pending application deletion (${reused.status})`);
+    return;
+  }
+
+  const verifiedPhone = uniquePhone();
+  const verifiedRegistration = await api('POST', '/drivers/register', {
+    fullName: 'Verified deletion guard test',
+    phone: verifiedPhone,
+    password: 'secret123',
+  });
+  if (verifiedRegistration.status !== 201) {
+    violations.push(`verified deletion guard setup failed (${verifiedRegistration.status})`);
+    return;
+  }
+  const verifiedId = verifiedRegistration.data.driver.id;
+  await q('UPDATE drivers SET verified = TRUE WHERE id = $1', [verifiedId]);
+  const verifiedDelete = await admin('DELETE', `/drivers/${verifiedId}/application`);
+  await q('UPDATE drivers SET verified = FALSE WHERE id = $1', [verifiedId]);
+  const cleanup = await admin('DELETE', `/drivers/${verifiedId}/application`);
+  if (verifiedDelete.status !== 409 || cleanup.status !== 204) {
+    violations.push(`verified application deletion guard returned ${verifiedDelete.status}; cleanup=${cleanup.status}`);
+  }
+
+  await admin('DELETE', `/drivers/${reused.data.driver.id}/application`);
+  note('pending driver applications can be removed safely and their phone numbers reused');
+}
+
 async function exerciseDriverEmergencyQueue() {
   const driver = world.drivers[0];
   if (!driver) throw new Error('No driver available for emergency queue test.');
@@ -1428,6 +1506,11 @@ ${serverLog.slice(-1500)}`);
     violations.push(`operator login failed (${operatorLogin.status})`);
   } else if ((await api('GET', '/admin/drivers', null, operatorLogin.data.token)).status !== 200) {
     violations.push('operator session token could not access admin routes');
+  }
+  try {
+    await exercisePendingApplicationRemoval();
+  } catch (err) {
+    violations.push(`pending application removal test threw: ${err.message}`);
   }
 
   console.log(`seed=${SEED} steps=${STEPS} db=${DB_NAME}`);

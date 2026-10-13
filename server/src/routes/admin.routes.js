@@ -13,6 +13,7 @@ const { SEED_DRIVER_PHONES } = require('../services/seedAccounts');
 const { confirmCashPayment } = require('../services/payments');
 const { transitionRide } = require('../services/rideStateMachine');
 const paypack = require('../services/paypackClient');
+const { closePendingDriverApplication } = require('../services/accountClosure');
 const { signAdminToken, verifyToken } = require('../utils/jwt');
 const { otpStatus, sendTestCode } = require('../services/otpSender');
 const googleAuth = require('../services/googleAuth');
@@ -324,9 +325,10 @@ router.post(
       `UPDATE drivers SET verified = TRUE,
          status = CASE WHEN status = 'suspended' THEN 'offline' ELSE status END,
          updated_at = now()
-        WHERE id = $1 RETURNING *`,
+        WHERE id = $1 AND verified = FALSE AND deleted_at IS NULL RETURNING *`,
       [driver.id]
     );
+    if (!rows[0]) throw new ApiError(409, 'This driver application has already been closed or approved.');
     await recordStatus(driver.id, driver.status, rows[0].status, 'verified by admin');
     await pushDriverNotification(driver.id, {
       title: 'You are verified',
@@ -336,6 +338,13 @@ router.post(
     res.json({ driver: driverToJson(rows[0]) });
   })
 );
+
+// DELETE /api/admin/drivers/:id/application — remove a pending application
+// and its documents while retaining any financial and trip records.
+router.delete('/drivers/:id/application', asyncHandler(async (req, res) => {
+  await closePendingDriverApplication(req.params.id);
+  res.status(204).end();
+}));
 
 // Operator changes to an approved vehicle revoke verification until the new
 // registration and insurance originals have been inspected.

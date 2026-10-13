@@ -59,15 +59,18 @@ async function closePassengerAccount(passengerId) {
   }
 }
 
-async function closeDriverAccount(driverId) {
+async function closeDriverAccount(driverId, { pendingApplicationOnly = false } = {}) {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
-      'SELECT id FROM drivers WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+      'SELECT id, verified FROM drivers WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
       [driverId]
     );
     if (!rows[0]) throw new ApiError(404, 'Account not found.');
+    if (pendingApplicationOnly && rows[0].verified) {
+      throw new ApiError(409, 'Only a pending, unverified driver application can be removed here.');
+    }
     const { rows: open } = await client.query(
       `SELECT 1 FROM rides WHERE driver_id = $1 AND status NOT IN ('completed', 'cancelled') LIMIT 1`,
       [driverId]
@@ -107,4 +110,8 @@ async function closeDriverAccount(driverId) {
   }
 }
 
-module.exports = { closePassengerAccount, closeDriverAccount };
+async function closePendingDriverApplication(driverId) {
+  return closeDriverAccount(driverId, { pendingApplicationOnly: true });
+}
+
+module.exports = { closePassengerAccount, closeDriverAccount, closePendingDriverApplication };

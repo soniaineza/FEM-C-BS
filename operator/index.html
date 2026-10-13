@@ -216,6 +216,16 @@
         });
         row.appendChild(reject);
       });
+      var remove = button('Delete application', 'danger', function () {
+        if (!window.confirm(
+          'Permanently remove ' + (d.fullName || 'this driver') + ' (' + (d.phone || 'no phone') +
+          ') and delete their uploaded documents? The phone number will be freed for a new application.'
+        )) return;
+        act(remove, function () {
+          return call('DELETE', '/drivers/' + encodeURIComponent(d.id) + '/application');
+        });
+      });
+      row.appendChild(remove);
       card.appendChild(row);
       list.appendChild(card);
     });
