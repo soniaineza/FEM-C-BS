@@ -27,6 +27,9 @@ for app in $APPS; do
   echo "=== [$app] gradle assembleRelease $(date +%T)"
   cd android
   ./gradlew assembleRelease --no-daemon -q --console=plain
+  # The map page is a separate JS bundle inside the APK; refuse to ship one
+  # that older Android WebViews cannot parse (see scripts/check-dom-bundle.mjs).
+  node "$ROOT/scripts/check-dom-bundle.mjs" "$app"
   for f in app/build/outputs/apk/release/*.apk; do
     cp "$f" "$ROOT/build/apk/kimu-$app-$(basename "$f" | sed 's/^app-//')"
   done

@@ -135,7 +135,8 @@
       card.appendChild(el('h2', d.fullName || 'Driver'));
       card.appendChild(el('p', (d.phone || '') + ' · registered ' + when(d.createdAt), 'muted'));
       var latest = {};
-      (d.documents || []).forEach(function (doc) { if (!latest[doc.docType]) latest[doc.docType] = doc; });
+      var documents = Array.isArray(d.documents) ? d.documents : [];
+      documents.forEach(function (doc) { if (!latest[doc.docType]) latest[doc.docType] = doc; });
       var missing = REQUIRED.filter(function (t) { return !latest[t]; });
       var ul = el('ul', null, 'docs');
       REQUIRED.forEach(function (type) {
@@ -183,8 +184,10 @@
         ul.appendChild(li);
       });
       card.appendChild(ul);
-      if (missing.length) {
-        card.appendChild(el('p', 'Waiting for the driver to submit in the app: ' + missing.map(function (t) { return DOC_NAMES[t]; }).join(', ') + '.', 'muted'));
+      if (!documents.length) {
+        card.appendChild(el('p', 'The admin API returned no document records for this driver. If uploads appear in the driver app, check the admin API response and deployment.', 'muted'));
+      } else if (missing.length) {
+        card.appendChild(el('p', 'Required documents missing from the admin list: ' + missing.map(function (t) { return DOC_NAMES[t]; }).join(', ') + '.', 'muted'));
       }
       var row = el('div', null, 'row');
       var approve = button('I checked the originals — approve driver', 'primary', function () {

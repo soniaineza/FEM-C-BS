@@ -764,6 +764,7 @@
   "featureEcoFriendly": "Eco Friendly",
   "mapError": "The map could not be loaded. Check your connection.",
   "mapLoading": "Loading map…",
+  "mapWebViewOutdated": "This phone's Android System WebView is too old for the map. Update it from the Play Store, then try again.",
   "minAway": "{minutes} min away",
   "dropoffAt": "Drop-off {time}",
   "noCarsNearby": "No cars nearby right now",

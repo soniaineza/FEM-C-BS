@@ -1,10 +1,3 @@
-// Unit tests of the map services: provider adapters, routing, geocoding and
-// GPS validation, with the provider's HTTP replaced by a stub. No database,
-// no network.   Run: node --test test/maps.test.js
-//
-// DATABASE_URL is set to a hosted-looking address before anything is loaded,
-// so the code under test behaves as it does on the real server (strict fare
-// routes, no development switches).
 process.env.DATABASE_URL = 'postgres://user:pass@db.example.com:5432/kimu';
 process.env.MAP_ROUTING_API_KEY = 'test-routing-key';
 process.env.MAP_GEOCODING_API_KEY = 'test-geocoding-key';
@@ -21,7 +14,6 @@ const { isValidCoordinate, inServiceArea, parsePoint, assessLocationSample } = r
 const KIGALI = { latitude: -1.9441, longitude: 30.0619 };
 const NYAMIRAMBO = { latitude: -1.9586, longitude: 30.0205 };
 
-// ---- provider stub ----
 let calls = [];
 let respond = () => { throw new Error('no stub'); };
 const realFetch = global.fetch;
@@ -49,7 +41,6 @@ const GEOAPIFY_ROUTE = {
   }],
 };
 
-// ---- coordinates ----
 test('valid coordinates are accepted', () => {
   assert.equal(isValidCoordinate(-1.9441, 30.0619), true);
   assert.equal(inServiceArea(-1.9441, 30.0619), true);

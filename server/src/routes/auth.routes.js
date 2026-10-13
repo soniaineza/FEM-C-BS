@@ -426,9 +426,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { identifier } = req.body || {};
     if (!identifier) throw new ApiError(400, 'Enter your email or phone number.');
-    const passenger = await findByIdentifier(String(identifier).trim().toLowerCase());
-
-  
+    const passenger = await findByIdentifier(String(identifier).trim().toLowerCase());  
     if (passenger && passenger.phone) {
       const code = await issueCode(getPool(), {
         passengerId: passenger.id,
@@ -493,7 +491,6 @@ router.post(
   })
 );
 
-// GET /api/auth/me
 router.get(
   '/me',
   requireSession,

@@ -764,6 +764,7 @@
   "featureEcoFriendly": "Bitangiza ibidukikije",
   "mapError": "Ikarita ntiyashoboye kuboneka. Suzuma interineti yawe.",
   "mapLoading": "Turafungura ikarita…",
+  "mapWebViewOutdated": "Android System WebView yo kuri iyi telefoni irashaje cyane ku buryo itashobora kwerekana ikarita. Yivugurure muri Play Store, hanyuma wongere ugerageze.",
   "minAway": "Mu minota {minutes}",
   "dropoffAt": "Uzagera {time}",
   "noCarsNearby": "Nta modoka iri hafi ubu",

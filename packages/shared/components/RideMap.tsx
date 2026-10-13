@@ -84,6 +84,7 @@ export function RideMap({
     <LiveMap
       scene={scene}
       rounded={rounded}
+      insets={padding}
       onPress={onMapPress ? (latitude, longitude) => onMapPress({ latitude, longitude }) : undefined}
       retryLabel={retryLabel}
       loadingLabel={loadingLabel}

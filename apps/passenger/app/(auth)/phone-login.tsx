@@ -18,13 +18,6 @@ import { whatsappStart, whatsappVerify, emailStart, emailVerify, addPhone } from
 
 const OTP_LENGTH = 6;
 
-/**
- * Passwordless sign-in. `method` picks the channel:
- *   whatsapp (default) — a phone number; the code goes to WhatsApp (or SMS)
- *   email              — an e-mail address; the code is e-mailed
- * `mode=add` is a Google rider attaching and verifying a phone number on the
- * account they are already signed in to.
- */
 export default function PhoneLoginScreen() {
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ mode?: string; method?: string }>();
@@ -57,9 +50,7 @@ export default function PhoneLoginScreen() {
     setLoading(true);
     try {
       const res = mode === 'add' ? await addPhone(value) : isEmail ? await emailStart(value) : await whatsappStart(value);
-      // The server returns 200 with otpSent:false when no channel can deliver
-      // to this address yet (e.g. WhatsApp not configured). Say so rather than
-      // dropping the rider on a code screen no code will ever reach.
+      
       if (res && res.otpSent === false) {
         setError(res.message || t('otpDeliveryFailed'));
         return;
@@ -81,7 +72,7 @@ export default function PhoneLoginScreen() {
     setLoading(true);
     try {
       if (mode === 'add') {
-        await verifyOtp(value); // verifies the Google account's new phone, sets currentUser
+        await verifyOtp(value); 
       } else if (isEmail) {
         const { passenger } = await emailVerify(identifier.trim(), value);
         applyAuthResult(passenger);

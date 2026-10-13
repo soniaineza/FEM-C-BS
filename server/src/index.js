@@ -105,7 +105,7 @@ async function main() {
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
-      'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'",
+      'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob:; frame-src blob:; object-src blob:; connect-src 'self'; base-uri 'none'; form-action 'none'",
     });
     res.sendFile(path.join(__dirname, '..', '..', 'operator', 'index.html'));
   });

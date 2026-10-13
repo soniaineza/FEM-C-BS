@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaViewPlaceholder } from '@kimu/shared/components/SafeAreaViewPlaceholder';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StatusBar } from 'expo-status-bar';
@@ -32,6 +33,11 @@ function greetingKey(): 'goodMorning' | 'goodAfternoon' | 'goodEvening' {
 export default function HomeScreen() {
   const { t } = useTranslation();
   const { height: screenHeight } = useWindowDimensions();
+  // Only the top edge is a SafeAreaView here (the map runs under the system
+  // bar); the booking sheet handles the bottom inset itself so its button
+  // never sits under the Android navigation bar.
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 16);
   const currentUser = useAuthStore((s) => s.currentUser);
   const pickup = useRideWizardStore((s) => s.pickup);
   const destination = useRideWizardStore((s) => s.destination);
@@ -152,7 +158,7 @@ export default function HomeScreen() {
     }
   }
 
-  const sheetMaxHeight = Math.min(420, Math.max(280, screenHeight * 0.48));
+  const sheetMaxHeight = Math.min(420, Math.max(280, screenHeight * 0.48)) + bottomInset;
   // The booking panel covers the bottom of the map: tell the map how much, so
   // the rider's position (and the cars around it) are centred in the part
   // of the map they can actually see rather than hidden under the panel.
@@ -205,7 +211,7 @@ export default function HomeScreen() {
           disabled={mapLocating}
           onPress={recenterMap}
           className="absolute right-3 sm:right-4 h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full border border-border bg-white shadow-sm"
-          style={{ bottom: sheetMaxHeight + 14, opacity: mapLocating ? 0.5 : 1 }}
+          style={{ bottom: (sheetHeight || sheetMaxHeight) + 14, opacity: mapLocating ? 0.5 : 1 }}
         >
           {mapLocating ? <ActivityIndicator color="#0E7C4A" /> : <Ionicons name="locate" size={22} color="#0E7C4A" />}
         </Pressable>
@@ -294,7 +300,7 @@ export default function HomeScreen() {
         </Text>
 
           </ScrollView>
-          <View className="border-t border-border bg-white px-4 sm:px-5 pb-4 pt-3">
+          <View className="border-t border-border bg-white px-4 sm:px-5 pt-3" style={{ paddingBottom: bottomInset }}>
           <Button
             title={rideType === 'private' ? t('continueWithPrivate') : t('continueWithShare')}
             icon="arrow-forward"

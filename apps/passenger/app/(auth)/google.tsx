@@ -8,10 +8,6 @@ import { KimuColors } from '@kimu/shared/constants/theme';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { exchangeGoogleCode } from '../../services/auth-service';
 
-// Where the Google sign-in comes back to (femcabs://google?code=… on a phone,
-// <web app>/google?code=… on the web). It swaps the one-time code for a
-// session, then hands over to the normal routing: a rider with a verified
-// phone reaches the app; a brand-new Google rider is sent to add their phone.
 const errorMessageKey: Record<string, TranslationKey> = {
   cancelled: 'googleCancelled',
   email_unverified: 'googleEmailUnverified',

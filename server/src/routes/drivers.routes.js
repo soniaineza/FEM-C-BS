@@ -32,9 +32,6 @@ const {
 
 const router = express.Router();
 
-// POST /api/drivers/register — self-service driver sign-up for the driver
-// app. New accounts start unverified/offline (KYC documents must be
-// reviewed before a driver can sign in, go active, or receive rides.
 router.post(
   '/register',
   apiLimiter({ max: 20 }),
@@ -74,6 +71,13 @@ router.post(
 
 // POST /api/drivers/login — real driver-side auth for the future driver app
 // and the reference driver console.
+//
+// An unverified (but not suspended) driver also gets a token: they must be
+// signed in to upload their KYC documents, and the operator can only approve
+// them after the documents exist. Applications routes only! The auth
+// middleware (server/src/middleware/auth.js) refuses an unverified driver on
+// everything except the profile, vehicle, documents and device-token
+// endpoints, so such a token can never take a ride, go online, or see money.
 router.post(
   '/login',
   // Per phone number being tried, so one account cannot be brute-forced and
@@ -83,9 +87,6 @@ router.post(
     const { phone, password } = req.body || {};
     if (!phone || !password) throw new ApiError(400, 'Phone and password are required.');
     const driver = await authenticateDriver(String(phone).trim(), String(password));
-    if (!driver.verified) {
-      throw new ApiError(403, 'Your account is waiting for admin approval. You can sign in after your documents have been reviewed.');
-    }
     if (driver.status === 'suspended') {
       throw new ApiError(403, 'Your driver account is suspended. Contact Kimu Transport support.');
     }

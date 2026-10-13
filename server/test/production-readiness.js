@@ -232,11 +232,29 @@ async function db() {
     `status=${pendingList.status}`);
 
   const docs = [];
-  for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
+  const requiredDocTypes = ['license', 'national_id', 'vehicle_registration', 'insurance'];
+  for (const docType of requiredDocTypes) {
     const doc = await uploadDriverDocument(docType, `original-${docType}.png`, newDt);
     if (doc.data?.document?.id) docs.push(doc.data.document.id);
   }
   check('driver submits all four required documents', docs.length === 4, `n=${docs.length}`);
+  const adminListWithDocs = await api(
+    'GET',
+    '/admin/drivers?verified=false',
+    null,
+    null,
+    { 'X-Admin-Key': ADMIN_KEY }
+  );
+  const adminDriver = adminListWithDocs.data?.drivers?.find((d) => d.id === newDriverId);
+  const adminDocTypes = new Set((adminDriver?.documents || []).map((doc) => doc.docType));
+  check(
+    'admin pending-driver list includes uploaded documents and file flags',
+    adminListWithDocs.status === 200 &&
+      requiredDocTypes.every((docType) => adminDocTypes.has(docType)) &&
+      adminDriver?.documents?.filter((doc) => requiredDocTypes.includes(doc.docType))
+        .every((doc) => doc.hasFile && doc.fileUrl),
+    `status=${adminListWithDocs.status}; documents=${adminDriver?.documents?.length ?? 'missing'}`
+  );
   const fileResponse = await fetch(`${BASE}/driver/documents/${docs[0]}/file`, {
     headers: { Authorization: `Bearer ${newDt}` },
   });

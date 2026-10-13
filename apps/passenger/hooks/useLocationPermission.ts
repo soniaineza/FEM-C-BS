@@ -6,21 +6,11 @@ import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { appAlert } from '@kimu/shared/utils/dialog';
 import { useLocationPermissionStore } from '@kimu/shared/stores/useLocationPermissionStore';
 
-// One permission conversation at a time, app-wide. Everything below is
-// module-level on purpose: several screens mount this hook simultaneously and
-// without this guard each one opened its own Alert on top of the others.
 let flowInFlight: Promise<boolean> | null = null;
-// The "go to Settings" alert is shown at most once per launch — it is the
-// nagging kind, and manual pickup entry works without the permission anyway.
+
 let blockedAlertShown = false;
-// An automatic ask happens once per launch. Without this, the Home screen's
-// focus effect re-opened the pre-prompt every time the rider came back to the
-// tab after choosing "Not now". Explicit taps (the recentre button, "use my
-// location") pass interactive: true and always ask again — the rider just said
-// that is what they want.
+
 let autoAskedThisSession = false;
-// Same reasoning for the device-level "location is off" alert: once per launch
-// unless the rider explicitly asks for their location again.
 let servicesAlertShown = false;
 
 export function useLocationPermission() {
@@ -55,17 +45,6 @@ export function useLocationPermission() {
     await refresh();
   }, [refresh]);
 
-  // Ask the user, for real.
-  //
-  // The previous version showed the pre-prompt and then re-read the status
-  // instead of requesting, so on a fresh install it fell through to the
-  // "permission denied, open Settings" alert without the OS dialog ever
-  // appearing — the app looked like it refused to ask. The request call is now
-  // on the undetermined path where it belongs, and the three outcomes
-  // (undetermined / denied-but-askable / permanently blocked) are handled
-  // separately.
-  // `interactive: true` marks a request the rider asked for by tapping
-  // something, which is allowed to re-prompt after an earlier "Not now".
   const ensurePermission = useCallback(
     async (options?: { interactive?: boolean }): Promise<boolean> => {
       if (flowInFlight) return flowInFlight;

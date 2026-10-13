@@ -59,3 +59,6 @@ server/*.log
 
 # Local test artifacts (APKs, cPanel zips) — never commit
 /Claude outputs/
+
+# Git worktrees created for parallel agent work
+.claude/worktrees/

@@ -764,6 +764,7 @@
   "featureEcoFriendly": "Ecolo",
   "mapError": "Impossible de charger la carte. Verifiez votre connexion.",
   "mapLoading": "Chargement de la carte…",
+  "mapWebViewOutdated": "Le composant Android System WebView de ce téléphone est trop ancien pour la carte. Mettez-le à jour depuis le Play Store, puis réessayez.",
   "minAway": "À {minutes} min",
   "dropoffAt": "Dépose à {time}",
   "noCarsNearby": "Aucune voiture à proximité",

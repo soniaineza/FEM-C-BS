@@ -1,5 +1,8 @@
 'use dom';
 
+// Must stay the first import: it installs the error reporter and the
+// polyfills before MapLibre and three.js are evaluated (see mapBoot.ts).
+import { markBooted } from './mapBoot';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import * as THREE from 'three';
@@ -70,12 +73,26 @@ interface CarEntry {
   lng: number;
 }
 
+interface FlatCar {
+  id: string;
+  lat: number;
+  lng: number;
+  heading: number;
+  assigned: boolean;
+}
+
 class CarLayer implements maplibregl.CustomLayerInterface {
   id = 'kimu-cars';
   type = 'custom' as const;
   renderingMode = '3d' as const;
   cars = new Map<string, CarEntry>();
   serverOffsetMs = 0;
+  /**
+   * True when the GPU context cannot run three.js (a WebView that only
+   * offers WebGL 1, or a renderer that failed to start). The map still
+   * works; MapEngine then draws the cars as flat markers instead.
+   */
+  unsupported = false;
   private map!: maplibregl.Map;
   private renderer!: THREE.WebGLRenderer;
   private camera = new THREE.Camera();
@@ -93,12 +110,26 @@ class CarLayer implements maplibregl.CustomLayerInterface {
 
   onAdd(map: maplibregl.Map, gl: WebGLRenderingContext | WebGL2RenderingContext) {
     this.map = map;
-    for (const light of createLights()) this.scene.add(light);
-    this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
-    this.renderer.autoClear = false;
-    // Cars start as the procedural fallback; swap in the glTF models once
-    // they're decoded (a few hundred ms, from the bundle).
-    loadCarModels().then(() => this.rebuildCars());
+    // three.js (r163 and later) needs WebGL 2. MapLibre falls back to WebGL 1
+    // on old GPUs and WebViews; keep the map and lose only the 3D cars.
+    if (typeof WebGL2RenderingContext === 'undefined' || !(gl instanceof WebGL2RenderingContext)) {
+      this.unsupported = true;
+      console.warn('[map] WebGL 2 is not available; drawing cars as flat markers');
+      return;
+    }
+    try {
+      for (const light of createLights()) this.scene.add(light);
+      this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
+      this.renderer.autoClear = false;
+      // Cars start as the procedural fallback; swap in the glTF models once
+      // they're decoded (a few hundred ms, from the bundle).
+      loadCarModels()
+        .then(() => this.rebuildCars())
+        .catch((err) => console.warn('[map] car models unavailable, keeping the procedural cars:', err));
+    } catch (err) {
+      this.unsupported = true;
+      console.warn('[map] 3D cars unavailable; drawing cars as flat markers:', err);
+    }
   }
 
   private rebuildCars() {
@@ -175,7 +206,27 @@ class CarLayer implements maplibregl.CustomLayerInterface {
     return e ? { latitude: e.lat, longitude: e.lng } : null;
   }
 
+  /**
+   * Flat-marker mode (see `unsupported`): advances every car along its track
+   * the way render() would and returns where each one is now.
+   */
+  sampleAll(now: number): FlatCar[] {
+    const serverNow = now + this.serverOffsetMs;
+    const out: FlatCar[] = [];
+    for (const [id, entry] of this.cars) {
+      const st = entry.track.sample(entry.track.renderTime(serverNow));
+      if (st) {
+        entry.lat = st.lat;
+        entry.lng = st.lng;
+        entry.heading = lerpAngle(entry.heading, st.heading, 0.18);
+      }
+      out.push({ id, lat: entry.lat, lng: entry.lng, heading: entry.heading, assigned: entry.assigned });
+    }
+    return out;
+  }
+
   render(_gl: WebGLRenderingContext | WebGL2RenderingContext, args: maplibregl.CustomRenderMethodInput) {
+    if (this.unsupported || !this.renderer) return;
     const now = Date.now();
     const serverNow = now + this.serverOffsetMs;
     const zoom = this.map.getZoom();
@@ -319,6 +370,8 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, 
   const mapRef = useRef<maplibregl.Map | null>(null);
   const carsRef = useRef<CarLayer | null>(null);
   const markersRef = useRef(new Map<string, { marker: maplibregl.Marker; kind: string; label?: string }>());
+  // Cars drawn as markers when the car layer reports it cannot use three.js.
+  const carMarkersRef = useRef(new Map<string, maplibregl.Marker>());
   const sceneRef = useRef(scene);
   const loadedRef = useRef(false);
   const lastCameraKey = useRef('');
@@ -399,6 +452,7 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, 
     // WebView itself did not run the page; if it does and nothing follows,
     // the map could not be built.
     callbacks.current.onStage?.('page booted');
+    markBooted();
     let map: maplibregl.Map;
     try {
       const cam = scene.camera;
@@ -485,18 +539,30 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, 
       }
     });
 
-    const ro = new ResizeObserver(() => map.resize());
-    ro.observe(container.current);
+    // ResizeObserver arrived in Chromium 64; older WebViews get the window event.
+    let ro: ResizeObserver | null = null;
+    let onWindowResize: (() => void) | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => map.resize());
+      ro.observe(container.current);
+    } else {
+      onWindowResize = () => map.resize();
+      window.addEventListener('resize', onWindowResize);
+    }
 
     // Follow camera + route trimming run on a light timer, not per frame.
     const tick = setInterval(() => {
       trimRoutes();
+      syncCarMarkers();
       follow();
     }, 250);
 
     return () => {
       clearInterval(tick);
-      ro.disconnect();
+      ro?.disconnect();
+      if (onWindowResize) window.removeEventListener('resize', onWindowResize);
+      for (const marker of carMarkersRef.current.values()) marker.remove();
+      carMarkersRef.current.clear();
       map.remove();
       mapRef.current = null;
       carsRef.current = null;
@@ -531,6 +597,7 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, 
     if (!map || !cars) return;
     cars.serverOffsetMs = s.serverTimeOffsetMs ?? 0;
     cars.update(s.cars ?? [], Date.now());
+    syncCarMarkers();
     syncMarkers(s.markers ?? []);
     syncRoutes(s.routes ?? []);
     map.getCanvas().style.cursor = s.reportCenter ? 'grab' : '';
@@ -568,6 +635,38 @@ export default function MapEngine({ scene, styleUrl, onReady, onError, onStage, 
           .setLngLat([m.longitude, m.latitude])
           .addTo(map);
         existing.set(m.id, { marker, kind: m.kind, label: m.label });
+      }
+    }
+  }
+
+  /**
+   * Flat-marker cars, only while the car layer cannot use three.js: a small
+   * car-shaped marker per car, turned to its heading, moved on the same timer
+   * as the route trimming.
+   */
+  function syncCarMarkers() {
+    const map = mapRef.current;
+    const cars = carsRef.current;
+    if (!map || !cars || !cars.unsupported) return;
+    const markers = carMarkersRef.current;
+    const seen = new Set<string>();
+    for (const car of cars.sampleAll(Date.now())) {
+      seen.add(car.id);
+      let marker = markers.get(car.id);
+      if (!marker) {
+        const el = document.createElement('div');
+        el.className = 'kimu-car' + (car.assigned ? ' kimu-car-assigned' : '');
+        marker = new maplibregl.Marker({ element: el, anchor: 'center', rotationAlignment: 'map', pitchAlignment: 'map' })
+          .setLngLat([car.lng, car.lat])
+          .addTo(map);
+        markers.set(car.id, marker);
+      }
+      marker.setLngLat([car.lng, car.lat]).setRotation(car.heading);
+    }
+    for (const [id, marker] of markers) {
+      if (!seen.has(id)) {
+        marker.remove();
+        markers.delete(id);
       }
     }
   }
@@ -698,6 +797,9 @@ html, body, #root { margin: 0; padding: 0; height: 100%; overflow: hidden; backg
   background: radial-gradient(circle, rgba(14,124,74,0) 40%, rgba(14,124,74,.35) 100%); animation: kimu-radar 2.7s ease-out infinite; }
 .kimu-radar > span:nth-child(2) { animation-delay: .9s; }
 .kimu-radar > span:nth-child(3) { animation-delay: 1.8s; }
+.kimu-car { width: 12px; height: 22px; border-radius: 6px 6px 4px 4px; background: #111; border: 2px solid #fff;
+  box-sizing: content-box; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.kimu-car-assigned { width: 14px; height: 26px; background: #16a34a; }
 .kimu-label { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); white-space: nowrap;
   background: #111; color: #fff; font: 600 12px/1 -apple-system, system-ui, sans-serif; padding: 7px 10px; border-radius: 8px;
   box-shadow: 0 3px 10px rgba(0,0,0,.25); }

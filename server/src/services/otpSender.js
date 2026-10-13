@@ -34,10 +34,6 @@ const META_HINTS = {
   80007: 'the WhatsApp Business Account hit its rate limit',
   130429: 'message throughput limit reached; retry shortly',
 };
-
-// Meta's Graph API error bodies carry the one line that explains a failed
-// delivery (template not approved, number not on the test list, token
-// expired…); surface it instead of raw JSON.
 function describeError(body) {
   try {
     const err = JSON.parse(body).error;
@@ -47,7 +43,7 @@ function describeError(body) {
       return `error ${err.code}${err.error_subcode ? `/${err.error_subcode}` : ''}: ${err.message}${details}${hint}`;
     }
   } catch {
-    // not JSON
+  
   }
   return body.slice(0, 300);
 }
