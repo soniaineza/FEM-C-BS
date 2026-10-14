@@ -80,7 +80,10 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "a08d70b9-4bb1-4159-8e1c-f77b0b8f9a71"
+      }
     },
     "owner": "soniaineza"
   }
