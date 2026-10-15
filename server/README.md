@@ -149,7 +149,7 @@ freed, while rides, payments, receipts, wallet history, earnings and cash
 records stay. A rider with an unfinished or unpaid ride, and a driver with an
 open ride, a payout in progress or cash still owed to Kimu, is refused.
 
-**Operator page.** `https://<api-host>/operator` is a simple page for the
+**Admin page.** `https://<api-host>/admin` (also at `/operator`) is a simple page for the
 person running the service: sign in with the configured operator username and
 password, then
 approve drivers (after inspecting their four documents in person), decide
@@ -295,10 +295,10 @@ poll confirms it. A failed or rejected payout returns to the driver's balance.
 drivers cannot go online or receive rides until the operator has approved all
 required documents.
 
-**Operator dashboard on cPanel.** `operator-php/` is the same operator page
+**Admin dashboard on cPanel.** `admin-php/` is the same operator page
 as PHP for shared hosting: it signs in to `/api/admin` with the operator
 credentials server-side and proxies the dashboard's requests, so the browser
-never holds an API token. See `operator-php/README.md`.
+never holds an API token. See `admin-php/README.md`.
 
 `test/production-readiness.js` covers the webhook, admin and driver
 verification flows end to end. Run it against a dev server started with the

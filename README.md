@@ -11,7 +11,7 @@ for drivers, and a Node.js + Express + PostgreSQL API in `server/`.
 | `apps/driver/` | Driver app "Kimu Drive" (`com.femcabs.driver`, scheme `kimudrive`). Screens in `app/`: `(driver-auth)`, `driver-profile-setup`, `(driver)` |
 | `packages/shared/` | `@kimu/shared`: code both apps use (HTTP client, maps, UI components, translations, types, Tailwind theme) |
 | `server/` | The API — see `server/README.md` for setup, production settings and operator commands |
-| `operator/` | Static operator page (driver approvals, payment exceptions, SOS queue) |
+| `admin/` | Static admin page (driver approvals, payment exceptions, SOS queue) |
 | `tests/e2e/` | Playwright tests of the web builds |
 
 The apps share no runtime state: each has its own sign-in, stored session and
@@ -65,12 +65,12 @@ cd apps/driver && eas init        # once: creates the driver app's EAS project
 cd apps/driver && eas build -p android --profile preview
 ```
 
-## Host the operator page on Vercel
+## Host the admin page on Vercel
 
 Create a Vercel project from this repository and set its **Root Directory** to
-`operator` and **Framework Preset** to **Other**. No build command or output
-directory is needed. The static operator page is in `operator/index.html`;
-`operator/vercel.json` proxies its `/api/admin/*` requests to the existing
+`admin` and **Framework Preset** to **Other**. No build command or output
+directory is needed. The static operator page is in `admin/index.html`;
+`admin/vercel.json` proxies its `/api/admin/*` requests to the existing
 Render API at `https://fem-cabs-api.onrender.com`. The API and database remain
 on Render.
 
@@ -93,7 +93,7 @@ unsettled driver balance cannot be removed.
 Before using the Vercel URL, set `ADMIN_USERNAME` and a strong
 `ADMIN_PASSWORD` (at least 12 characters) in the Render service's environment
 and redeploy the API. Do not put operator credentials in Vercel or in this
-repository. The existing `/operator` page on the API remains available.
+repository. The existing `/admin` page on the API (also served at `/operator`) remains available.
 
 Push notifications and driver background location need native code, so they
 do not work in Expo Go or on web: build the apps with EAS (see above) and

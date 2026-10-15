@@ -87,5 +87,5 @@ const noSession = await req('/api.php?path=%2Fdrivers');
 cookie = savedCookie;
 check('api.php demands the dashboard session', noSession.status === 401, `code=${noSession.status}`);
 
-console.log(`\nOPERATOR-PHP-CHECK: ${pass} passed, ${fail} failed`);
+console.log(`\nADMIN-PHP-CHECK: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

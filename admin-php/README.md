@@ -1,4 +1,4 @@
-# Kimu Operator dashboard (PHP, for cPanel)
+# Kimu Admin dashboard (PHP, for cPanel)
 
 The operator's page for the Kimu Transport service, as plain PHP that runs on
 shared cPanel hosting: approve drivers after checking their four documents,
@@ -9,7 +9,7 @@ Node + PostgreSQL); this dashboard keeps **no database and no copy** of any
 record.
 
 ```
-operator-php/
+admin-php/
   index.php             sign-in form and the dashboard page
   api.php               server-side proxy to <API>/api/admin/* (whitelisted routes, CSRF-checked)
   lib/bootstrap.php     config loading, hardened session, CSRF, sign-in throttle
@@ -39,7 +39,7 @@ new tab. The API credentials and token never reach the browser.
 ## Install on cPanel
 
 1. **Upload.** In cPanel > *File Manager* (or by FTP/SFTP) create a folder
-   under `public_html`, e.g. `public_html/operator`, and upload everything in
+   under `public_html`, e.g. `public_html/admin`, and upload everything in
    this directory into it (`index.php`, `api.php`, `assets/`, `lib/`, `bin/`,
    `.htaccess`, `config.example.php`). Keep the `.htaccess` files, including
    the ones inside `lib/` and `bin/`; turn on *Show hidden files* in File
@@ -71,13 +71,13 @@ new tab. The API credentials and token never reach the browser.
      `/home/YOUR_CPANEL_USER/kimu-operator-config.php` and uncomment the
      `SetEnv KIMU_OPERATOR_CONFIG ...` line in `.htaccess` with that path.
      Nothing under `public_html` then contains a secret.
-   - **Next to `index.php`:** save it as `public_html/operator/config.php`.
+   - **Next to `index.php`:** save it as `public_html/admin/config.php`.
      `.htaccess` refuses to serve `config*.php`, so it is not downloadable,
      but a hosting misconfiguration could expose it; prefer the first option.
 
    Set the file's permissions to `600` (owner read/write only).
 
-4. **Open** `https://your-domain/operator/` and sign in. The *Drivers to
+4. **Open** `https://your-domain/admin/` and sign in. The *Drivers to
    approve* tab lists every unverified driver with the state of each required
    document (not submitted / to check / rejected / approved), a *View* button
    for image files and *Open file* for PDFs, *Reject ...* buttons (the reason
@@ -105,15 +105,15 @@ new tab. The API credentials and token never reach the browser.
 ```
 # 1. API (see server/README.md); for example on port 3100
 # 2. a config for this machine, anywhere outside the repo:
-cp operator-php/config.example.php /tmp/kimu-operator-config.php
+cp admin-php/config.example.php /tmp/kimu-operator-config.php
 #    api_base_url => 'http://127.0.0.1:3100', api_admin_* => the API's ADMIN_* values,
 #    operators => ['me' => '<hash from bin/make-password-hash.php>']
 # 3. PHP's built-in server
-KIMU_OPERATOR_CONFIG=/tmp/kimu-operator-config.php php -S 127.0.0.1:8080 -t operator-php
+KIMU_OPERATOR_CONFIG=/tmp/kimu-operator-config.php php -S 127.0.0.1:8080 -t admin-php
 ```
 
 Open `http://127.0.0.1:8080/`. (On Windows PowerShell:
-`$env:KIMU_OPERATOR_CONFIG='C:\path\kimu-operator-config.php'; php -S 127.0.0.1:8080 -t operator-php`.)
+`$env:KIMU_OPERATOR_CONFIG='C:\path\kimu-operator-config.php'; php -S 127.0.0.1:8080 -t admin-php`.)
 
 ## Security notes
 

@@ -14,27 +14,27 @@ function assertBlobPreviewsAllowed(policy, deployment) {
   assert.ok(directives.includes("default-src 'none'"), `${deployment} CSP must keep its restrictive default`);
 }
 
-test('operator file previews are allowed by the server and Vercel CSPs', () => {
-  const vercel = JSON.parse(fs.readFileSync(path.join(root, 'operator/vercel.json'), 'utf8'));
+test('admin file previews are allowed by the server and Vercel CSPs', () => {
+  const vercel = JSON.parse(fs.readFileSync(path.join(root, 'admin/vercel.json'), 'utf8'));
   const vercelCsp = vercel.headers
     .find((entry) => entry.source === '/')
     .headers.find((header) => header.key === 'Content-Security-Policy').value;
   assertBlobPreviewsAllowed(vercelCsp, 'Vercel');
 
-  const server = fs.readFileSync(path.join(root, 'server/src/index.js'), 'utf8');
+  const server = fs.readFileSync(path.join(root, 'server/src/app.js'), 'utf8');
   const serverCsp = server.match(/'Content-Security-Policy': "([^"]+)"/)?.[1];
-  assert.ok(serverCsp, 'server /operator CSP must be configured');
+  assert.ok(serverCsp, 'server /admin CSP must be configured');
   assertBlobPreviewsAllowed(serverCsp, 'server');
 });
 
-test('operator distinguishes an empty admin document response from an unsubmitted upload', () => {
-  const operator = fs.readFileSync(path.join(root, 'operator/index.html'), 'utf8');
+test('admin dashboard distinguishes an empty document response from an unsubmitted upload', () => {
+  const operator = fs.readFileSync(path.join(root, 'admin/index.html'), 'utf8');
   assert.match(operator, /The admin API returned no document records for this driver/);
   assert.match(operator, /Required documents missing from the admin list/);
 });
 
-test('operator confirms before deleting a driver application and uses the admin delete route', () => {
-  const operator = fs.readFileSync(path.join(root, 'operator/index.html'), 'utf8');
+test('admin dashboard confirms before deleting a driver application and uses the admin delete route', () => {
+  const operator = fs.readFileSync(path.join(root, 'admin/index.html'), 'utf8');
   assert.match(operator, /button\('Delete application', 'danger'/);
   assert.match(operator, /window\.confirm\(/);
   assert.match(operator, /call\('DELETE', '\/drivers\/' \+ encodeURIComponent\(d\.id\) \+ '\/application'\)/);

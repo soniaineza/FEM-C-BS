@@ -1,5 +1,5 @@
 // Builds the Express application: middleware, every /api router, the
-// operator page and the web build. index.js connects the database and
+// admin page and the web build. index.js connects the database and
 // listens; the tests mount this on an ephemeral port instead.
 const express = require('express');
 const cors = require('cors');
@@ -91,10 +91,11 @@ function createApp() {
   // server/src -> server -> repo root, two levels up (not three — the
   // previous `build/web` path here was off by one and pointed above the
   // repo root; verified against the actual directory layout).
-  // The operator's page: approve drivers, resolve payment cases, handle SOS.
-  // It holds no secret — every action needs operator authentication checked
-  // by /api/admin.
-  app.get('/operator', (_req, res) => {
+  // The admin's page: approve drivers, resolve payment cases, handle SOS.
+  // It holds no secret — every action needs admin authentication checked
+  // by /api/admin. Served at /admin (the dashboard folder is `admin/`);
+  // /operator stays as an alias for links that already exist.
+  const sendAdminPage = (_req, res) => {
     res.set({
       'Cache-Control': 'no-store',
       'X-Frame-Options': 'DENY',
@@ -102,8 +103,10 @@ function createApp() {
       'Referrer-Policy': 'no-referrer',
       'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob:; frame-src blob:; object-src blob:; connect-src 'self'; base-uri 'none'; form-action 'none'",
     });
-    res.sendFile(path.join(__dirname, '..', '..', 'operator', 'index.html'));
-  });
+    res.sendFile(path.join(__dirname, '..', '..', 'admin', 'index.html'));
+  };
+  app.get('/admin', sendAdminPage);
+  app.get('/operator', sendAdminPage);
 
   const webBuildPath = path.join(__dirname, '..', '..', 'dist');
   app.use(express.static(webBuildPath));

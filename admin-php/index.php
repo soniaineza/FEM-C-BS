@@ -1,5 +1,5 @@
 <?php
-// Kimu Operator dashboard: sign in, then review driver applications, decide
+// Kimu Admin dashboard: sign in, then review driver applications, decide
 // payment cases and close SOS events. All data comes live from the Kimu API
 // through api.php; this page holds no secret and no copy of any record.
 declare(strict_types=1);
@@ -51,13 +51,13 @@ $configured = $config['api_admin_username'] !== '' && $config['api_admin_passwor
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta name="csrf-token" content="<?= kimu_escape($csrf) ?>">
-<title>Kimu Operator</title>
+<title>Kimu Admin</title>
 <link rel="stylesheet" href="assets/app.css?v=<?= kimu_escape(KIMU_OPERATOR_VERSION) ?>">
 </head>
 <body>
 <main>
   <header>
-    <h1>Kimu Operator</h1>
+    <h1>Kimu Admin</h1>
     <?php if ($operator !== null): ?>
     <form method="post" class="inline">
       <input type="hidden" name="csrf" value="<?= kimu_escape($csrf) ?>">
