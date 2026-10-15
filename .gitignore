@@ -33,6 +33,8 @@ yarn-error.*
 # local env files
 .env
 .env*.local
+# PHP operator dashboard credentials (see operator-php/config.example.php)
+operator-php/config.php
 
 # typescript
 *.tsbuildinfo

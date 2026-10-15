@@ -208,8 +208,26 @@ verified. An unverified account gets a fresh SMS code when it logs in.
 `DEV_REVEAL_CODES=1`; codes are never written to server logs.
 
 **Driver verification.** New drivers start unverified and can't go online
-until an operator approves them. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+until an operator approves them. An unverified driver *can* sign in
+(`POST /api/drivers/login` answers `pendingApproval: true`): the session only
+reaches the application routes — profile, vehicle, document upload and
+listing, notifications, support, device token — and every ride operation
+answers 403 `PENDING_APPROVAL` until the account is verified
+(`src/middleware/auth.js`). Only suspended and closed accounts are refused at
+login. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
 Production requires a password of at least 12 characters.
+
+Documents are uploaded as one multipart part named `file` next to `docType`
+(`license`, `national_id`, `vehicle_registration`, `insurance`,
+`profile_photo`, `vehicle_photo`, `other`) to `POST /api/driver/documents`,
+at most 12 MB each. The server decides the type from the file's bytes (PDF,
+JPEG, PNG, WebP, HEIC) whatever the phone's picker declared, stores the bytes
+in `driver_documents.file_data`, and answers 413 `FILE_TOO_LARGE`, 415
+`UNSUPPORTED_FILE_TYPE` or 400 `FILE_MISSING` with a message the app shows.
+Rejecting a document creates a driver notification (and a push, when the app
+registered a device token through `POST /api/driver/device-token` or
+`/api/driver/notifications/device-token`); the driver uploads a new file of
+the same type and the operator list shows the newest upload per type.
 For trusted scripts, `ADMIN_API_KEY` remains an optional integration secret.
 Sign in with the operator credentials to obtain a bearer token:
 
@@ -274,7 +292,13 @@ payout completes when the `transaction:processed` webhook or the scheduler's
 poll confirms it. A failed or rejected payout returns to the driver's balance.
 
 **Payment and driver access.** Mobile-money charges use Paypack only, and
-drivers cannot sign in until the operator has approved all required documents.
+drivers cannot go online or receive rides until the operator has approved all
+required documents.
+
+**Operator dashboard on cPanel.** `operator-php/` is the same operator page
+as PHP for shared hosting: it signs in to `/api/admin` with the operator
+credentials server-side and proxies the dashboard's requests, so the browser
+never holds an API token. See `operator-php/README.md`.
 
 `test/production-readiness.js` covers the webhook, admin and driver
 verification flows end to end. Run it against a dev server started with the
@@ -319,6 +343,8 @@ own npm script (each exits non-zero on failure):
 | `npm run test:wallet` | Same local API as the smoke test. |
 | `npm run test:money` | Same local API and an `ADMIN_API_KEY` (pass the same key to the test). Commission settlements require working Paypack credentials; manual operator settlements and payouts can be tested without them. |
 | `npm run test:maps` | Nothing: provider adapters, routing, geocoding and GPS validation with the provider stubbed. |
+| `npm run test:driver-docs` | The unit part needs nothing (file-type sniffing, the unverified-session gate). The end-to-end part needs a local PostgreSQL: it uses `DATABASE_URL` from `server/.env` with the database name suffixed `_test` (created on first run, emptied each run; or set `TEST_DATABASE_URL`), mounts the real app on a free port and walks a driver from registration through sign-in before approval, four real multipart uploads, the operator list and files, a rejection and re-upload, approval, verification and going online. Without a database those tests are skipped and say so. |
+| `npm run test:unit` | Nothing: every DB-free test above in one run. |
 | `npm run test:otp` | A local database; starts its own server to check SMS delivery failure and local-only OTP reveal behavior. |
 | `npm run test:readiness` | API on `:3000` started with the same Paypack webhook secret and admin key as in `server/.env`. |
 | `npm run test:invariants` | Only PostgreSQL (`INV_DATABASE_URL`). Starts its own production-mode API, fake Paypack and SMS gateway, and a fresh database. Optional args: `-- <seed> <steps>`. |

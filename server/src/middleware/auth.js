@@ -38,6 +38,33 @@ function requireAuth(req, res, next) {
   });
 }
 
+// What a driver who is not yet approved may do with their session: finish
+// the application (profile, vehicle, documents), read the operator's
+// decisions, and reach support. Everything else under /api/driver and every
+// ride operation under /api/drivers stays closed until an operator verifies
+// the account. Paths are relative to the /api/driver router.
+const APPLICATION_ROUTES = [
+  ['GET', /^\/me$/], ['PUT', /^\/me$/],
+  ['GET', /^\/vehicle$/], ['PUT', /^\/vehicle$/],
+  ['GET', /^\/documents$/], ['POST', /^\/documents$/],
+  ['GET', /^\/documents\/[0-9a-f-]+\/file$/i],
+  // Rejections and the approval itself arrive as notifications.
+  ['GET', /^\/notifications$/], ['GET', /^\/notifications\/unread-count$/],
+  ['POST', /^\/notifications\/[0-9a-f-]+\/read$/i], ['POST', /^\/notifications\/read-all$/],
+  // Both spellings: the app posts /device-token, the console /notifications/device-token.
+  ['POST', /^\/device-token$/], ['POST', /^\/notifications\/device-token$/],
+  ['GET', /^\/support(\/[0-9a-f-]+)?$/i], ['POST', /^\/support(\/[0-9a-f-]+\/messages)?$/i],
+  ['DELETE', /^\/account$/],
+];
+
+/** Whether an unverified driver may call `method path` on /api/driver. */
+function isApplicationRoute(method, routerPath) {
+  const path = String(routerPath || '').replace(/\/+$/, '') || '/';
+  return APPLICATION_ROUTES.some(([m, re]) => m === method && re.test(path));
+}
+
+const PENDING_APPROVAL_MESSAGE = 'Your account is waiting for admin approval. Driver features are available after approval.';
+
 /** Requires a valid driver `Authorization: Bearer <token>` (driver console). */
 function requireDriverAuth(req, _res, next) {
   const token = readBearer(req);
@@ -51,22 +78,11 @@ function requireDriverAuth(req, _res, next) {
       .query('SELECT verified, status FROM drivers WHERE id = $1 AND password_hash IS NOT NULL AND deleted_at IS NULL', [id])
       .then(({ rows }) => {
         if (!rows[0]) return next(new ApiError(401, 'This driver account is no longer active.'));
-        const applicationRoutes = new Set([
-          'GET /me', 'PUT /me',
-          'GET /vehicle', 'PUT /vehicle',
-          'GET /documents', 'POST /documents',
-          'POST /device-token',
-          'DELETE /account',
-        ]);
-        const canViewApplicationDocument =
-          req.method === 'GET' && /^\/documents\/[0-9a-f-]+\/file$/i.test(req.path);
         if (rows[0].status === 'suspended') {
           return next(new ApiError(403, 'Your driver account is suspended. Contact Kimu Transport support.'));
         }
-        if (!rows[0].verified &&
-            !(req.baseUrl === '/api/driver' &&
-              (applicationRoutes.has(`${req.method} ${req.path}`) || canViewApplicationDocument))) {
-          return next(new ApiError(403, 'Your account is waiting for admin approval. Driver features are available after approval.'));
+        if (!rows[0].verified && !(req.baseUrl === '/api/driver' && isApplicationRoute(req.method, req.path))) {
+          return next(new ApiError(403, PENDING_APPROVAL_MESSAGE, 'PENDING_APPROVAL'));
         }
         req.driverId = id;
         next();
@@ -99,4 +115,4 @@ function requireAnyUser(req, res, next) {
   return requireAuth(req, res, done);
 }
 
-module.exports = { requireAuth, requireSession, requireDriverAuth, requireAnyUser };
+module.exports = { requireAuth, requireSession, requireDriverAuth, requireAnyUser, isApplicationRoute, PENDING_APPROVAL_MESSAGE };

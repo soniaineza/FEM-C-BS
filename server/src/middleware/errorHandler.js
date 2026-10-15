@@ -1,4 +1,5 @@
 const { ApiError } = require('../utils/asyncHandler');
+const { DOCUMENT_MAX_MB } = require('../services/driverDocuments');
 
 /** Central error handler — always returns a JSON { error: message } body. */
 function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-vars
@@ -14,7 +15,10 @@ function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-va
   if (err && err.name === 'MulterError') {
     const tooLarge = err.code === 'LIMIT_FILE_SIZE';
     return res.status(tooLarge ? 413 : 400).json({
-      error: tooLarge ? 'File is too large. Maximum size is 8 MB.' : 'Could not accept this file upload.',
+      error: tooLarge
+        ? `File is too large. Maximum size is ${DOCUMENT_MAX_MB} MB.`
+        : `Could not accept this file upload (${err.code}). Send one file in the "file" field.`,
+      code: tooLarge ? 'FILE_TOO_LARGE' : 'UPLOAD_REJECTED',
     });
   }
 

@@ -1,0 +1,44 @@
+# Kimu Operator dashboard (PHP) — Apache settings for cPanel hosting.
+
+# No directory listings; index.php is the entry point.
+Options -Indexes
+DirectoryIndex index.php
+
+# Keep the configuration file(s) outside the web root when you can, and point
+# at it here. mod_env is enabled on most cPanel servers; if this line errors
+# (HTTP 500), remove it and use config.php next to index.php instead.
+# SetEnv KIMU_OPERATOR_CONFIG /home/YOUR_CPANEL_USER/kimu-operator-config.php
+
+# Never serve configuration, documentation or this file.
+<FilesMatch "^(config.*\.php|.*\.example\.php|README\.md|\.htaccess)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# Security headers for everything this folder serves. The pages set their
+# own Content-Security-Policy in PHP (index.php, api.php); document files
+# streamed by api.php carry none so the browser's PDF viewer is not affected.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Cache-Control "no-store"
+  Header unset X-Powered-By
+  # Turn on once the site is served over HTTPS only (cPanel: AutoSSL).
+  # Header always set Strict-Transport-Security "max-age=31536000"
+</IfModule>
+
+# Ask PHP for the settings this dashboard relies on (ignored where PHP runs
+# as FastCGI/LSAPI with its own ini; then set them in cPanel > MultiPHP INI).
+<IfModule mod_php.c>
+  php_flag display_errors Off
+  php_flag expose_php Off
+  php_value session.cookie_httponly 1
+  php_value session.use_strict_mode 1
+</IfModule>

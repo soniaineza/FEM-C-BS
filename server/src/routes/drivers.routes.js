@@ -32,6 +32,11 @@ const {
 
 const router = express.Router();
 
+// POST /api/drivers/register — self-service driver sign-up for the driver
+// app. New accounts start unverified/offline: the driver can sign in to
+// finish the application (profile, vehicle, the four KYC documents), but
+// cannot go active or receive rides until an operator has reviewed the
+// documents and verified the account (middleware/auth.js).
 router.post(
   '/register',
   apiLimiter({ max: 20 }),
@@ -93,6 +98,9 @@ router.post(
     res.json({
       driver: driverToJson(driver),
       token: signDriverToken(driver.id),
+      // Tells the app where to send the driver: the documents screen until
+      // the operator has approved the account.
+      pendingApproval: !driver.verified,
     });
   })
 );

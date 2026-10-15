@@ -12,6 +12,14 @@ const { signDriverToken } = require('../utils/jwt');
 const { apiLimiter } = require('../middleware/rateLimit');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
+const {
+  DOCUMENT_MAX_BYTES,
+  DOCUMENT_TYPES,
+  UNSUPPORTED_TYPE_MESSAGE,
+  classifyDocument,
+  isAcceptableDeclaredType,
+  safeDownloadName,
+} = require('../services/driverDocuments');
 const { closeDriverAccount } = require('../services/accountClosure');
 const { dispatchEmergency } = require('../services/emergencyDispatch');
 const {
@@ -25,44 +33,23 @@ const {
 
 const router = express.Router();
 router.use(requireDriverAuth);
+// The file arrives as one multipart part named "file" (React Native's
+// FormData on the phones, a Blob on the web) next to the docType field. It is
+// held in memory, checked by its bytes (services/driverDocuments.js) and
+// stored in driver_documents.file_data for the operator to open.
 const documentUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 3, fieldSize: 200 },
+  limits: { fileSize: DOCUMENT_MAX_BYTES, files: 1, fields: 4, fieldSize: 200 },
   fileFilter: (_req, file, callback) => {
-    const supported = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
-    if (!supported.includes(file.mimetype)) {
-      callback(new ApiError(415, 'Upload a PDF, JPEG, PNG, WebP, or HEIC file.'));
+    // The declared type only decides whether the bytes are worth reading;
+    // an Android picker that says octet-stream is checked by content below.
+    if (!isAcceptableDeclaredType(file.mimetype)) {
+      callback(new ApiError(415, UNSUPPORTED_TYPE_MESSAGE, 'UNSUPPORTED_FILE_TYPE'));
       return;
     }
     callback(null, true);
   },
 });
-
-function fileMatchesType(file) {
-  const bytes = file.buffer;
-  switch (file.mimetype) {
-    case 'application/pdf':
-      return bytes.subarray(0, 5).toString('ascii') === '%PDF-';
-    case 'image/jpeg':
-      return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-    case 'image/png':
-      return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-    case 'image/webp':
-      return bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
-        bytes.subarray(8, 12).toString('ascii') === 'WEBP';
-    case 'image/heic':
-    case 'image/heif':
-      return bytes.subarray(4, 8).toString('ascii') === 'ftyp';
-    default:
-      return false;
-  }
-}
-
-function safeDownloadName(fileName) {
-  return String(fileName || 'driver-document')
-    .replace(/[\\/\r\n"]/g, '_')
-    .slice(0, 160);
-}
 
 // ============================================================
 // PROFILE
@@ -264,18 +251,25 @@ router.get('/documents/:id/file', asyncHandler(async (req, res) => {
 // POST /api/driver/documents — persist the actual uploaded file.
 router.post(
   '/documents',
-  apiLimiter({ max: 12, keyGenerator: (req) => `driver-doc:${req.driverId}` }),
+  // Four required documents plus re-uploads after a rejection, with room
+  // for a few failed attempts on a bad connection; keyed per driver so one
+  // applicant's retries never block another.
+  apiLimiter({ max: 30, keyGenerator: (req) => `driver-doc:${req.driverId}` }),
   documentUpload.single('file'),
   asyncHandler(async (req, res) => {
   const { docType, expiresAt } = req.body || {};
-  const validTypes = ['license', 'national_id', 'vehicle_registration', 'insurance', 'profile_photo', 'vehicle_photo', 'other'];
-  if (!docType || !validTypes.includes(docType)) {
-    throw new ApiError(400, `docType must be one of: ${validTypes.join(', ')}`);
+  if (!docType || !DOCUMENT_TYPES.includes(docType)) {
+    throw new ApiError(400, `docType must be one of: ${DOCUMENT_TYPES.join(', ')}`);
   }
-  if (!req.file) throw new ApiError(400, 'Choose a file to upload.');
-  if (!fileMatchesType(req.file)) throw new ApiError(415, 'The selected file does not match its file type.');
-  if (['profile_photo', 'vehicle_photo'].includes(docType) && !req.file.mimetype.startsWith('image/')) {
-    throw new ApiError(415, 'Profile and vehicle photos must be image files.');
+  if (!req.file) throw new ApiError(400, 'Choose a file to upload.', 'FILE_MISSING');
+  if (!req.file.size) throw new ApiError(400, 'The selected file is empty. Choose the file again.', 'FILE_EMPTY');
+  const { contentType, error } = classifyDocument(req.file.buffer, req.file.mimetype);
+  if (error) throw new ApiError(error.status, error.message, 'UNSUPPORTED_FILE_TYPE');
+  if (['profile_photo', 'vehicle_photo'].includes(docType) && !contentType.startsWith('image/')) {
+    throw new ApiError(415, 'Profile and vehicle photos must be image files.', 'UNSUPPORTED_FILE_TYPE');
+  }
+  if (expiresAt && Number.isNaN(Date.parse(expiresAt))) {
+    throw new ApiError(400, 'expiresAt must be a date.');
   }
 
   const fileName = safeDownloadName(req.file.originalname);
@@ -284,7 +278,7 @@ router.post(
     `INSERT INTO driver_documents
        (driver_id, doc_type, file_url, file_name, expires_at, file_data, content_type, file_size)
      VALUES ($1, $2, NULL, $3, $4, $5, $6, $7) RETURNING *`,
-    [req.driverId, docType, fileName, expiresAt || null, req.file.buffer, req.file.mimetype, req.file.size]
+    [req.driverId, docType, fileName, expiresAt || null, req.file.buffer, contentType, req.file.size]
   );
   res.status(201).json({
     document: {
@@ -295,6 +289,8 @@ router.post(
       fileUrl: `/api/driver/documents/${rows[0].id}/file`,
       fileName: rows[0].file_name,
       fileSize: rows[0].file_size,
+      contentType: rows[0].content_type,
+      hasFile: true,
     },
   });
   })
@@ -579,8 +575,11 @@ router.get('/notifications/unread-count', asyncHandler(async (req, res) => {
   res.json({ count: rows[0].count });
 }));
 
-// POST /api/driver/notifications/device-token
-router.post('/notifications/device-token', asyncHandler(async (req, res) => {
+// POST /api/driver/notifications/device-token — also served as
+// POST /api/driver/device-token, which is the path the driver app has always
+// posted to (apps/driver/services/driver-profile-service.ts); before the
+// alias every registration 404ed and no driver ever received a push.
+async function registerDeviceToken(req, res) {
   const { token, platform } = req.body || {};
   if (!token) throw new ApiError(400, 'A device token is required.');
   await getPool().query(
@@ -590,7 +589,9 @@ router.post('/notifications/device-token', asyncHandler(async (req, res) => {
     [req.driverId, token, platform || null]
   );
   res.status(204).end();
-}));
+}
+router.post('/notifications/device-token', asyncHandler(registerDeviceToken));
+router.post('/device-token', asyncHandler(registerDeviceToken));
 
 // ============================================================
 // SUPPORT (driver tickets)

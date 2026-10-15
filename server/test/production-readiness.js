@@ -211,10 +211,16 @@ async function db() {
   const newDt = reg.data.token;
   const newDriverId = reg.data.driver.id;
   check('driver registration never bypasses admin approval', reg.data.driver.verified === false);
+  // Signing in before approval is allowed (the driver needs a session to
+  // upload documents after a reinstall); what the session can do is not.
   const pendingLogin = await api('POST', '/drivers/login', { phone: dphone, password: 'secret123' });
-  check('unapproved driver cannot log in', pendingLogin.status === 403, `status=${pendingLogin.status}`);
+  check('unapproved driver can sign in to finish the application',
+    pendingLogin.status === 200 && pendingLogin.data.pendingApproval === true && pendingLogin.data.driver.verified === false,
+    `status=${pendingLogin.status}`);
   const blockedRides = await api('GET', '/drivers/rides/active', null, newDt);
   check('unapproved driver token cannot access ride operations', blockedRides.status === 403, `status=${blockedRides.status}`);
+  const blockedRidesFresh = await api('GET', '/drivers/rides/active', null, pendingLogin.data.token);
+  check('a session issued before approval cannot access ride operations either', blockedRidesFresh.status === 403, `status=${blockedRidesFresh.status}`);
   const onboardingDocs = await api('GET', '/driver/documents', null, newDt);
   check('unapproved driver can access document onboarding', onboardingDocs.status === 200, `status=${onboardingDocs.status}`);
   const online = await api('PUT', '/driver/status', { status: 'active' }, newDt);
