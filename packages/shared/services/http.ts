@@ -6,10 +6,13 @@ import { tFor } from '../utils/i18n-errors';
 // stored token, so the two auth contexts never leak into each other.
 export class ApiError extends Error {
   status?: number;
-  constructor(message: string, status?: number) {
+  /** The server's stable error code (e.g. FILE_TOO_LARGE), when it sent one. */
+  code?: string;
+  constructor(message: string, status?: number, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -19,6 +22,9 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://loca
 // timeout with "We could not reach the Kimu Transport servers"). 45s covers a
 // full cold boot plus a slow 3G round trip.
 const REQUEST_TIMEOUT_MS = 45_000;
+// A multipart upload carries a document photo of up to 12 MB; on a 1 Mbit/s
+// mobile uplink that alone takes ~100 s, so it gets its own budget.
+const UPLOAD_TIMEOUT_MS = 180_000;
 // One silent retry for idempotent GETs that fail at the transport level
 // (timeout / connection reset) — covers the cold-start blip without any UI
 // change. Non-GETs are never retried automatically (they may not be
@@ -66,7 +72,7 @@ export function createApiClient(getToken: () => Promise<string | null>): ApiClie
 
     const attempt = async (): Promise<Response> => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), isForm ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
       try {
         return await fetch(`${API_BASE_URL}${path}`, {
           method,
@@ -98,7 +104,7 @@ export function createApiClient(getToken: () => Promise<string | null>): ApiClie
     if (!res.ok) {
       // server/src/middleware/errorHandler.js always responds { error: message }.
       const message = typeof json?.error === 'string' ? json.error : translatedError('failed', res.status).message;
-      throw new ApiError(message, res.status);
+      throw new ApiError(message, res.status, typeof json?.code === 'string' ? json.code : undefined);
     }
     return json as T;
   }

@@ -33,8 +33,10 @@ const {
 const router = express.Router();
 
 // POST /api/drivers/register — self-service driver sign-up for the driver
-// app. New accounts start unverified/offline (KYC documents must be
-// reviewed before a driver can sign in, go active, or receive rides.
+// app. New accounts start unverified/offline: the driver can sign in to
+// finish the application (profile, vehicle, the four KYC documents), but
+// cannot go active or receive rides until an operator has reviewed the
+// documents and verified the account (middleware/auth.js).
 router.post(
   '/register',
   apiLimiter({ max: 20 }),
@@ -72,8 +74,15 @@ router.post(
   })
 );
 
-// POST /api/drivers/login — real driver-side auth for the future driver app
-// and the reference driver console.
+// POST /api/drivers/login — driver-side auth for the driver app and the
+// reference driver console.
+//
+// An unverified driver signs in too: they need a session to upload the
+// documents the operator reviews, and the registration session may be gone
+// (app reinstalled, phone changed, token expired). The session they get is
+// the same kind as everyone else's; requireDriverAuth limits it to the
+// application routes until the account is verified. Only suspended and
+// closed accounts are refused.
 router.post(
   '/login',
   // Per phone number being tried, so one account cannot be brute-forced and
@@ -83,15 +92,15 @@ router.post(
     const { phone, password } = req.body || {};
     if (!phone || !password) throw new ApiError(400, 'Phone and password are required.');
     const driver = await authenticateDriver(String(phone).trim(), String(password));
-    if (!driver.verified) {
-      throw new ApiError(403, 'Your account is waiting for admin approval. You can sign in after your documents have been reviewed.');
-    }
     if (driver.status === 'suspended') {
       throw new ApiError(403, 'Your driver account is suspended. Contact Kimu Transport support.');
     }
     res.json({
       driver: driverToJson(driver),
       token: signDriverToken(driver.id),
+      // Tells the app where to send the driver: the documents screen until
+      // the operator has approved the account.
+      pendingApproval: !driver.verified,
     });
   })
 );
