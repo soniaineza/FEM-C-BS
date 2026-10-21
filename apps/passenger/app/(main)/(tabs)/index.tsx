@@ -172,21 +172,28 @@ export default function HomeScreen() {
     <SafeAreaViewPlaceholder className="flex-1 bg-white" edges={['top']}>
       {isFocused ? <StatusBar style="dark" /> : null}
       <View className="flex-1 bg-gray-light">
-        <RideMap
-          center={mapCenter}
-          zoom={mapCenter.zoom ?? 15}
-          recenterToken={recenterToken}
-          markers={pickup?.latitude != null && pickup?.longitude != null
-            ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
-            : []}
-          cars={nearbyCars}
-          serverTimeOffsetMs={serverTimeOffsetMs}
-          padding={mapPadding}
-          retryLabel={t('tryAgain')}
-          loadingLabel={t('mapLoading')}
-          errorLabel={t('mapError')}
-          rounded={false}
-        />
+        {/* The live fleet map is the only map on this screen, but a pushed
+            screen (ride flow, place picker) mounts its own. Home keeps its
+            map only while it is focused so the two are never alive at once:
+            each LiveMap is a WebView, and two WebGL maps at the same time
+            exhaust Android's renderer, leaving the second one stuck. */}
+        {isFocused ? (
+          <RideMap
+            center={mapCenter}
+            zoom={mapCenter.zoom ?? 15}
+            recenterToken={recenterToken}
+            markers={pickup?.latitude != null && pickup?.longitude != null
+              ? [{ id: 'pickup', position: { latitude: pickup.latitude, longitude: pickup.longitude }, icon: 'me' as const }]
+              : []}
+            cars={nearbyCars}
+            serverTimeOffsetMs={serverTimeOffsetMs}
+            padding={mapPadding}
+            retryLabel={t('tryAgain')}
+            loadingLabel={t('mapLoading')}
+            errorLabel={t('mapError')}
+            rounded={false}
+          />
+        ) : null}
 
         <View className="absolute left-3 right-3 top-3 sm:left-4 sm:right-4 flex-row items-start gap-3" pointerEvents="box-none">
           <Pressable

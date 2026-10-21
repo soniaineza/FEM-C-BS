@@ -189,15 +189,24 @@ async function db() {
   const pending = (await api('GET', `/rides/${rideId}`, null, token)).data.ride;
   check('cash ride waiting for payment', pending.status === 'paymentPending', pending.status);
 
-  // Simulate a Paypack charge in flight for this ride.
+  // Simulate a Paypack charge in flight for this ride. A completed cash ride
+  // has no payment attempt yet (the fare is collected by the driver), so this
+  // records the pending attempt the driver's charge flow would have created.
   const rideRef = crypto.randomUUID();
   await pool.query(
-    `UPDATE payments SET provider='paypack', method='mtn_momo', state='processing', external_reference=$2
-      WHERE ride_id = $1`,
-    [rideId, rideRef]
+    `INSERT INTO payments
+       (ride_id, passenger_id, amount, method, status, provider, state, reference, external_reference, idempotency_key)
+     SELECT r.id, r.passenger_id, COALESCE(r.final_fare, r.estimated_fare), 'mtn_momo', 'pending',
+            'paypack', 'pending', $2, $3, $4
+       FROM rides r WHERE r.id = $1`,
+    [rideId, `KIMU-E2E-${rideRef.slice(0, 8)}`, rideRef, `e2e:${rideId}:mtn_momo`]
   );
   await pool.query(`UPDATE rides SET payment_method='mtn_momo' WHERE id = $1`, [rideId]);
-  await sendWebhook(processedEvent(rideRef, 'successful', pending.estimatedFare || 1));
+  const fareToCharge = (await pool.query(
+    'SELECT COALESCE(final_fare, estimated_fare) AS fare FROM rides WHERE id = $1',
+    [rideId]
+  )).rows[0].fare;
+  await sendWebhook(processedEvent(rideRef, 'successful', fareToCharge));
   await sleep(800);
   const settled = (await api('GET', `/rides/${rideId}`, null, token)).data.ride;
   check('webhook: successful ride payment completes the ride', settled.status === 'completed', settled.status);

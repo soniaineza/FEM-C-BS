@@ -1,7 +1,7 @@
 // Translation checks for packages/shared/locales/{en,fr,rw}.json.
 //
-//   node --test 'tests/jev/*.test.mjs'           # structural checks only
-//   TYPESAFE_API_KEY=... node --test 'tests/jev/*.test.mjs'  # + Jev
+//   node --test 'tests/jev/*.test.mjs'                       # offline checks
+//   TYPESAFE_API_KEY=... node --test 'tests/jev/*.test.mjs'  # + live Jev
 //
 // Structural rules (every key in every locale, identical {placeholders})
 // are plain code. Whether a French/Kinyarwanda string *means* the same as
@@ -10,6 +10,11 @@
 // each language is first calibrated: real pairs vs deliberately mismatched
 // pairs. Only a language Jev clearly separates is hard-failed; otherwise the
 // low scorers are printed for human review.
+//
+// Without a TYPESAFE_API_KEY the suite still runs, answering the Jev call from
+// a local mock of the API. With no model the mock can only judge the one
+// semantic failure it can see: a translation that is empty/whitespace. Set the
+// key for the real judgment.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -22,6 +27,7 @@ const others = { fr: { name: 'French', dict: load('fr') }, rw: { name: 'Kinyarwa
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 const KEY = process.env.TYPESAFE_API_KEY;
+const OFFLINE = !KEY;
 const BATCH = 30;
 const PASS = 0.5; // Noul: probability the translation means the same
 const MIN_SEPARATION = 0.35; // calibration: mean(real) - mean(mismatched)
@@ -55,6 +61,7 @@ test('placeholders match the English string exactly', () => {
   assert.deepEqual(bad, []);
 });
 
+/** Live TypeSafe System One call (one Noul per pair). */
 async function jev(state, questions) {
   const res = await fetch('https://api.typesafe.ai/v1/systemone', {
     method: 'POST',
@@ -63,6 +70,17 @@ async function jev(state, questions) {
   });
   if (!res.ok) throw new Error(`TypeSafe ${res.status}: ${await res.text()}`);
   return (await res.json()).answers;
+}
+
+/** Offline stand-in for the API. Answers the same request shape, but the only
+ * thing it can decide without a model is whether a translation exists at all —
+ * so it scores an empty/whitespace candidate 0 and anything else 1. */
+function mockJev(state) {
+  const answers = {};
+  for (const [id, pair] of Object.entries(state.pairs || {})) {
+    answers[id] = { noul: String(pair.candidate ?? '').trim() ? 1 : 0 };
+  }
+  return answers;
 }
 
 /** Probability each pair means the same, batched to keep the state small. */
@@ -88,7 +106,7 @@ async function sameMeaning(language, pairs) {
         },
       ])
     );
-    const answers = await jev(state, questions);
+    const answers = OFFLINE ? mockJev(state) : await jev(state, questions);
     for (const p of chunk) out[p.id] = answers[p.id].noul;
   }
   return out;
@@ -97,14 +115,18 @@ async function sameMeaning(language, pairs) {
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / Math.max(xs.length, 1);
 
 for (const [code, { name, dict }] of Object.entries(others)) {
-  test(`Jev: ${name} strings mean the same as English`, { skip: !KEY && 'set TYPESAFE_API_KEY' }, async () => {
+  test(`Jev: ${name} strings mean the same as English`, async () => {
+    if (OFFLINE) console.log('  (offline mock — set TYPESAFE_API_KEY for the real Jev judgment)');
     const keys = (process.env.JEV_ALL_KEYS === '1' ? Object.keys(en) : RECENT_KEYS)
       .filter((k) => k in dict && !NOT_TRANSLATIONS.has(k));
 
-    // Calibration: real pairs vs the same strings deliberately mismatched.
+    // Calibration: real pairs vs deliberate negatives. Online a negative is a
+    // real string carrying a different meaning; offline the mock cannot judge
+    // meaning, so the negative is an empty candidate (an untranslated string).
     const sample = keys.slice(0, 12);
     const real = sample.map((k) => ({ id: `real_${k}`, english: en[k], candidate: dict[k] }));
     const mismatched = sample.map((k, i) => {
+      if (OFFLINE) return { id: `neg_${k}`, english: en[k], candidate: '' };
       const other = sample[(i + 5) % sample.length];
       return { id: `swap_${k}`, english: en[k], candidate: dict[other] };
     });

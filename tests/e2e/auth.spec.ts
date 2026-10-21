@@ -1,14 +1,17 @@
 import { test, expect, createPassenger, freshVisitor, uniquePhone, signInPassenger } from './helpers';
 
 test.describe('Passenger authentication', () => {
-  test('first launch asks for a language, then shows the welcome screen', async ({ page }) => {
+  test('the first screen offers the language choice and the welcome', async ({ page }) => {
     await freshVisitor(page, { languageChosen: false });
     await page.goto('/');
-    // Kinyarwanda is the default until the rider picks a language.
-    await expect(page.getByText('Hitamo ururimi rwawe')).toBeVisible();
-    await page.getByText('English', { exact: true }).click();
-    await page.getByText(/^(Komeza|Continue)$/).click();
-    await expect(page.getByText('Get started')).toBeVisible();
+    // English is the default until the rider picks one; the toggle is on the
+    // first screen itself — there is no separate language step any more.
+    await expect(page.getByText('Your trusted transport partner')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Log in' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Register' })).toBeVisible();
+    // Switching the language re-renders the same screen immediately.
+    await page.getByRole('radio', { name: 'Kinyarwanda' }).click();
+    await expect(page.getByText('Umufatanyabikorwa wawe wizewe mu ngendo')).toBeVisible();
     // The rider app is its own app now: no link over to the driver app.
     await expect(page.getByText('Switch to driver app')).toHaveCount(0);
   });
@@ -16,8 +19,8 @@ test.describe('Passenger authentication', () => {
   test('sign up, verify the SMS code, complete the profile, reach Home', async ({ page }) => {
     await freshVisitor(page);
     await page.goto('/');
-    await page.getByText('Get started').click();
-    await expect(page.getByText('Create your account')).toBeVisible();
+    await page.getByRole('tab', { name: 'Register' }).click();
+    await expect(page.getByText('It takes less than a minute.')).toBeVisible();
 
     const phone = uniquePhone();
     await page.getByLabel('Full name').fill('Grace Uwase');
@@ -27,10 +30,10 @@ test.describe('Passenger authentication', () => {
     await page.getByLabel('Confirm password').fill('Secret123');
 
     // Terms must be accepted first.
-    await page.getByText('Sign up', { exact: true }).last().click();
+    await page.getByRole('button', { name: 'Register' }).click();
     await expect(page.getByText(/I agree to the Terms/).first()).toBeVisible();
     await page.getByText(/I agree to the Terms/).first().click();
-    await page.getByText('Sign up', { exact: true }).last().click();
+    await page.getByRole('button', { name: 'Register' }).click();
 
     await expect(page.getByText('Verify your account')).toBeVisible();
     const hint = await page.getByText(/Your code is \d+/).textContent();
@@ -53,7 +56,7 @@ test.describe('Passenger authentication', () => {
     const profile = page.getByText('Complete your profile');
     const home = page.getByText('Where are you going?');
     await expect(profile.or(home)).toBeVisible();
-    if (await profile.isVisible()) await page.getByText('Continue', { exact: true }).click();
+    if (await profile.isVisible()) await page.getByRole('button', { name: 'Continue' }).click();
     await expect(home).toBeVisible();
   });
 
@@ -61,14 +64,12 @@ test.describe('Passenger authentication', () => {
     const p = await createPassenger('Login Tester');
     await freshVisitor(page);
     await page.goto('/');
-    await page.getByText('Log in', { exact: true }).click();
     await page.getByLabel('Phone number or email').fill(p.phone);
-    await page.getByText('Continue', { exact: true }).click();
     await page.getByLabel('Password', { exact: true }).fill('WrongPass1');
-    await page.getByText('Continue', { exact: true }).click();
+    await page.getByRole('button', { name: 'Log in' }).click();
     await expect(page.getByText(/incorrect|invalid|could not sign you in|wrong/i).first()).toBeVisible();
     await page.getByLabel('Password', { exact: true }).fill(p.password);
-    await page.getByText('Continue', { exact: true }).click();
+    await page.getByRole('button', { name: 'Log in' }).click();
     await expect(page.getByText('Where are you going?')).toBeVisible();
   });
 
@@ -76,36 +77,35 @@ test.describe('Passenger authentication', () => {
     const p = await createPassenger('Reset Tester');
     await freshVisitor(page);
     await page.goto('/');
-    await page.getByText('Log in', { exact: true }).click();
-    // "Forgot password?" sits on the password step of login.
-    await page.getByLabel('Phone number or email').fill(p.phone);
-    await page.getByText('Continue', { exact: true }).click();
+    // "Forgot password?" sits on the login form itself.
     await page.getByText('Forgot password?').click();
     await page.getByLabel('Email or phone number').fill(p.phone);
-    await page.getByText('Send verification').click();
+    await page.getByRole('button', { name: 'Send verification' }).click();
     const hint = await page.getByText(/Your code is \d+/).textContent();
     const code = hint!.match(/(\d{4,8})/)![1];
     await page.getByLabel('Verification code').fill(code);
-    await page.getByRole('textbox', { name: 'New password' }).fill('NewSecret456');
+    await page.getByLabel('New password', { exact: true }).fill('NewSecret456');
     await page.getByLabel('Repeat password').fill('NewSecret456');
-    await page.getByText('Set new password').click();
+    await page.getByRole('button', { name: 'Set new password' }).click();
     await expect(page.getByText(/Password reset/)).toBeVisible();
-    // Back on the password step, the phone number is kept.
-    await page.getByText('Back to log in').click();
-    await expect(page.getByText(`Signing in as ${p.phone}`)).toBeVisible();
+    // Back on the login form, sign in with the new password.
+    await page.getByRole('button', { name: 'Back to log in' }).click();
+    await page.getByLabel('Phone number or email').fill(p.phone);
     await page.getByLabel('Password', { exact: true }).fill('NewSecret456');
-    await page.getByText('Continue', { exact: true }).click();
+    await page.getByRole('button', { name: 'Log in' }).click();
     await expect(page.getByText('Where are you going?')).toBeVisible();
   });
 
-  test('log out from Profile returns to the welcome screen', async ({ page }) => {
+  test('log out from the drawer returns to the welcome screen', async ({ page }) => {
     const p = await createPassenger('Logout Tester');
     await signInPassenger(page, p);
     await page.goto('/');
-    await page.getByRole('tab', { name: 'Profile' }).click();
+    // Navigation lives in the side drawer now (the tab bar is gone).
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('button', { name: 'Your Profile' }).click();
     await page.getByText('Log out', { exact: true }).first().click();
     // Confirmation, then signed out.
     await page.getByText('Log out', { exact: true }).last().click();
-    await expect(page.getByText('Get started')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Log in' })).toBeVisible();
   });
 });

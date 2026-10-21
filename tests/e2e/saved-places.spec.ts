@@ -9,7 +9,9 @@ test('a saved pickup stores a map point and remains bookable from Home', async (
     body: JSON.stringify({ results: [{ address: 'Kacyiru, Kigali', latitude: -1.9393, longitude: 30.0864 }] }),
   }));
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Profile' }).click();
+  // Navigation lives in the side drawer now (the tab bar is gone).
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('button', { name: 'Your Profile' }).click();
   await page.getByText('Saved places').click();
   await page.getByText('Add place').click();
   await page.getByPlaceholder("e.g. Home, Dad's house").fill('Office');

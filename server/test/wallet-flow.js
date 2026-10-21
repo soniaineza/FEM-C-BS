@@ -72,7 +72,7 @@ async function waitForAssignment(token, rideId, tries = 12) {
   return null;
 }
 
-/** Drives one ride from creation to paymentPending with the given method. */
+/** Drives one ride from creation to a settled (or failed) wallet payment. */
 async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }) {
   const created = await api('POST', '/rides', {
     pickup: { address: 'KN 5 Rd, Kigali', latitude: -1.9441, longitude: 30.0619 },
@@ -92,7 +92,12 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   const pin = (await api('GET', `/rides/${rideId}`, null, token)).data.ride.pin;
   await api('POST', `/drivers/rides/${rideId}/verify-pin`, { pin }, dt);
   const done = await api('POST', `/drivers/rides/${rideId}/complete-trip`, null, dt);
-  return { rideId, dt, done: done.data };
+  // complete-trip only ends the trip (paymentPending); the fare is collected
+  // afterwards. A wallet is never collected by the driver, so the rider's app
+  // settles it by asking for the payment — which debits the wallet at once.
+  const payment = await api('POST', '/payments', { rideId }, token);
+  const ride = (await api('GET', `/rides/${rideId}`, null, token)).data.ride;
+  return { rideId, dt, done: done.data, payment: payment.data?.payment, ride };
 }
 
 (async () => {
@@ -120,25 +125,23 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   check('wallet funded (real db)', funded.data.wallet.balance === 50000, `balance=${funded.data.wallet.balance}`);
 
   const happy = await runRideToPayment(token, { paymentMethodId: 'wallet' });
-  // A wallet charge settles synchronously, so complete-trip already ran the
-  // full payment: the ride is COMPLETED right away. (complete-trip's response
-  // echoes the payment row captured BEFORE settleSucceededPayment flipped it
-  // to succeeded — the authoritative state is read back from the DB below.)
-  check('wallet ride completes synchronously (charge settled at completion)',
-    happy.done?.ride?.status === 'completed',
-    `ride=${JSON.stringify(happy.done?.ride?.status)}`);
+  // The rider pays from the wallet, which debits and settles at once: by the
+  // time we read the ride back it is COMPLETED and the payment succeeded.
+  check('wallet payment settles the ride',
+    happy.ride?.status === 'completed',
+    `ride=${JSON.stringify(happy.ride?.status)}`);
   const happyPay = await api('GET', `/rides/${happy.rideId}/payment`, null, token);
   check('wallet payment marked succeeded in DB',
     happyPay.data.payment?.status === 'succeeded', JSON.stringify(happyPay.data.payment?.status));
 
   // chargePayment for wallet debits and settles synchronously — check wallet
-  // balance dropped by the final fare and the ride auto-completed.
+  // balance dropped by the final fare and the ride completed.
   const afterPay = await api('GET', `/rides/${happy.rideId}`, null, token);
   const fare = afterPay.data.ride.finalFare ?? afterPay.data.ride.estimatedFare;
   const walletAfter = await api('GET', '/wallet', null, token);
   check('wallet debited by exact fare', walletAfter.data.wallet.balance === 50000 - fare,
     `balance=${walletAfter.data.wallet.balance} fare=${fare}`);
-  check('wallet ride auto-completed after debit', afterPay.data.ride.status === 'completed', `status=${afterPay.data.ride.status}`);
+  check('wallet ride completed after debit', afterPay.data.ride.status === 'completed', `status=${afterPay.data.ride.status}`);
 
   // ride payment must appear as a wallet debit transaction
   const debitTx = walletAfter.data.wallet.transactions.find(
@@ -154,10 +157,10 @@ async function runRideToPayment(token, { paymentMethodId, rideType = 'private' }
   // ---- 8. insufficient balance ----
   await creditWalletDirectly(passengerId, 500, 'test_seed_low');
   const low = await runRideToPayment(token, { paymentMethodId: 'wallet' });
-  // complete-trip succeeds (the trip did end); the failed charge leaves the
-  // ride at paymentPending instead of completed.
-  check('low-balance complete-trip leaves ride paymentPending', low.done?.ride?.status === 'paymentPending',
-    JSON.stringify(low.done?.ride?.status || low.done || ''));
+  // The wallet is too poor, so the charge fails; the trip did end, so the ride
+  // stays paymentPending (owed) instead of completed.
+  check('low-balance payment leaves ride paymentPending', low.ride?.status === 'paymentPending',
+    JSON.stringify(low.ride?.status || low.done || ''));
 
   // chargePayment failed the payment, NOT completed the ride.
   const lowRide = await api('GET', `/rides/${low.rideId}`, null, token);

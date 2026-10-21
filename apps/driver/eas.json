@@ -11,14 +11,14 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://fem-cabs-api.onrender.com/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.kimutransport.com/api"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://fem-cabs-api.onrender.com/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.kimutransport.com/api"
       }
     }
   },

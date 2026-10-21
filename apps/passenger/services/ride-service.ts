@@ -29,7 +29,7 @@ import {
 const AVG_SPEED_KMH = 25;
 
 export function straightLineKm(from: Place, to: Place): number {
-  if (!from.latitude || !from.longitude || !to.latitude || !to.longitude) return 0;
+  if (from.latitude == null || from.longitude == null || to.latitude == null || to.longitude == null) return 0;
   const R = 6371.0;
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(to.latitude - from.latitude);

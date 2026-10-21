@@ -157,11 +157,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await api('POST', '/drivers/location', { latitude, longitude, accuracy: 10, recordedAt: Date.now() }, dt);
   }
 
-  // A mobile-money trip stays unpaid until Paypack confirms the charge.
+  // A mobile-money trip stays unpaid until Paypack confirms the charge. The
+  // driver's complete-trip only ends the trip; the payment attempt is created
+  // afterwards (here, by the rider initiating payment below).
   const done = await api('POST', `/drivers/rides/${rideId}/complete-trip`, null, dt);
   check('complete-trip -> paymentPending (Paypack must confirm mobile money)',
-    done.status === 200 && done.data.ride.status === 'paymentPending' && done.data.payment.status === 'pending',
-    `status=${done.status} ${JSON.stringify(done.data?.ride?.status)}/${JSON.stringify(done.data?.payment)}`);
+    done.status === 200 && done.data.ride.status === 'paymentPending',
+    `status=${done.status} ${JSON.stringify(done.data?.ride?.status)}`);
 
   // actual travelled route: the passenger can fetch the breadcrumb trail
   // recorded while the driver drove this ride, in chronological order.
@@ -173,30 +175,42 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     route.status === 200 && pts.length >= 3 && inOrder,
     `status=${route.status} n=${pts.length}`);
 
-  // 11. payment flow: retry POST /payments while provider not configured.
+  // 11. payment flow: the rider initiates the charge now (complete-trip only
+  // ended the trip; it does not create a payment). With a mobile-money
+  // provider configured the charge is sent to it (state 'processing', or
+  // 'pending' when nothing is configured); if the provider refuses, the
+  // attempt is 'failed'. Either way the ride stays unpaid.
   const pay = await api('POST', '/payments', { rideId }, token);
-  check('payment re-init idempotent', pay.status === 200 && pay.data.payment, `status=${pay.status}`);
+  check('payment attempt created', pay.status === 201 && pay.data.payment, `status=${pay.status}`);
+  const promptOpen = ['pending', 'processing'].includes(pay.data.payment?.status);
 
-  // 11b. rideId is still paymentPending (momo, provider unconfigured) — its
-  // payment must NOT be marked paid by any client action.
+  // 11b. rideId is still paymentPending (momo) — its payment must NOT be marked
+  // paid by any client action.
   const ride1Check = await api('GET', `/rides/${rideId}`, null, token);
   check('unpaid momo ride still paymentPending (never falsely paid)',
     ride1Check.data.ride.status === 'paymentPending',
     `status=${ride1Check.data.ride.status}`);
 
   // A completed trip awaiting mobile money cannot be cancelled (the provider
-  // could still settle it) and cash cannot replace a prompt that is still
-  // open. The real path: the unanswered prompt expires, the rider switches
-  // to cash, the driver confirms the cash — and the rider is free to book.
+  // could still settle it). While a prompt is open, cash cannot replace it
+  // either; once it is over, the rider switches to cash and the driver
+  // confirms the cash — and the rider is free to book.
   const ride1Cancel = await api('POST', `/rides/${rideId}/cancel`, { reason: 'smoke: trying to cancel an unpaid trip' }, token);
   check('completed momo trip cannot be cancelled while unpaid', ride1Cancel.status === 400, `status=${ride1Cancel.status}`);
-  const cashTooEarly = await api('POST', '/payments', { rideId, method: 'cash' }, token);
-  check('cash cannot replace a prompt that is still open', cashTooEarly.status === 409, `status=${cashTooEarly.status}`);
-  await expirePaymentPrompt(pay.data.payment.id); // the prompt timed out (PAYMENT_EXPIRY_SECONDS elapsed)
-  const expired = await api('POST', `/payments/${pay.data.payment.id}/refresh`, null, token);
-  check('unanswered prompt expires', expired.status === 200 && expired.data.payment.status === 'expired', `status=${expired.status} ${expired.data.payment?.status}`);
-  const toCash = await api('POST', '/payments', { rideId, method: 'cash' }, token);
-  check('rider switches the unpaid trip to cash', toCash.status === 201 && toCash.data.payment.method === 'cash', `status=${toCash.status}`);
+  let toCash;
+  if (promptOpen) {
+    const cashTooEarly = await api('POST', '/payments', { rideId, method: 'cash' }, token);
+    check('cash cannot replace a prompt that is still open', cashTooEarly.status === 409, `status=${cashTooEarly.status}`);
+    await expirePaymentPrompt(pay.data.payment.id); // the prompt timed out (PAYMENT_EXPIRY_SECONDS elapsed)
+    const expired = await api('POST', `/payments/${pay.data.payment.id}/refresh`, null, token);
+    check('unanswered prompt expires', expired.status === 200 && expired.data.payment.status === 'expired', `status=${expired.status} ${expired.data.payment?.status}`);
+    toCash = await api('POST', '/payments', { rideId, method: 'cash' }, token);
+    check('rider switches the expired trip to cash', toCash.status === 201 && toCash.data.payment.method === 'cash', `status=${toCash.status}`);
+  } else {
+    // The provider refused the charge, so there is no prompt to wait on.
+    toCash = await api('POST', '/payments', { rideId, method: 'cash' }, token);
+    check('rider switches the failed trip to cash', toCash.status === 201 && toCash.data.payment.method === 'cash', `status=${toCash.status}`);
+  }
   const cashConfirm1 = await api('POST', `/drivers/rides/${rideId}/confirm-cash`, null, dt);
   check('driver confirms cash -> completed', cashConfirm1.status === 200 &&
     (await api('GET', `/rides/${rideId}`, null, token)).data.ride.status === 'completed', `status=${cashConfirm1.status}`);
@@ -268,8 +282,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // 17. emergency + share. Sharing only applies to ACTIVE rides, so a fresh
   // ride is booked for the share check below.
+  const emConfig = await api('GET', '/emergency/config', null, token);
+  const callCenter = emConfig.data?.callCenterPhone;
   const sos = await api('POST', '/emergency', { rideId, latitude: -1.9441, longitude: 30.0619, address: 'KN 5 Rd', details: 'Passenger needs help' }, token);
-  check('emergency event', sos.status === 201 && sos.data.emergency.status === 'dispatched' && !!sos.data.emergency.reference, `status=${sos.status}`);
+  if (callCenter) {
+    check('emergency event dispatched to the call center',
+      sos.status === 201 && sos.data.emergency.status === 'dispatched' && !!sos.data.emergency.reference, `status=${sos.status}`);
+  } else {
+    // Development without EMERGENCY_CALL_CENTER_PHONE: the event is recorded,
+    // but the operator alert cannot be delivered and is honestly reported 502.
+    check('emergency event recorded; alert needs a configured call center',
+      sos.status === 502, `status=${sos.status}`);
+  }
 
   // free the passenger (ride2 completed at this point — terminal, fine), then
   // book a throwaway ride to share.

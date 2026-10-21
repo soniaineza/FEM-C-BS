@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
-import { View, Text, Pressable, Linking, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Linking, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '@kimu/shared/components/Button';
-import { LiveMap } from '@kimu/shared/components/map/LiveMap';
 import { MapSheet } from '../../../components/map/MapSheet';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
 import { usePassengerLocationReporting } from '../../../hooks/usePassengerLocationReporting';
+import { useMapScene } from '../../../hooks/useMapScene';
 import { useTripMap } from '../../../hooks/useTripMap';
 import { cancelRide } from '../../../services/ride-service';
 
@@ -20,7 +20,9 @@ export default function DriverAcceptedScreen() {
   const { ride, driverLocation, serverTimeOffsetMs } = useRideTracking(rideId ?? null);
   usePassengerLocationReporting(!!ride);
   const { scene, etaMinutes } = useTripMap(ride, driverLocation, serverTimeOffsetMs, PADDING);
-  // Map rendered in-screen so the rider can pan/zoom to see the driver coming.
+  // Drawn on the shared ride-flow map behind this (transparent) screen, so it
+  // is the only live map on the device while the rider watches the driver.
+  useMapScene(scene);
 
   useEffect(() => {
     if (ride && (ride.status === 'pinVerified' || ride.status === 'inProgress' || ride.status === 'arrived' || ride.status === 'paymentPending')) {
@@ -50,11 +52,6 @@ export default function DriverAcceptedScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={StyleSheet.absoluteFill}>
-        {scene && scene.camera ? (
-          <LiveMap scene={{ ...scene, camera: scene.camera, interactive: true }} loadingLabel={t('mapLoading')} errorLabel={t('mapError')} retryLabel={t('tryAgain')} />
-        ) : null}
-      </View>
       <MapSheet
         header={
           <View className="mb-3">

@@ -15,7 +15,7 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export ANDROID_HOME="${ANDROID_HOME:-$LOCALAPPDATA/Android/Sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
-export EXPO_PUBLIC_API_BASE_URL="${EXPO_PUBLIC_API_BASE_URL:-https://fem-cabs-api.onrender.com/api}"
+export EXPO_PUBLIC_API_BASE_URL="${EXPO_PUBLIC_API_BASE_URL:-https://api.kimutransport.com/api}"
 export CI=1
 APPS="${1:-passenger driver}"
 mkdir -p "$ROOT/build/apk"

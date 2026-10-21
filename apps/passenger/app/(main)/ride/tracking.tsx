@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '@kimu/shared/components/Button';
-import { LiveMap } from '@kimu/shared/components/map/LiveMap';
 import { MapSheet } from '../../../components/map/MapSheet';
 import { clockIn } from '../../../components/FareBreakdownView';
 import { useTranslation } from '@kimu/shared/hooks/useTranslation';
 import { useRideTracking } from '../../../hooks/useRideTracking';
+import { useMapScene } from '../../../hooks/useMapScene';
 import { useTripMap } from '../../../hooks/useTripMap';
 import { getPaymentForRide, initiatePayment, refreshPaymentStatus, retryPayment } from '../../../services/payment-service';
 import { PaymentRecord, isPaymentSettled, isPaymentUnpaidFinal } from '@kimu/shared/types/payment';
@@ -20,9 +20,11 @@ export default function TrackingScreen() {
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const { ride, driverLocation, serverTimeOffsetMs } = useRideTracking(rideId ?? null);
   const { scene, etaMinutes } = useTripMap(ride, driverLocation, serverTimeOffsetMs, PADDING);
-  // The map is rendered inside this screen (not the shared canvas behind the
-  // navigator) so the rider can actually pan and zoom it to see where the
-  // driver is; the camera follows the car again shortly after they let go.
+  // Drawn on the shared ride-flow map behind this (transparent) screen, so it
+  // is the only live map on the device. The rider can still pan and zoom it to
+  // see where the driver is; the camera follows the car again shortly after
+  // they let go.
+  useMapScene(scene);
 
   const [payment, setPayment] = useState<PaymentRecord | null>(null);
   const [payLoading, setPayLoading] = useState(false);
@@ -107,11 +109,6 @@ export default function TrackingScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={StyleSheet.absoluteFill}>
-        {scene && scene.camera ? (
-          <LiveMap scene={{ ...scene, camera: scene.camera, interactive: true }} loadingLabel={t('mapLoading')} errorLabel={t('mapError')} retryLabel={t('tryAgain')} />
-        ) : null}
-      </View>
       <MapSheet
         header={
           <View className="mb-3">

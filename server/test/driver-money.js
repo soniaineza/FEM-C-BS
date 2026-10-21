@@ -16,6 +16,9 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const BASE = 'http://localhost:3000/api';
 const ADMIN_KEY = process.env.ADMIN_API_KEY;
 const COMMISSION_RATE = Number(process.env.DRIVER_COMMISSION_RATE ?? 1);
+// Whether the server under test has real Paypack credentials: mobile-money
+// payouts then go out through Paypack instead of a hand-recorded transfer.
+const PAYPACK_ON = Boolean(process.env.PAYPACK_CLIENT_ID && process.env.PAYPACK_CLIENT_SECRET);
 let passed = 0;
 let failed = 0;
 
@@ -194,11 +197,39 @@ async function waitForAssignment(token, rideId) {
   check('approval needs a reviewer', noReviewer.status === 400, `status=${noReviewer.status}`);
   const wrongKey = await api('POST', `/admin/payouts/${payout.data.payout.id}/approve`, { reviewer: 'x' }, null, { 'X-Admin-Key': 'wrong' });
   check('approval rejects a wrong admin key', wrongKey.status === 401, `status=${wrongKey.status}`);
-  const approved = await admin('POST', `/payouts/${payout.data.payout.id}/approve`, { reviewer: 'test-operator' });
-  check('payout approved and completed (demo transfer)', approved.status === 200 && approved.data.payout.status === 'completed',
-    `status=${approved.status} ${JSON.stringify(approved.data)}`);
-  const again = await admin('POST', `/payouts/${payout.data.payout.id}/approve`, { reviewer: 'test-operator' });
-  check('a payout cannot be approved twice', again.status === 404, `status=${again.status}`);
+  // Approval moves the money one of two ways. With Paypack configured a
+  // cash-out is sent and the payout stays 'processing' until the provider
+  // confirms — unless the merchant balance cannot cover it (409) or the
+  // provider is unreachable (502), in which case it is released to 'pending'.
+  // Without Paypack the operator pays by hand and records the transfer's
+  // reference, which closes the payout at once.
+  let payoutOpen = false;
+  if (PAYPACK_ON) {
+    const approved = await admin('POST', `/payouts/${payout.data.payout.id}/approve`, { reviewer: 'test-operator' });
+    if (approved.status === 200) {
+      check('payout approved — mobile-money transfer started',
+        ['processing', 'completed'].includes(approved.data.payout.status), JSON.stringify(approved.data));
+      payoutOpen = approved.data.payout.status !== 'completed';
+    } else {
+      check('payout approval blocked only by provider availability',
+        [409, 502].includes(approved.status), `status=${approved.status} ${JSON.stringify(approved.data)}`);
+      payoutOpen = true;
+    }
+    const again = await admin('POST', `/payouts/${payout.data.payout.id}/approve`, { reviewer: 'test-operator' });
+    check('a payout cannot be approved twice', payoutOpen ? [404, 409].includes(again.status) : again.status === 404, `status=${again.status}`);
+  } else {
+    const approved = await admin('POST', `/payouts/${payout.data.payout.id}/approve`, { reviewer: 'test-operator', reference: 'office-transfer-1' });
+    check('payout approved and completed (recorded transfer)',
+      approved.status === 200 && approved.data.payout.status === 'completed', `status=${approved.status} ${JSON.stringify(approved.data)}`);
+    const again = await admin('POST', `/payouts/${payout.data.payout.id}/approve`, { reviewer: 'test-operator', reference: 'office-transfer-1' });
+    check('a payout cannot be approved twice', again.status === 404, `status=${again.status}`);
+  }
+
+  // Free the driver for the next payout: a provider shortfall leaves the first
+  // payout pending, so reject it before requesting another.
+  if (payoutOpen) {
+    await admin('POST', `/payouts/${payout.data.payout.id}/reject`, { reviewer: 'test-operator', reason: 'provider balance unavailable' });
+  }
 
   const afterPayout = (await api('GET', '/driver/balance', null, dt)).data.balance;
   const rejectable = await api('POST', '/driver/payouts', { amount: 1000 }, dt);
@@ -216,7 +247,7 @@ async function waitForAssignment(token, rideId) {
   balance = afterReject;
   if (balance.available >= balance.minPayout) {
     const all = await api('POST', '/driver/payouts', { amount: Math.floor(balance.available) }, dt);
-    await admin('POST', `/payouts/${all.data.payout.id}/approve`, { reviewer: 'test-operator' });
+    await admin('POST', `/payouts/${all.data.payout.id}/approve`, { reviewer: 'test-operator', reference: 'office-transfer-drain' });
   }
   const debtRide = await api('POST', '/rides', {
     pickup: PICKUP, destination: DEST, vehicleId: 'fem_economy', paymentMethodId: 'cash', rideType: 'private',
@@ -240,10 +271,25 @@ async function waitForAssignment(token, rideId) {
   } else {
     console.log(`  skip going-online block (owed ${owing.owed} is within the limit ${owing.debtLimit})`);
   }
+  // The driver tries to clear it by mobile money. With Paypack configured a
+  // charge is started (it stays pending until the provider confirms); without
+  // it the self-service path is honestly unavailable.
   const settle = await api('POST', '/driver/balance/settle', {}, dt3);
-  check('driver pays owed commission by mobile money (demo)',
-    settle.status === 201 && settle.data.settlement.status === 'succeeded' && settle.data.balance.owed === 0,
-    `status=${settle.status} ${JSON.stringify(settle.data)}`);
+  if (PAYPACK_ON) {
+    check('driver pays owed commission by mobile money (charge started)',
+      settle.status === 201 ? ['pending', 'processing'].includes(settle.data.settlement.status) : settle.status === 502,
+      `status=${settle.status} ${JSON.stringify(settle.data)}`);
+  } else {
+    check('commission settlement needs a payment provider',
+      settle.status === 503, `status=${settle.status}`);
+  }
+  // A provider confirmation cannot be awaited here, so clear the debt the way
+  // an operator does when the driver pays at the office.
+  const me3 = (await api('GET', '/driver/me', null, dt3)).data.driver;
+  const owedNow = (await api('GET', '/driver/balance', null, dt3)).data.balance.owed;
+  await admin('POST', `/drivers/${me3.id}/settlements`, { amount: Math.ceil(owedNow), reference: 'office-receipt-2', recordedBy: 'test-operator' });
+  const cleared = (await api('GET', '/driver/balance', null, dt3)).data.balance;
+  check('commission cleared once the operator records the payment', cleared.owed === 0, JSON.stringify(cleared));
   const noDebt = await api('POST', '/driver/balance/settle', {}, dt3);
   check('nothing to settle once clear', noDebt.status === 400, `status=${noDebt.status}`);
   const backOnline = await api('PUT', '/driver/status', { status: 'active' }, dt3);

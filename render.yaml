@@ -15,7 +15,7 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: EXPO_PUBLIC_API_BASE_URL
-        value: https://fem-cabs-api.onrender.com/api
+        value: https://api.kimutransport.com/api
       - key: OSRM_URL
         sync: false
       - key: PHOTON_URL

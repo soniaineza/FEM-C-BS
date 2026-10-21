@@ -12,10 +12,10 @@ test('Home opens on a live nearby-driver map with booking controls in reach', as
   await expect(maps).toHaveCount(1);
   const map = maps.first();
   await expect(map).toBeVisible();
-  await expect(page.getByText('Loading map…').last()).toBeHidden({ timeout: 45_000 });
+  await expect(page.getByText('Loading map.').last()).toBeHidden({ timeout: 45_000 });
   await expect(page.getByText(/driver nearby|drivers nearby/i)).toBeVisible();
   await expect(page.getByText('Where are you going?')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Find Ride' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue with Private' })).toBeVisible();
   await expect(page.getByRole('radio', { name: 'Private ride' })).toHaveAttribute('aria-checked', 'true');
 
   const mapBounds = await map.boundingBox();
@@ -26,6 +26,8 @@ test('Home opens on a live nearby-driver map with booking controls in reach', as
 
   await page.screenshot({ path: test.info().outputPath('home-map.png') });
   await page.getByRole('button', { name: 'Use current location' }).click();
-  await page.getByRole('button', { name: 'Profile' }).first().click();
-  await expect(page.getByText('Log out')).toBeVisible();
+  // Navigation lives in the side drawer now (the tab bar is gone).
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('button', { name: 'Your Profile' }).click();
+  await expect(page.getByText('Delete account')).toBeVisible();
 });

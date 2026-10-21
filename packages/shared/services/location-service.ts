@@ -204,7 +204,13 @@ export interface RouteResult {
 const mapsClient = appApiClient;
 
 export async function getRoute(params: { from: Place; to: Place }): Promise<RouteResult | null> {
-  if (!params.from.latitude || !params.from.longitude || !params.to.latitude || !params.to.longitude) {
+  // A coordinate of exactly 0 is a real point (the equator/prime meridian),
+  // so test for null/undefined rather than truthiness or those routes are
+  // silently dropped.
+  if (
+    params.from.latitude == null || params.from.longitude == null ||
+    params.to.latitude == null || params.to.longitude == null
+  ) {
     return null;
   }
   try {

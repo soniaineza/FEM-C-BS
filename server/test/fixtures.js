@@ -26,10 +26,11 @@ const TEST_PNG = Buffer.from(
 );
 
 let seq = 0;
-/** A unique MTN/Airtel-prefixed Rwandan number, so payouts and charges validate. */
+/** A unique MTN/Airtel-prefixed Rwandan number, so payouts and charges
+ * validate. '+250' + 9 digits = 12, which paypack.networkOf accepts. */
 function uniquePhone() {
   seq += 1;
-  const stamp = String(Date.now()).slice(-6);
+  const stamp = String(Date.now()).slice(-5);
   return `+2507${'8293'[seq % 4]}${stamp}${String(seq % 100).padStart(2, '0')}`;
 }
 

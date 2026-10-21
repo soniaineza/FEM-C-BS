@@ -59,7 +59,7 @@ test.describe('Booking a ride', () => {
     await api('POST', '/drivers/location', { ...HUYE, heading: 0 }, driver.token);
 
     // Vehicle choice with upfront prices and the breakdown.
-    await tapButton(page, 'Find Ride');
+    await tapButton(page, /^Continue with /);
     await expect(page.getByText('Choose a ride')).toBeVisible();
     await expect(page.getByText(/RWF/).first()).toBeVisible({ timeout: 30_000 });
     await page.getByText('Kimu Economy', { exact: true }).click();
@@ -82,6 +82,10 @@ test.describe('Booking a ride', () => {
     // Matched with our driver.
     await expect(page.getByText('E2E Driver')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText('RAE 123 T')).toBeVisible();
+    // Only one map is ever alive: the ride screen draws on the shared canvas,
+    // it does not mount a second one of its own (two WebViews exhaust the
+    // Android renderer and the map stops loading).
+    await expect(page.locator('.maplibregl-canvas')).toHaveCount(1, { timeout: 30_000 });
     const current = (await api('GET', '/rides/current', undefined, rider.token)).data.ride;
     expect(current.driver.name).toBe('E2E Driver');
     expect(current.note).toBe('At the main gate');
@@ -90,17 +94,19 @@ test.describe('Booking a ride', () => {
     await driverDo(driver.token, current.id, 'accept');
     await driverDo(driver.token, current.id, 'arrived');
     await expect(page.getByText('Your driver is here')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText('Share this PIN with your driver')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Pair Ride/ })).toBeVisible();
     const pin = (await api('GET', `/rides/${current.id}`, undefined, rider.token)).data.ride.pin;
-    await expect(page.getByText(pin, { exact: true })).toBeVisible();
 
     // Trip starts with the PIN; the rider's screen switches to the trip.
     await driverDo(driver.token, current.id, 'verify-pin', { pin });
     await expect(page.getByText(/On the way to your destination|Arrive at/).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.maplibregl-canvas')).toHaveCount(1, { timeout: 30_000 });
 
-    // Trip ends: only the driver can confirm cash was collected.
+    // Trip ends: the driver collects the fare. The rider only waits for the
+    // driver to send the payment request; only the driver can confirm cash.
     await driverDo(driver.token, current.id, 'complete-trip');
-    await expect(page.getByText(/Pay the driver in cash/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Prepare payment').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/Waiting for your driver to request the payment/)).toBeVisible();
     const riderConfirmation = await api('POST', `/rides/${current.id}/pay-cash`, undefined, rider.token);
     expect(riderConfirmation.status).toBe(404);
     await driverDo(driver.token, current.id, 'confirm-cash');
@@ -142,6 +148,7 @@ test.describe('Booking a ride', () => {
     await signInPassenger(page, rider);
     await page.goto(`/ride/driver-accepted?rideId=${ride.id}`);
     await expect(page.getByText('E2E Driver')).toBeVisible();
+    await expect(page.locator('.maplibregl-canvas')).toHaveCount(1, { timeout: 30_000 });
     await page.getByRole('button', { name: 'Safety' }).click();
     await expect(page).toHaveURL(/safety/);
 
@@ -157,9 +164,16 @@ test.describe('Booking a ride', () => {
     await page.getByRole('button', { name: 'OK' }).click();
 
     // SOS records the event. Do it last because configured production builds
-    // also hand control to the operating system's dialer.
+    // also hand control to the operating system's dialer. Without an
+    // EMERGENCY_CALL_CENTER_PHONE the operator alert cannot be delivered, so
+    // the app reports that honestly rather than a false "SOS sent".
+    const callCenterPhone = (await api('GET', '/emergency/config', undefined, rider.token)).data?.callCenterPhone;
     await page.getByRole('button', { name: 'SOS' }).click();
-    await expect(page.getByText(/SOS sent/)).toBeVisible();
+    if (callCenterPhone) {
+      await expect(page.getByText(/SOS sent/)).toBeVisible();
+    } else {
+      await expect(page.getByText(/SOS sent/)).toHaveCount(0);
+    }
     expect((await api('POST', `/rides/${ride.id}/cancel`, { reason: 'E2E cleanup' }, rider.token)).status).toBe(200);
   });
 
