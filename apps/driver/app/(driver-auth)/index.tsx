@@ -36,33 +36,14 @@ export default function DriverWelcomeScreen() {
             <Text className="text-center text-[32px] leading-tight text-white font-display">{t('driverTagline')}</Text>
             <Text className="font-sans mt-3 text-center text-base leading-relaxed text-white/80">{t('driverTaglineSub')}</Text>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('getStarted')}
-              className="mt-9 h-button w-full items-center justify-center rounded bg-white"
-              onPress={() => router.push('/(driver-auth)/register')}
-            >
-              <Text className="text-base font-semibold text-primary">{t('getStarted')}</Text>
+            <Pressable 
+              accessibilityRole="button" 
+              accessibilityLabel={t('login')} 
+              className="mt-9 h-button w-full items-center justify-center rounded bg-white" 
+              onPress={() => router.push('/(driver-auth)/login')} 
+            > 
+              <Text className="text-base font-semibold text-primary">{t('login')}</Text> 
             </Pressable>
-
-            <View className="mt-3 flex-row gap-3">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('login')}
-                className="h-button flex-1 items-center justify-center rounded border border-white/60"
-                onPress={() => router.push('/(driver-auth)/login')}
-              >
-                <Text className="text-base font-semibold text-white">{t('login')}</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('signUp')}
-                className="h-button flex-1 items-center justify-center rounded border border-white/60"
-                onPress={() => router.push('/(driver-auth)/register')}
-              >
-                <Text className="text-base font-semibold text-white">{t('signUp')}</Text>
-              </Pressable>
-            </View>
           </View>
         </View>
       </SafeAreaViewPlaceholder>
