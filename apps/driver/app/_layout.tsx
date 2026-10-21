@@ -8,6 +8,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { DialogHost } from '@kimu/shared/components/DialogHost';
 import { PerfOverlay } from '@kimu/shared/components/PerfOverlay';
 import * as SplashScreen from 'expo-splash-screen';
+import { activateKeepAwakeAsync } from 'expo-keep-awake';
 import { Platform, BackHandler } from 'react-native';
 // Only the weights the styles use (see packages/shared/tailwind-preset.js):
 // Poppins is the display face, Inter the body face.
@@ -41,6 +42,10 @@ configureNotificationHandler();
 // explicit font-* class instead (font-sans = Inter_400Regular).
 
 export default function RootLayout() {
+  useEffect(() => {
+    SplashScreen.preventAutoHideAsync().catch(() => {});
+    activateKeepAwakeAsync().catch(() => {});
+  }, []);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
