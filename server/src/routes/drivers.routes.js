@@ -23,54 +23,12 @@ const {
   declineRide,
   markArrived,
   verifyPin,
-  startTrip,
-  completeTrip,
-  chargeRide,
-  cancelRideAsDriver,
-  changeDestinationAsDriver,
-} = require('../services/rideDriverOps');
-
-const router = express.Router();
-
-// POST /api/drivers/register — self-service driver sign-up for the driver
-// app. New accounts start unverified/offline: the driver can sign in to
-// finish the application (profile, vehicle, the four KYC documents), but
-// cannot go active or receive rides until an operator has reviewed the
-// documents and verified the account (middleware/auth.js).
+// POST /api/drivers/register - DISABLED: drivers must be created by admin
 router.post(
   '/register',
-  apiLimiter({ max: 20 }),
-  asyncHandler(async (req, res) => {
-    const { fullName, phone, password, licenseNumber } = req.body || {};
-    if (!fullName || !phone || !password) {
-      throw new ApiError(400, 'Full name, phone and password are required.');
-    }
-    if (String(password).length < 6) {
-      throw new ApiError(400, 'Password must be at least 6 characters.');
-    }
-
-    const { rows: existing } = await getPool().query('SELECT id FROM drivers WHERE phone = $1', [
-      String(phone).trim(),
-    ]);
-    if (existing[0]) throw new ApiError(409, 'An account with that phone number already exists.');
-
-    const passwordHash = await bcrypt.hash(String(password), 10);
-    const { rows } = await getPool().query(
-      `INSERT INTO drivers (full_name, phone, password_hash, license_number, verified, status)
-       VALUES ($1, $2, $3, $4, $5, 'offline') RETURNING *`,
-      [
-        String(fullName).trim(),
-        String(phone).trim(),
-        passwordHash,
-        licenseNumber ? String(licenseNumber).trim() : null,
-        false,
-      ]
-    );
-    const driver = rows[0];
-    res.status(201).json({
-      driver: driverToJson(driver),
-      token: signDriverToken(driver.id),
-    });
+  apiLimiter({ max: 5 }),
+  asyncHandler(async (_req, res) => {
+    throw new ApiError(403, 'Driver registration is disabled. Please contact the admin to create your account.');
   })
 );
 

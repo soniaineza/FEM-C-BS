@@ -529,4 +529,21 @@ router.get('/audit/test-data', asyncHandler(async (_req, res) => {
   });
 }));
 
+
+
+router.post('/drivers/create', asyncHandler(async (req, res) => {
+  const { fullName, phone, password, licenseNumber, vehicleId } = req.body || {};
+  if (!fullName || !phone || !password) throw new ApiError(400, 'Full name, phone and password are required.');
+  if (String(password).length < 6) throw new ApiError(400, 'Password must be at least 6 characters.');
+  const { rows: existing } = await getPool().query('SELECT id FROM drivers WHERE phone = $1', [String(phone).trim()]);
+  if (existing[0]) throw new ApiError(409, 'An account with that phone number already exists.');
+  const bcrypt = require('bcryptjs');
+  const passwordHash = await bcrypt.hash(String(password), 10);
+  const { rows } = await getPool().query(
+    'INSERT INTO drivers (full_name, phone, password_hash, license_number, verified, status, current_vehicle_id) VALUES ($1, $2, $3, $4, false, $5, $6) RETURNING *',
+    [String(fullName).trim(), String(phone).trim(), passwordHash, licenseNumber ? String(licenseNumber).trim() : null, 'offline', vehicleId ? String(vehicleId).trim() : null]
+  );
+  res.status(201).json({ driver: driverToJson(rows[0]) });
+}));
+
 module.exports = router;
