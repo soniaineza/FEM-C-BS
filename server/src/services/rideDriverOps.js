@@ -25,7 +25,16 @@ const DRIVER_ACTIVE_RIDE_STATUSES = [
 ];
 
 async function authenticateDriver(phone, password) {
-  const { rows } = await getPool().query('SELECT * FROM drivers WHERE phone = $1', [phone]);
+  // Match on the exact text first, then on the last nine digits so
+  // 0788123456, 788123456 and +250 788 123 456 all find the same account.
+  const tail = String(phone).replace(/\D/g, '').slice(-9);
+  const { rows } = await getPool().query(
+    `SELECT * FROM drivers
+      WHERE phone = $1
+         OR ($2 <> '' AND length($2) = 9 AND right(regexp_replace(phone, '\\D', '', 'g'), 9) = $2)
+      ORDER BY (phone = $1) DESC LIMIT 1`,
+    [phone, tail]
+  );
   const driver = rows[0];
   if (!driver || !driver.password_hash) throw new ApiError(401, 'Invalid driver credentials.');
   if (!(await bcrypt.compare(password, driver.password_hash))) {

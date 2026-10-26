@@ -535,8 +535,18 @@ router.post('/drivers/create', asyncHandler(async (req, res) => {
   const { fullName, phone, password, licenseNumber, vehicleId } = req.body || {};
   if (!fullName || !phone || !password) throw new ApiError(400, 'Full name, phone and password are required.');
   if (String(password).length < 6) throw new ApiError(400, 'Password must be at least 6 characters.');
-  const { rows: existing } = await getPool().query('SELECT id FROM drivers WHERE phone = $1', [String(phone).trim()]);
+  const cleanPhone = String(phone).trim();
+  if (!/^\+?\d{9,13}$/.test(cleanPhone)) throw new ApiError(400, 'Enter a valid phone number (9-13 digits).');
+  const tail = cleanPhone.replace(/\D/g, '').slice(-9);
+  const { rows: existing } = await getPool().query(
+    "SELECT id FROM drivers WHERE phone = $1 OR right(regexp_replace(phone, '\\D', '', 'g'), 9) = $2",
+    [cleanPhone, tail]
+  );
   if (existing[0]) throw new ApiError(409, 'An account with that phone number already exists.');
+  if (vehicleId) {
+    const { rows: veh } = await getPool().query('SELECT id FROM vehicles WHERE id = $1', [String(vehicleId).trim()]);
+    if (!veh[0]) throw new ApiError(400, 'Unknown vehicle type.');
+  }
   const bcrypt = require('bcryptjs');
   const passwordHash = await bcrypt.hash(String(password), 10);
   const { rows } = await getPool().query(

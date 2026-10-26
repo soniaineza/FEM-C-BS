@@ -67,12 +67,6 @@ export default function DriverLoginScreen() {
           <Button title={t('login')} onPress={handleSubmit} loading={loading} />
         </View>
 
-        <View className="mt-6 flex-row justify-center">
-          <Text className="font-sans text-text-secondary">{t('driverNewDriverQuestion')} </Text>
-          <Pressable onPress={() => router.push('/(driver-auth)/register')}>
-            <Text className="font-semibold text-primary">{t('signUp')}</Text>
-          </Pressable>
-        </View>
       </KeyboardAwareScrollView>
     </ScreenShell>
   );

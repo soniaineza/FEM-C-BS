@@ -23,6 +23,15 @@ const {
   declineRide,
   markArrived,
   verifyPin,
+  startTrip,
+  completeTrip,
+  chargeRide,
+  cancelRideAsDriver,
+  changeDestinationAsDriver,
+} = require('../services/rideDriverOps');
+
+const router = express.Router();
+
 // POST /api/drivers/register - DISABLED: drivers must be created by admin
 router.post(
   '/register',
