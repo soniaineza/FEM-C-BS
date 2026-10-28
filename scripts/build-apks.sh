@@ -26,7 +26,12 @@ for app in $APPS; do
   npx expo prebuild --platform android --no-install
   echo "=== [$app] gradle assembleRelease $(date +%T)"
   cd android
-  ./gradlew assembleRelease --no-daemon -q --console=plain
+  # Stale native caches (a build killed mid-way leaves a corrupt
+  # configure_fingerprint.bin) fail CMake configure: always start clean.
+  rm -rf "$ROOT"/node_modules/*/android/.cxx "$ROOT"/node_modules/@*/*/android/.cxx
+  # The default Metaspace cap overflows on a full RN build ("OutOfMemoryError: Metaspace").
+  ./gradlew assembleRelease --no-daemon -q --console=plain \
+    "-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
   # The map page is a separate JS bundle inside the APK; refuse to ship one
   # that older Android WebViews cannot parse (see scripts/check-dom-bundle.mjs).
   node "$ROOT/scripts/check-dom-bundle.mjs" "$app"

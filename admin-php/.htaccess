@@ -1,16 +1,15 @@
-# Kimu Operator dashboard (PHP) — Apache settings for cPanel hosting.
+# Kimu Operator dashboard (PHP) — Apache settings for cPanel.
 
-# No directory listings; index.php is the entry point.
 Options -Indexes
 DirectoryIndex index.php
 
-# Keep the configuration file(s) outside the web root when you can, and point
-# at it here. mod_env is enabled on most cPanel servers; if this line errors
-# (HTTP 500), remove it and use config.php next to index.php instead.
-# SetEnv KIMU_OPERATOR_CONFIG /home/YOUR_CPANEL_USER/kimu-operator-config.php
+# Point this at a config.php OUTSIDE public_html so no secret ever sits in
+# the web root. mod_env is enabled on most cPanel servers; if this line
+# errors (HTTP 500), remove it and keep config.php next to index.php.
+SetEnv KIMU_OPERATOR_CONFIG /home/YOUR_CPANEL_USER/kimu-operator-config.php
 
 # Never serve configuration, documentation or this file.
-<FilesMatch "^(config.*\.php|.*\.example\.php|README\.md|\.htaccess)$">
+<FilesMatch "^(config.*\.php|.*\.example\.php|README\.md|bin/|lib/|\.htaccess)$">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>
@@ -30,8 +29,6 @@ DirectoryIndex index.php
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
   Header always set Cache-Control "no-store"
   Header unset X-Powered-By
-  # Turn on once the site is served over HTTPS only (cPanel: AutoSSL).
-  # Header always set Strict-Transport-Security "max-age=31536000"
 </IfModule>
 
 # Ask PHP for the settings this dashboard relies on (ignored where PHP runs

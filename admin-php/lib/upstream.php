@@ -12,6 +12,7 @@ function kimu_allowed_routes(): array
     return [
         ['GET', "#^/drivers$#"],
         ['GET', "#^/drivers/{$id}/balance$#"],
+        ['POST', '#^/drivers/create$#'],
         ['POST', "#^/drivers/{$id}/verify$#"],
         ['POST', "#^/drivers/{$id}/suspend$#"],
         ['GET', "#^/documents/{$id}/file$#"],

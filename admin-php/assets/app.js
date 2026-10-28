@@ -189,6 +189,52 @@
     data.drivers.forEach(function (d) { list.appendChild(driverCard(d, false)); });
   }
 
+  // ---- add a driver (drivers cannot sign themselves up) ----
+  function renderNewDriver() {
+    var list = $('list');
+    var card = el('div', null, 'card');
+    card.appendChild(el('h2', 'Add a driver'));
+    card.appendChild(el('p', 'Create the account here, then give the driver the phone number and password. They sign in to the driver app and upload their four documents; you approve them under "Drivers to approve".', 'muted'));
+    var form = document.createElement('form');
+    function field(label, id, type, extra) {
+      var l = el('label', label); l.setAttribute('for', id);
+      var i = document.createElement('input');
+      i.id = id; i.type = type; i.autocomplete = 'off';
+      if (extra) Object.keys(extra).forEach(function (k) { i.setAttribute(k, extra[k]); });
+      form.appendChild(l); form.appendChild(i);
+      return i;
+    }
+    var name = field('Full name', 'nd-name', 'text', { required: 'required' });
+    var phone = field('Phone number (e.g. 0788123456)', 'nd-phone', 'tel', { required: 'required', inputmode: 'tel' });
+    var pass = field('Password (at least 8 characters, give it to the driver)', 'nd-pass', 'text', { required: 'required', minlength: '8' });
+    var lic = field('Licence number (optional)', 'nd-lic', 'text');
+    var vl = el('label', 'Vehicle type'); vl.setAttribute('for', 'nd-veh');
+    var veh = document.createElement('select'); veh.id = 'nd-veh';
+    [['', 'Not set yet'], ['fem_economy', 'Kimu Economy'], ['fem_comfort', 'Kimu Comfort'], ['fem_xl', 'Kimu XL']].forEach(function (o) {
+      var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; veh.appendChild(op);
+    });
+    form.appendChild(vl); form.appendChild(veh);
+    var row = el('div', null, 'row');
+    var submit = button('Create driver', 'primary', function () {});
+    submit.type = 'submit';
+    row.appendChild(submit);
+    form.appendChild(row);
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var body = { fullName: name.value.trim(), phone: phone.value.trim(), password: pass.value };
+      if (lic.value.trim()) body.licenseNumber = lic.value.trim();
+      if (veh.value) body.vehicleId = veh.value;
+      submit.disabled = true;
+      call('POST', '/drivers/create', body).then(function () {
+        setStatus('Driver created. Phone: ' + body.phone + ' · Password: ' + body.password + ' — give these to the driver.');
+        form.reset();
+      }).catch(function (err) { setStatus('Not created: ' + err.message); })
+        .finally(function () { submit.disabled = false; });
+    });
+    card.appendChild(form);
+    list.appendChild(card);
+  }
+
   // ---- payment cases ----
   var CASES = {
     cash_unconfirmed: { title: 'Cash not confirmed by the driver', help: 'The driver did not confirm the cash fare in time. Call the driver and the rider, then record what happened.', options: [['Cash was received', 'cash_received', 'primary'], ['Cash was NOT received', 'cash_not_received', 'danger']] },
@@ -286,9 +332,75 @@
     list.appendChild(otp);
   }
 
+  // ---- activity: who did what (audit trail kept in the dashboard's database) ----
+  var ACTIVITY_NAMES = {
+    driver_created: 'Driver account created', driver_verified: 'Driver verified', driver_suspended: 'Driver suspended',
+    document_reviewed: 'Document reviewed', payment_resolved: 'Payment case resolved', sos_resolved: 'SOS closed',
+    payout_approved: 'Payout approved', payout_rejected: 'Payout rejected', note_added: 'Shift note added',
+  };
+  function renderActivity(data) {
+    var list = $('list');
+    var rows = data.activity || [];
+    if (!rows.length) {
+      var empty = el('div', null, 'card');
+      empty.appendChild(el('p', 'No activity recorded yet. Every approval, rejection and closure you make here will appear in this list.', 'muted'));
+      list.appendChild(empty);
+      return;
+    }
+    rows.forEach(function (a) {
+      var card = el('div', null, 'card');
+      card.appendChild(el('h2', ACTIVITY_NAMES[a.type] || a.summary));
+      card.appendChild(el('p', a.actor + ' · ' + when((a.created_at || '').replace(' ', 'T')), 'muted'));
+      if (a.detail) {
+        try {
+          var d = JSON.parse(a.detail);
+          card.appendChild(el('p', Object.keys(d).map(function (k) { return k + ': ' + d[k]; }).join(' · '), 'muted'));
+        } catch (e) { /* detail is informational only */ }
+      }
+      list.appendChild(card);
+    });
+  }
+
+  // ---- notes: shift handoff shared by every operator ----
+  function renderNotes(data) {
+    var list = $('list');
+    var form = el('div', null, 'card');
+    form.appendChild(el('h2', 'Leave a note for the next operator'));
+    var label = el('label', 'Note (up to 2000 characters)');
+    label.htmlFor = 'noteText';
+    var box = document.createElement('textarea');
+    box.id = 'noteText';
+    box.rows = 3;
+    box.maxLength = 2000;
+    box.style.width = '100%';
+    var row = el('div', null, 'row');
+    var save = button('Save note', 'primary', function () {
+      var text = box.value.trim();
+      if (!text) { setStatus('Write a note first.'); return; }
+      save.disabled = true;
+      call('POST', '/notes', { text: text })
+        .then(function () { return load(); })
+        .catch(function (err) { setStatus('Not saved: ' + err.message); save.disabled = false; });
+    });
+    row.appendChild(save);
+    form.appendChild(label);
+    form.appendChild(box);
+    form.appendChild(row);
+    list.appendChild(form);
+    (data.notes || []).forEach(function (n) {
+      var card = el('div', null, 'card');
+      card.appendChild(el('p', n.text));
+      card.appendChild(el('p', (n.author || 'unknown') + ' · ' + when((n.created_at || '').replace(' ', 'T')), 'muted'));
+      list.appendChild(card);
+    });
+  }
+
   var TABS = {
+    activity: { path: '/activity', render: renderActivity },
+    notes: { path: '/notes', render: renderNotes, noRefresh: true },
     drivers: { path: '/drivers?verified=false', render: renderDrivers },
     verified: { path: '/drivers?verified=true', render: renderVerified },
+    newdriver: { local: true, render: renderNewDriver, noRefresh: true },
     cases: { path: '/payment-exceptions', render: renderCases },
     sos: { path: '/emergencies', render: renderSos },
     // Static settings and a form: no automatic refresh (it would wipe the input).
@@ -297,6 +409,7 @@
 
   function load() {
     $('list').textContent = '';
+    if (TABS[tab].local) { setStatus(''); TABS[tab].render(); scheduleRefresh(); return Promise.resolve(); }
     setStatus('Loading…');
     return call('GET', TABS[tab].path).then(function (data) {
       setStatus('Updated ' + new Date().toLocaleTimeString() + (TABS[tab].noRefresh ? '' : ' · refreshes every 15 s'));

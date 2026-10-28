@@ -29,6 +29,35 @@ $path = (string) ($_GET['path'] ?? '');
 if ($path === '' || $path[0] !== '/' || strpos($path, '..') !== false || !preg_match('#^/[A-Za-z0-9/_-]+$#', $path)) {
     kimu_fail(400, 'Unknown request.');
 }
+// Records the dashboard keeps itself (cPanel MariaDB): the audit trail and the
+// shared shift notes. They never go to the Kimu API.
+if ($path === '/activity' || $path === '/notes') {
+    if ($method === 'POST' && ($path !== '/notes' || !kimu_csrf_ok())) {
+        kimu_fail($path === '/notes' ? 403 : 405, $path === '/notes' ? 'Your dashboard session changed. Reload the page and try again.' : 'Method not allowed.');
+    }
+    require_once __DIR__ . '/lib/operator_store.php';
+    $operator = (string) kimu_current_operator();
+    try {
+        $team = kimu_default_team_id();
+        if ($method === 'POST') {
+            $in = json_decode((string) file_get_contents('php://input'), true);
+            $text = is_array($in) && is_string($in['text'] ?? null) ? $in['text'] : '';
+            kimu_note_add($team, $operator, $text);
+            kimu_activity_log($team, 'note_added', 'Added a shift note', $operator);
+        }
+        $payload = $path === '/activity'
+            ? ['activity' => kimu_activity($team, 100)]
+            : ['notes' => kimu_notes($team, 50)];
+    } catch (InvalidArgumentException $e) {
+        kimu_fail(400, $e->getMessage());
+    } catch (Throwable $e) {
+        error_log('kimu db: ' . $e->getMessage());
+        kimu_fail(503, 'The records database is unavailable. Decisions still work; try again shortly.');
+    }
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
 if (!kimu_route_allowed($method, $path)) {
     kimu_fail(404, 'This dashboard does not use that API route.');
 }
@@ -74,6 +103,17 @@ try {
     [$status, $data] = kimu_upstream_json($method, $path, $query, $json);
 } catch (Throwable $e) {
     kimu_fail(502, $e->getMessage());
+}
+
+// Audit trail: best effort, so a records-database outage never blocks or
+// undoes a decision the Kimu API already accepted.
+if ($method === 'POST' && $status >= 200 && $status < 300) {
+    try {
+        require_once __DIR__ . '/lib/operator_store.php';
+        kimu_log_decision($path, $json, (string) kimu_current_operator());
+    } catch (Throwable $e) {
+        error_log('kimu audit log failed: ' . $e->getMessage());
+    }
 }
 
 http_response_code($status);
