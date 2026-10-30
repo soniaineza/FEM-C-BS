@@ -5,7 +5,7 @@ const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/test';
+process.env.MYSQL_HOST = process.env.MYSQL_HOST || 'localhost';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'unit-test-secret';
 const { config, corsOrigins } = require('../src/config');
 const google = require('../src/services/googleAuth');

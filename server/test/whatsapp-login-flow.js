@@ -10,7 +10,7 @@
 const path = require('path');
 const { spawn } = require('child_process');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-const { Pool } = require('pg');
+const { openPool, connectionOptions } = require('../src/db');
 
 const PORT = 3323;
 let passed = 0;
@@ -67,7 +67,7 @@ async function withServer(extraEnv, run) {
 }
 
 (async () => {
-  const db = new Pool({ connectionString: process.env.DATABASE_URL });
+  const db = openPool(connectionOptions());
   const ts = Date.now().toString().slice(-7);
   const newPhone = `+25078${ts}`;
   await withServer({}, async (api) => {

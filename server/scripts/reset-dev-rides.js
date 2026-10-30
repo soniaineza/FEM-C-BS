@@ -14,7 +14,7 @@ const { ensureDatabase, applySchema, initPool, getPool } = require('../src/db');
 async function main() {
   // This cancels every open ride and moves every driver: local databases only.
   if (!config.localDatabase) {
-    console.error('Refusing to reset rides: DATABASE_URL is not a local database.');
+    console.error('Refusing to reset rides: MYSQL_HOST is not this machine.');
     process.exit(1);
   }
   ensureEmbeddedReady();

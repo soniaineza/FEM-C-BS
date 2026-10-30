@@ -1,7 +1,7 @@
 // Unit tests for the document store client (src/services/documentStore.js)
 // against an in-process stand-in for doc-store/index.php.
 //   Run: node --test test/document-store.test.js
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://user:pass@db.example.com:5432/kimu';
+process.env.MYSQL_HOST = process.env.MYSQL_HOST || 'db.example.com';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'unit-test-secret';
 
 const { test, before, after, beforeEach } = require('node:test');

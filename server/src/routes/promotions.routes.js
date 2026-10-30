@@ -19,7 +19,7 @@ router.get(
           AND uses_count < COALESCE(max_uses, 2147483647)
           AND (starts_at IS NULL OR starts_at <= now())
           AND (ends_at IS NULL OR ends_at >= now())
-        ORDER BY ends_at ASC NULLS LAST`
+        ORDER BY ends_at IS NULL, ends_at ASC`
     );
     res.json({ promotions: rows.map(promotionToJson) });
   })

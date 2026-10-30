@@ -84,9 +84,8 @@ router.post(
        VALUES ($1,$2,$3,$4)
        ON CONFLICT (passenger_id, address)
        DO UPDATE SET times_used = recent_destinations.times_used + 1,
-                     last_used_at = now()
-       RETURNING id`,
-      [req.passengerId, address, latitude, longitude]
+                     last_used_at = now()`,
+      [req.passengerId, String(address).slice(0, 500), latitude, longitude]
     );
     res.status(204).end();
   })

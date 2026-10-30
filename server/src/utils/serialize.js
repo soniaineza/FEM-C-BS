@@ -215,7 +215,7 @@ function notificationToJson(row) {
     body: row.body,
     type: row.type || 'general',
     createdAt: row.created_at,
-    read: row.read,
+    read: row.is_read,
   };
 }
 

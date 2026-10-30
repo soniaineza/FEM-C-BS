@@ -9,21 +9,21 @@
  * invariants below plus an independent model of each wallet's balance.
  *
  * Usage:
- *   INV_DATABASE_URL=postgres://postgres:postgres@localhost:55432/postgres \
- *   node test/invariants.js [seed] [steps]
+ *   MYSQL_HOST=127.0.0.1 MYSQL_PORT=3307 MYSQL_USER=kimu MYSQL_PASSWORD=... \
+ *   MYSQL_DATABASE=kimu_inv node test/invariants.js [seed] [steps]
+ * The MySQL/MariaDB user needs CREATE/DROP on databases named kimu_inv_<seed>.
  * A fresh database is created per run (dropped first if it exists).
  */
 const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
-const { Client, Pool } = require('pg');
+const mysql = require('mysql2/promise');
+const { openPool, connectionOptions } = require('../src/db');
 
 const SEED = Number(process.argv[2] || 1);
 const STEPS = Number(process.argv[3] || 120);
-const ADMIN_URL = process.env.INV_DATABASE_URL || 'postgres://postgres:postgres@localhost:55432/postgres';
-const DB_NAME = `kimutransport_inv_${SEED}`;
-const DB_URL = ADMIN_URL.replace(/\/[^/]*$/, `/${DB_NAME}`);
+const DB_NAME = `kimu_inv_${SEED}`;
 const API_PORT = 3100 + (SEED % 100);
 const MOCK_PORT = 4100 + (SEED % 100);
 const API = `http://localhost:${API_PORT}/api`;
@@ -247,6 +247,16 @@ async function uploadDriverDocument(docType, fileName, token) {
 }
 const admin = (method, p, body) => api(method, `/admin${p}`, body, null, { 'X-Admin-Key': ADMIN_KEY });
 
+// Self-registration is closed: an operator creates the account and the driver
+// signs in. Returns the shape the old register route had: { status, data: { driver, token } }.
+async function registerDriver(body) {
+  const created = await admin('POST', '/drivers/create', body);
+  if (created.status !== 201) return created;
+  const login = await api('POST', '/drivers/login', { phone: body.phone, password: body.password });
+  if (login.status !== 200) return login;
+  return { status: 201, data: { driver: created.data.driver, token: login.data.token } };
+}
+
 // ---------- world model ----------
 const world = {
   passengers: [], // { id, token, phone, expectedBalance, email }
@@ -418,8 +428,8 @@ async function collectViolations(step) {
              (SELECT COUNT(*) FROM ride_status_history h WHERE h.ride_id = r.id AND h.to_status = s.st)
            - (SELECT COUNT(*) FROM ride_status_history h WHERE h.ride_id = r.id AND h.from_status = s.st) AS net
         FROM rides r
-        CROSS JOIN LATERAL (SELECT to_status AS st FROM ride_status_history WHERE ride_id = r.id
-                            UNION SELECT r.status) s`)) {
+        JOIN (SELECT ride_id, to_status AS st FROM ride_status_history
+              UNION SELECT id AS ride_id, status AS st FROM rides) s ON s.ride_id = r.id`)) {
     const want = r.st === r.status ? 1 : 0;
     if (Number(r.net) !== want) fail('I12 history chain ends at current status', `${r.id} status=${r.status} ${r.st} net=${r.net}`);
   }
@@ -510,7 +520,7 @@ async function newPassenger() {
 
 async function newDriver() {
   const phone = uniquePhone();
-  const reg = await api('POST', '/drivers/register', { fullName: `Driver ${seq}`, phone, password: 'secret123', licenseNumber: `RW${seq}` });
+  const reg = await registerDriver({ fullName: `Driver ${seq}`, phone, password: 'secret123', licenseNumber: `RW${seq}` });
   if (reg.status !== 201) throw new Error(`driver register ${reg.status}`);
   const d = { id: reg.data.driver.id, token: reg.data.token, phone };
   world.drivers.push(d);
@@ -532,7 +542,7 @@ async function newDriver() {
 
 async function exercisePendingApplicationRemoval() {
   const phone = uniquePhone();
-  const reg = await api('POST', '/drivers/register', {
+  const reg = await registerDriver({
     fullName: 'Application removal test',
     phone,
     password: 'secret123',
@@ -574,7 +584,7 @@ async function exercisePendingApplicationRemoval() {
     return;
   }
 
-  const reused = await api('POST', '/drivers/register', {
+  const reused = await registerDriver({
     fullName: 'Application replacement test',
     phone,
     password: 'secret123',
@@ -586,7 +596,7 @@ async function exercisePendingApplicationRemoval() {
   }
 
   const verifiedPhone = uniquePhone();
-  const verifiedRegistration = await api('POST', '/drivers/register', {
+  const verifiedRegistration = await registerDriver({
     fullName: 'Verified deletion guard test',
     phone: verifiedPhone,
     password: 'secret123',
@@ -805,9 +815,17 @@ async function ride() {
   const pin = (await api('GET', `/rides/${rideId}`, null, p.token)).data.ride.pin;
   await api('POST', `/drivers/rides/${rideId}/verify-pin`, { pin }, d.token);
   const failCashin = (method === 'mtn_momo' || method === 'airtel_money') && chance(0.1);
-  mock.failNextCashin = failCashin;
   const done = await api('POST', `/drivers/rides/${rideId}/complete-trip`, null, d.token);
-  mock.failNextCashin = false;
+  // The trip end creates no payment: the driver confirms cash, or the rider's
+  // app starts the wallet / mobile-money payment, and that is when it exists.
+  let cashConfirmation = null;
+  if (method === 'cash') {
+    cashConfirmation = await api('POST', `/drivers/rides/${rideId}/confirm-cash`, null, d.token);
+  } else {
+    mock.failNextCashin = failCashin;
+    await api('POST', '/payments', { rideId }, p.token);
+    mock.failNextCashin = false;
+  }
 
   const [payment] = await q('SELECT * FROM payments WHERE ride_id = $1', [rideId]);
   if (!payment) {
@@ -817,7 +835,7 @@ async function ride() {
   const fare = Number(payment.amount);
   let how;
   if (method === 'cash') {
-    const c = await api('POST', `/drivers/rides/${rideId}/confirm-cash`, null, d.token);
+    const c = cashConfirmation;
     if (c.status !== 200) violations.push(`driver cash confirmation returned ${c.status}`);
     how = `cash confirmed by driver ${c.status}`;
   } else if (method === 'wallet') {
@@ -841,7 +859,7 @@ function expect(name, cond, detail = '') {
 }
 
 async function onlineDriver(phone) {
-  const reg = await api('POST', '/drivers/register', { fullName: `Scenario ${phone.slice(-4)}`, phone, password: 'secret123', licenseNumber: `SC${phone.slice(-6)}` });
+  const reg = await registerDriver({ fullName: `Scenario ${phone.slice(-4)}`, phone, password: 'secret123', licenseNumber: `SC${phone.slice(-6)}` });
   if (reg.status !== 201) throw new Error(`scenario driver register ${reg.status} ${JSON.stringify(reg.data)}`);
   const d = { id: reg.data.driver.id, token: reg.data.token, phone, docIds: [], docsApproved: true };
   for (const docType of ['license', 'national_id', 'vehicle_registration', 'insurance']) {
@@ -1422,10 +1440,10 @@ async function scenarios() {
 
 // ---------- runner ----------
 async function main() {
-  const adminDb = new Client({ connectionString: ADMIN_URL });
-  await adminDb.connect();
-  await adminDb.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);
-  await adminDb.query(`CREATE DATABASE ${DB_NAME}`);
+  const { database: _ignored, ...serverOptions } = connectionOptions();
+  const adminDb = await mysql.createConnection(serverOptions);
+  await adminDb.query(`DROP DATABASE IF EXISTS \`${DB_NAME}\``);
+  await adminDb.query(`CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
   await adminDb.end();
 
   const mockServer = await startMock();
@@ -1433,7 +1451,12 @@ async function main() {
     PATH: process.env.PATH,
     NODE_ENV: 'production',
     PORT: String(API_PORT),
-    DATABASE_URL: DB_URL,
+    MYSQL_HOST: process.env.MYSQL_HOST,
+    MYSQL_PORT: process.env.MYSQL_PORT || '3306',
+    MYSQL_USER: process.env.MYSQL_USER,
+    MYSQL_PASSWORD: process.env.MYSQL_PASSWORD,
+    MYSQL_SSL: process.env.MYSQL_SSL || '',
+    MYSQL_DATABASE: DB_NAME,
     JWT_SECRET: crypto.randomBytes(16).toString('hex'),
     SMS_PROVIDER: 'generic',
     SMS_GATEWAY_URL: `http://localhost:${MOCK_PORT}/sms`,
@@ -1487,7 +1510,7 @@ async function main() {
     throw new Error(`API did not start:
 ${serverLog.slice(-1500)}`);
   }
-  db = new Pool({ connectionString: DB_URL });
+  db = openPool({ ...connectionOptions(), database: DB_NAME });
 
   // Production-mode surface checks.
   const head = await fetch(`${API}/webhooks/paypack`, { method: 'HEAD' });

@@ -14,7 +14,7 @@ const crypto = require('crypto');
 const path = require('path');
 const { spawn } = require('child_process');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-const { Pool } = require('pg');
+const { openPool, connectionOptions } = require('../src/db');
 
 const API_PORT = 3321;
 const GOOGLE_PORT = 3322;
@@ -154,7 +154,7 @@ const codeFrom = (location) => new URL(location).searchParams.get('code');
 const errorFrom = (location) => new URL(location).searchParams.get('error');
 
 (async () => {
-  const db = new Pool({ connectionString: process.env.DATABASE_URL });
+  const db = openPool(connectionOptions());
   const fakeGoogle = await startFakeGoogle();
   const ts = Date.now().toString().slice(-7);
   const mail = (n) => `google-flow-${n}-${ts}@example.com`;
@@ -300,10 +300,10 @@ const errorFrom = (location) => new URL(location).searchParams.get('error');
   });
 
   // Hosted servers ignore the fake-Google overrides. Exercised through the
-  // config module directly: a hosted DATABASE_URL must not be contacted.
+  // config module directly: a hosted database must not be contacted.
   const { spawnSync } = require('child_process');
   const hosted = spawnSync(process.execPath, ['-e', `
-    process.env.DATABASE_URL='postgres://u:p@db.example.com:5432/kimu';
+    process.env.MYSQL_HOST='db.example.com';
     process.env.GOOGLE_TOKEN_URL='http://localhost:9/token';
     const { config } = require('./src/config');
     console.log(config.googleTokenUrl);

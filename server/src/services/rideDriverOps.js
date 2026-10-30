@@ -31,7 +31,7 @@ async function authenticateDriver(phone, password) {
   const { rows } = await getPool().query(
     `SELECT * FROM drivers
       WHERE phone = $1
-         OR ($2 <> '' AND length($2) = 9 AND right(regexp_replace(phone, '\\D', '', 'g'), 9) = $2)
+         OR ($2 <> '' AND length($2) = 9 AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 9) = $2)
       ORDER BY (phone = $1) DESC LIMIT 1`,
     [phone, tail]
   );

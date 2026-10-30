@@ -25,7 +25,7 @@ router.post(
   '/:id/read',
   asyncHandler(async (req, res) => {
     const { rows } = await getPool().query(
-      'UPDATE notifications SET read = TRUE WHERE id = $1 AND passenger_id = $2 RETURNING *',
+      'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND passenger_id = $2 RETURNING *',
       [req.params.id, req.passengerId]
     );
     if (!rows[0]) throw new ApiError(404, 'Notification not found.');
@@ -38,7 +38,7 @@ router.post(
   '/read-all',
   asyncHandler(async (req, res) => {
     await getPool().query(
-      'UPDATE notifications SET read = TRUE WHERE passenger_id = $1 AND read = FALSE',
+      'UPDATE notifications SET is_read = TRUE WHERE passenger_id = $1 AND is_read = FALSE',
       [req.passengerId]
     );
     res.json({ marked: true });
@@ -50,7 +50,7 @@ router.get(
   '/unread-count',
   asyncHandler(async (req, res) => {
     const { rows } = await getPool().query(
-      'SELECT COUNT(*)::int AS count FROM notifications WHERE passenger_id = $1 AND read = FALSE',
+      'SELECT COUNT(*)::int AS count FROM notifications WHERE passenger_id = $1 AND is_read = FALSE',
       [req.passengerId]
     );
     res.json({ count: rows[0].count });

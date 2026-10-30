@@ -1,7 +1,7 @@
 # Kimu document store (cPanel)
 
 Keeps the driver document files (licences, IDs, photos) on the cPanel host so
-the PostgreSQL database stays small. The Kimu API on Render talks to it over
+the database stays small. The Kimu API on Render talks to it over
 HTTPS; the database row only records that the file is stored here.
 
 It is one PHP file. It knows nothing about drivers: it holds opaque files named

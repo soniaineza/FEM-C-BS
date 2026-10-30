@@ -31,10 +31,9 @@ async function retireSeedAccounts() {
     [SEED_DRIVER_PHONES, FLEET_PHONE_PATTERN, FLEET_LICENSE_REGEX]
   );
   await getPool().query(
-    `DELETE FROM driver_device_tokens t
-       USING drivers d
-      WHERE t.driver_id = d.id
-        AND (d.phone = ANY($1) OR (d.phone LIKE $2 AND d.license_number ~ $3))`,
+    `DELETE t FROM driver_device_tokens t
+       JOIN drivers d ON t.driver_id = d.id
+      WHERE (d.phone = ANY($1) OR (d.phone LIKE $2 AND d.license_number ~ $3))`,
     [SEED_DRIVER_PHONES, FLEET_PHONE_PATTERN, FLEET_LICENSE_REGEX]
   );
   if (rows.length) {

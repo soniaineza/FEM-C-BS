@@ -2,7 +2,7 @@
  * Test fixtures created through the real API, for the local test scripts.
  *
  * There is no seed script and no built-in demo account any more: every
- * driver a test needs is registered through POST /drivers/register, has its
+ * driver a test needs is created through POST /admin/drivers/create, has its
  * four KYC documents uploaded and reviewed through the operator API, is
  * verified by the operator API, and goes online by reporting a real location.
  * That is the same path a real driver takes, so the tests exercise it too.
@@ -62,9 +62,13 @@ async function createVerifiedDriver({ at, online = true, vehicleId = 'fem_econom
   requireAdminKey();
   const phone = uniquePhone();
   const name = fullName || `Test Driver ${seq}`;
-  const reg = await request('POST', '/drivers/register', { fullName: name, phone, password: FIXTURE_PASSWORD, licenseNumber: `TEST-${seq}-${Date.now() % 10000}` });
-  if (reg.status !== 201) throw new Error(`driver register ${reg.status}: ${JSON.stringify(reg.data)}`);
-  const d = { id: reg.data.driver.id, token: reg.data.token, phone, password: FIXTURE_PASSWORD, name };
+  // Self-registration is disabled: an operator creates the account, then the
+  // driver signs in with the password the operator set.
+  const reg = await request('POST', '/admin/drivers/create', { fullName: name, phone, password: FIXTURE_PASSWORD, licenseNumber: `TEST-${seq}-${Date.now() % 10000}`, vehicleId }, null, { 'X-Admin-Key': ADMIN_KEY });
+  if (reg.status !== 201) throw new Error(`driver create ${reg.status}: ${JSON.stringify(reg.data)}`);
+  const login = await request('POST', '/drivers/login', { phone, password: FIXTURE_PASSWORD });
+  if (login.status !== 200) throw new Error(`driver login ${login.status}: ${JSON.stringify(login.data)}`);
+  const d = { id: reg.data.driver.id, token: login.data.token, phone, password: FIXTURE_PASSWORD, name };
 
   const profile = await request('PUT', '/driver/me', { fullName: name, email: `drv${phone.slice(-9)}@example.com` }, d.token);
   if (profile.status !== 200) throw new Error(`driver profile ${profile.status}: ${JSON.stringify(profile.data)}`);

@@ -14,7 +14,7 @@
 //      in admin-php/.htaccess. Nothing secret then lives in public_html.
 return [
     // The Kimu Transport API this dashboard talks to (HTTPS only).
-    // Node + PostgreSQL on Render; this dashboard keeps no copy of any record.
+    // Node on Render with its MySQL database on cPanel; this dashboard keeps no copy of any record.
     'api_base_url' => 'https://api.kimutransport.com/api',
 
     // Operator account the API knows: ADMIN_USERNAME / ADMIN_PASSWORD on the

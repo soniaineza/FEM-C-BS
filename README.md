@@ -1,7 +1,7 @@
 # Kimu Transport
 
 Ride-hailing for Kigali: two Expo (React Native) apps, one for riders and one
-for drivers, and a Node.js + Express + PostgreSQL API in `server/`.
+for drivers, and a Node.js + Express + MySQL/MariaDB API in `server/`.
 
 ## Layout
 
@@ -20,7 +20,7 @@ API client. Each app registers its client with `setAppApiClient()` in its root
 
 ## Run it locally
 
-1. API: follow `server/README.md` (PostgreSQL, `server/.env`, `npm install`, `npm start`).
+1. API: follow `server/README.md` (MySQL/MariaDB, `server/.env`, `npm install`, `npm start`).
 2. Apps: copy `apps/passenger/.env.example` and `apps/driver/.env.example` to
    `.env` in the same folders, then from the repository root
 

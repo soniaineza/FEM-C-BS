@@ -481,10 +481,10 @@ router.get('/audit/test-data', asyncHandler(async (_req, res) => {
   const q = async (sql, params) => (await getPool().query(sql, params)).rows;
   const seedWhere = `(d.phone = ANY($1) OR (d.phone LIKE '+25078999____' AND d.license_number ~ '^DL-1[0-9]{3}$'))`;
   res.json({
-    seededDrivers: await q(
-      `SELECT d.id, d.full_name, d.phone, d.status, d.verified, d.password_hash IS NOT NULL AS can_sign_in, d.created_at,
+    seededDrivers: (await q(
+      `SELECT d.id, d.full_name, d.phone, d.status, d.verified, (d.password_hash IS NOT NULL) AS can_sign_in, d.created_at,
               (SELECT count(*)::int FROM rides r WHERE r.driver_id = d.id) AS rides
-         FROM drivers d WHERE ${seedWhere} ORDER BY d.phone`, [SEED_DRIVER_PHONES]),
+         FROM drivers d WHERE ${seedWhere} ORDER BY d.phone`, [SEED_DRIVER_PHONES])).map((d) => ({ ...d, can_sign_in: Boolean(d.can_sign_in) })),
     ridesWithSeededDrivers: await q(
       `SELECT r.id, r.status, r.payment_method, r.estimated_fare, r.created_at, d.phone AS driver_phone,
               p.id AS passenger_id, p.full_name AS passenger_name, p.phone AS passenger_phone
@@ -542,7 +542,7 @@ router.post('/drivers/create', asyncHandler(async (req, res) => {
   if (!/^\+?\d{9,13}$/.test(cleanPhone)) throw new ApiError(400, 'Enter a valid phone number (9-13 digits).');
   const tail = cleanPhone.replace(/\D/g, '').slice(-9);
   const { rows: existing } = await getPool().query(
-    "SELECT id FROM drivers WHERE phone = $1 OR right(regexp_replace(phone, '\\D', '', 'g'), 9) = $2",
+    "SELECT id FROM drivers WHERE phone = $1 OR RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 9) = $2",
     [cleanPhone, tail]
   );
   if (existing[0]) throw new ApiError(409, 'An account with that phone number already exists.');

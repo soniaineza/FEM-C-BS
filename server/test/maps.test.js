@@ -1,4 +1,4 @@
-process.env.DATABASE_URL = 'postgres://user:pass@db.example.com:5432/kimu';
+process.env.MYSQL_HOST = 'db.example.com';
 process.env.MAP_ROUTING_API_KEY = 'test-routing-key';
 process.env.MAP_GEOCODING_API_KEY = 'test-geocoding-key';
 

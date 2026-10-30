@@ -5,7 +5,7 @@ shared cPanel hosting: approve drivers after checking their four documents,
 reject a document with a reason, open each uploaded file, decide payment cases,
 close SOS events, and check the Google / OTP integrations. Everything is read
 from and written to the Kimu API (`https://fem-cabs-api.onrender.com`, Node +
-PostgreSQL); this dashboard keeps **no database and no copy** of any record.
+MySQL); this dashboard keeps **no database and no copy** of any record.
 
 ## What this directory contains
 

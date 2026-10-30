@@ -59,8 +59,8 @@ async function verifyCode(pool, { passengerId, purpose, code }) {
   if (!matches) {
     await pool.query(
       `UPDATE verification_codes
-          SET attempts = attempts + 1,
-              used_at = CASE WHEN attempts + 1 >= $2 THEN now() ELSE used_at END
+          SET used_at = CASE WHEN attempts + 1 >= $2 THEN now() ELSE used_at END,
+              attempts = attempts + 1
         WHERE id = $1`,
       [record.id, config.otpMaxAttempts]
     );

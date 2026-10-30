@@ -6,7 +6,7 @@
 const path = require('path');
 const { spawn } = require('child_process');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-const { Pool } = require('pg');
+const { openPool, connectionOptions } = require('../src/db');
 
 const PORT = 3324;
 let passed = 0, failed = 0;
@@ -30,7 +30,7 @@ async function withServer(run) {
 }
 
 (async () => {
-  const db = new Pool({ connectionString: process.env.DATABASE_URL });
+  const db = openPool(connectionOptions());
   const ts = Date.now().toString().slice(-7);
   const email = `email-login-${ts}@example.com`;
   await withServer(async (api) => {

@@ -1,13 +1,9 @@
 require('dotenv').config();
 const crypto = require('crypto');
 
-/** True when DATABASE_URL points at this machine — a developer's database. */
-function isLocalDatabase(url) {
-  try {
-    return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(new URL(url).hostname);
-  } catch {
-    return false;
-  }
+/** True when the database host is this machine — a developer's database. */
+function isLocalDatabase(host) {
+  return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(String(host || '').toLowerCase());
 }
 
 // App-wide server configuration. Every value can be overridden with an
@@ -19,17 +15,26 @@ const config = {
 
   port: Number(process.env.PORT || 3000),
 
-  // A running PostgreSQL instance the API connects to, e.g.
-  // postgres://user:password@localhost:5432/kimutransport
-  databaseUrl: process.env.DATABASE_URL || '',
+  // The MySQL / MariaDB database the API connects to (src/db.js). On cPanel
+  // the name and user both carry the account prefix, e.g. unguka_unguka_kimu.
+  // Separate values, not one URL, so a password may contain any character.
+  mysql: {
+    host: process.env.MYSQL_HOST || '',
+    port: Number(process.env.MYSQL_PORT || 3306),
+    database: process.env.MYSQL_DATABASE || '',
+    user: process.env.MYSQL_USER || '',
+    password: process.env.MYSQL_PASSWORD || '',
+    // "on" / "off" / unset (on for any host that is not this machine).
+    ssl: (process.env.MYSQL_SSL || '').toLowerCase(),
+    // Path to the server's CA certificate; when set the certificate is verified.
+    sslCa: process.env.MYSQL_SSL_CA || '',
+    // Shared hosts cap simultaneous connections per account; stay well under.
+    poolSize: Number(process.env.MYSQL_POOL_SIZE || 8),
+  },
   // Development and demo switches are honoured only against a local
   // database. On any hosted database they are ignored, whatever NODE_ENV
   // says — see lockDownHostedServer() below.
-  localDatabase: isLocalDatabase(process.env.DATABASE_URL || ''),
-
-  // Reserved for the MongoDB migration. The current API still uses the
-  // PostgreSQL data layer in src/db.js and requires DATABASE_URL.
-  mongoUri: process.env.MONGODB_URI || '',
+  localDatabase: isLocalDatabase(process.env.MYSQL_HOST),
 
   // JWT signing secret. In production this MUST be set — no fallback secret.
   // In development an ephemeral random secret is generated so the server
@@ -314,8 +319,8 @@ const corsOrigins = (process.env.CORS_ORIGINS || '*')
 
 function ensureConfig() {
   const problems = [];
-  if (!config.databaseUrl) {
-    problems.push('DATABASE_URL');
+  for (const key of ['host', 'database', 'user', 'password']) {
+    if (!config.mysql[key]) problems.push(`MYSQL_${key.toUpperCase()}`);
   }
   const isProduction = config.env === 'production';
   if (isProduction) {

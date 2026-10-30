@@ -9,16 +9,19 @@
     "start": "node src/index.js",
     "dev": "node src/index.js",
     "db:init": "node src/db.js --init-only",
+    "db:check": "node scripts/db-check.js",
     "driver": "node scripts/driver-console.js",
     "docs:move": "node scripts/move-documents-to-store.js",
     "test:doc-store": "node --test test/document-store.test.js",
+    "test:sql-compat": "node --test test/sql-compat.test.js",
     "test": "node test/smoke.js && node test/wallet-flow.js",
     "test:smoke": "node test/smoke.js",
+    "test:account-flows": "node test/account-flows.js",
     "test:wallet": "node test/wallet-flow.js",
     "test:money": "node test/driver-money.js",
     "test:maps": "node --test test/maps.test.js",
     "test:driver-docs": "node --test test/driver-documents-unit.test.js test/driver-documents.test.js",
-    "test:unit": "node --test test/maps.test.js test/otp-whatsapp.test.js test/google-auth.test.js test/driver-documents-unit.test.js",
+    "test:unit": "node --test test/db-unit.test.js test/sql-compat.test.js test/document-store.test.js test/maps.test.js test/otp-whatsapp.test.js test/google-auth.test.js test/driver-documents-unit.test.js",
     "test:otp-whatsapp": "node --test test/otp-whatsapp.test.js",
     "test:otp": "node test/otp-demo.js",
     "test:google-auth": "node --test test/google-auth.test.js",
@@ -43,7 +46,7 @@
     "express-rate-limit": "^7.4.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.4.0",
-    "nodemailer": "^10.0.16",
-    "pg": "^8.13.1"
+    "mysql2": "^3.24.6",
+    "nodemailer": "^10.0.16"
   }
 }

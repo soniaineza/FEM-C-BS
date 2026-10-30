@@ -1,7 +1,7 @@
 // Unit tests for the driver application pieces that need no database: what
 // the server accepts as a document file, and which routes an unverified
 // driver's session may use.   Run: node --test test/driver-documents-unit.test.js
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://user:pass@db.example.com:5432/kimu';
+process.env.MYSQL_HOST = process.env.MYSQL_HOST || 'db.example.com';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'unit-test-secret';
 
 const { test } = require('node:test');

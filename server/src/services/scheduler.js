@@ -135,7 +135,7 @@ async function sweepUnconfirmedCash() {
   const { rows } = await getPool().query(
     `SELECT r.id, r.driver_id, r.passenger_id, p.id AS payment_id
        FROM rides r
-       JOIN LATERAL (SELECT * FROM payments WHERE ride_id = r.id ORDER BY created_at DESC LIMIT 1) p ON TRUE
+       JOIN payments p ON p.id = (SELECT id FROM payments WHERE ride_id = r.id ORDER BY created_at DESC LIMIT 1)
       WHERE r.status = 'paymentPending' AND r.payment_method = 'cash' AND r.cash_disputed_at IS NULL
         AND p.method = 'cash' AND p.status = 'pending'
         AND p.created_at < now() - ($1 || ' seconds')::interval

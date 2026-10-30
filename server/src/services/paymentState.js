@@ -46,7 +46,7 @@ async function transition(db, table, id, to, { failureReason = null, metadata = 
   const { rows } = await db.query(
     `UPDATE ${table} SET status = $2, state = $2, updated_at = now(),
        failure_reason = COALESCE($3, failure_reason),
-       metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
+       metadata = JSON_MERGE_PATCH(COALESCE(metadata, '{}'), $4)
       WHERE id = $1 AND status = ANY($5) RETURNING *`,
     [id, to, failureReason, JSON.stringify(metadata || {}), from]
   );

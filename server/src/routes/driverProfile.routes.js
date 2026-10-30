@@ -60,7 +60,7 @@ const documentUpload = multer({
 /** How fresh the driver's reported position is, for the app's status. */
 async function locationFreshness(driverId) {
   const { rows } = await getPool().query(
-    'SELECT EXTRACT(EPOCH FROM (now() - recorded_at)) AS age FROM driver_locations WHERE driver_id = $1',
+    'SELECT TIMESTAMPDIFF(MICROSECOND, recorded_at, now()) / 1000000 AS age FROM driver_locations WHERE driver_id = $1',
     [driverId]
   );
   const ageSeconds = rows[0] ? Math.round(Number(rows[0].age)) : null;
@@ -358,7 +358,7 @@ router.get('/earnings', asyncHandler(async (req, res) => {
   const weekRes = await getPool().query(
     `SELECT COALESCE(SUM(net_amount), 0) as total, COALESCE(SUM(gross_amount), 0) as gross, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1
-       AND created_at >= date_trunc('week', CURRENT_DATE) AND status = 'settled'`,
+       AND created_at >= DATE_SUB(CURRENT_DATE, INTERVAL WEEKDAY(CURRENT_DATE) DAY) AND status = 'settled'`,
     [driverId]
   );
 
@@ -366,7 +366,7 @@ router.get('/earnings', asyncHandler(async (req, res) => {
   const monthRes = await getPool().query(
     `SELECT COALESCE(SUM(net_amount), 0) as total, COALESCE(SUM(gross_amount), 0) as gross, COUNT(*)::int as rides
      FROM driver_earnings WHERE driver_id = $1
-       AND created_at >= date_trunc('month', CURRENT_DATE) AND status = 'settled'`,
+       AND created_at >= DATE_SUB(CURRENT_DATE, INTERVAL (DAYOFMONTH(CURRENT_DATE) - 1) DAY) AND status = 'settled'`,
     [driverId]
   );
 
@@ -555,7 +555,7 @@ router.get('/notifications', asyncHandler(async (req, res) => {
       body: r.body,
       type: r.type,
       rideId: r.ride_id,
-      read: r.read,
+      read: r.is_read,
       createdAt: r.created_at,
     })),
   });
@@ -564,7 +564,7 @@ router.get('/notifications', asyncHandler(async (req, res) => {
 // POST /api/driver/notifications/:id/read
 router.post('/notifications/:id/read', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
-    'UPDATE driver_notifications SET read = TRUE WHERE id = $1 AND driver_id = $2 RETURNING *',
+    'UPDATE driver_notifications SET is_read = TRUE WHERE id = $1 AND driver_id = $2 RETURNING *',
     [req.params.id, req.driverId]
   );
   if (!rows[0]) throw new ApiError(404, 'Notification not found.');
@@ -574,7 +574,7 @@ router.post('/notifications/:id/read', asyncHandler(async (req, res) => {
 // POST /api/driver/notifications/read-all
 router.post('/notifications/read-all', asyncHandler(async (req, res) => {
   await getPool().query(
-    'UPDATE driver_notifications SET read = TRUE WHERE driver_id = $1 AND read = FALSE',
+    'UPDATE driver_notifications SET is_read = TRUE WHERE driver_id = $1 AND is_read = FALSE',
     [req.driverId]
   );
   res.json({ marked: true });
@@ -583,7 +583,7 @@ router.post('/notifications/read-all', asyncHandler(async (req, res) => {
 // GET /api/driver/notifications/unread-count
 router.get('/notifications/unread-count', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
-    'SELECT COUNT(*)::int AS count FROM driver_notifications WHERE driver_id = $1 AND read = FALSE',
+    'SELECT COUNT(*)::int AS count FROM driver_notifications WHERE driver_id = $1 AND is_read = FALSE',
     [req.driverId]
   );
   res.json({ count: rows[0].count });

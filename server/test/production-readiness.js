@@ -213,13 +213,17 @@ async function db() {
 
   // ---- Driver KYC ----
   const dphone = `+2507${(Number(ts) + 1).toString().padStart(8, '0')}`;
-  const reg = await api('POST', '/drivers/register', {
+  // Self-registration is closed: an operator creates the account and the driver signs in.
+  const closed = await api('POST', '/drivers/register', { fullName: 'Nobody', phone: dphone, password: 'secret123' });
+  check('self-registration is closed', closed.status === 403, `status=${closed.status}`);
+  const newAccount = await api('POST', '/admin/drivers/create', {
     fullName: 'New Driver', phone: dphone, password: 'secret123', licenseNumber: 'RW-TEST',
-  });
-  check('driver registers', reg.status === 201, `status=${reg.status}`);
-  const newDt = reg.data.token;
-  const newDriverId = reg.data.driver.id;
-  check('driver registration never bypasses admin approval', reg.data.driver.verified === false);
+  }, null, { 'X-Admin-Key': ADMIN_KEY });
+  check('operator creates the driver account', newAccount.status === 201, `status=${newAccount.status}`);
+  const firstLogin = await api('POST', '/drivers/login', { phone: dphone, password: 'secret123' });
+  const newDt = firstLogin.data.token;
+  const newDriverId = newAccount.data.driver.id;
+  check('a new account never bypasses admin approval', newAccount.data.driver.verified === false);
   // Signing in before approval is allowed (the driver needs a session to
   // upload documents after a reinstall); what the session can do is not.
   const pendingLogin = await api('POST', '/drivers/login', { phone: dphone, password: 'secret123' });

@@ -112,7 +112,7 @@ async function findNearestDriver(ride) {
         AND d.current_latitude IS NOT NULL
         AND d.current_longitude IS NOT NULL
         ${eligibleDriverSql}
-      ORDER BY d.rating DESC NULLS LAST
+      ORDER BY d.rating DESC
       LIMIT 100`
   );
 

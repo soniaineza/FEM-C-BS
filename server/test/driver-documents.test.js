@@ -1,36 +1,29 @@
 // End-to-end check of the driver application against a real local
-// PostgreSQL, through the real Express app on an ephemeral port: register,
-// sign in before approval, upload the four documents as real multipart
+// MySQL/MariaDB, through the real Express app on an ephemeral port: an
+// operator creates the account, the driver signs in before approval, upload the four documents as real multipart
 // bodies, see them on the operator list, open each file, reject one and
 // re-upload it, approve all four, verify the driver, go online.
 //
 //   node --test test/driver-documents.test.js
 //
-// Needs a local PostgreSQL. The DATABASE_URL in server/.env (or
-// TEST_DATABASE_URL) is used with the database name replaced by <name>_test;
-// that database is created on first run and emptied at the start of every
-// run, so the development data is never touched. Without a reachable
-// database every test is skipped and says why.
+// Needs a local MySQL/MariaDB. The MYSQL_* settings (server/.env or the
+// environment) are used with the database name replaced by <name>_test; that
+// database is created on first run and emptied at the start of every run, so
+// the development data is never touched. Without a reachable database every
+// test is skipped and says why.
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { Client } = require('pg');
+const mysql = require('mysql2/promise');
 
-function testDatabaseUrl() {
-  if (process.env.TEST_DATABASE_URL) return process.env.TEST_DATABASE_URL;
-  const url = new URL(process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/femcabs');
-  const name = url.pathname.replace(/^\//, '') || 'femcabs';
-  url.pathname = `/${name.endsWith('_test') ? name : `${name}_test`}`;
-  return url.toString();
-}
-const TEST_URL = testDatabaseUrl();
-const TEST_DB_NAME = new URL(TEST_URL).pathname.replace(/^\//, '');
+const baseName = process.env.MYSQL_DATABASE || 'kimu';
+const TEST_DB_NAME = baseName.endsWith('_test') ? baseName : `${baseName}_test`;
 
 // Everything the app reads from the environment is pinned before any module
 // loads: the test database, a known secret, and operator credentials.
-process.env.DATABASE_URL = TEST_URL;
+process.env.MYSQL_DATABASE = TEST_DB_NAME;
 process.env.NODE_ENV = 'development';
 process.env.JWT_SECRET = 'driver-documents-test-secret';
 process.env.ADMIN_USERNAME = 'operator-test';
@@ -39,7 +32,7 @@ process.env.ADMIN_API_KEY = '';
 process.env.RATE_LIMIT_MAX = '200';
 
 const { config } = require('../src/config');
-const { applySchema, initPool, getPool } = require('../src/db');
+const { ensureDatabase, connectionOptions, applySchema, initPool, getPool } = require('../src/db');
 const { createApp } = require('../src/app');
 const { DOCUMENT_MAX_MB, DOCUMENT_MAX_BYTES, REQUIRED_DOCUMENT_TYPES } = require('../src/services/driverDocuments');
 
@@ -97,32 +90,44 @@ function upload(token, docType, { bytes, type, name }, extra = {}) {
 }
 
 async function ensureTestDatabase() {
-  const admin = new URL(TEST_URL);
-  admin.pathname = '/postgres';
-  const client = new Client({ connectionString: admin.toString() });
-  await client.connect();
+  const { database, ...withoutDatabase } = connectionOptions();
+  const connection = await mysql.createConnection(withoutDatabase);
   try {
-    const { rows } = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [TEST_DB_NAME]);
-    if (!rows[0]) await client.query(`CREATE DATABASE "${TEST_DB_NAME.replace(/"/g, '""')}"`);
+    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${TEST_DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
   } finally {
-    await client.end();
+    await connection.end();
   }
+}
+
+/** Signs in as the operator (once) and creates a driver account the way the dashboard does. */
+async function createDriverAccount({ fullName, phone: number, password, licenseNumber }) {
+  if (!operator.token) {
+    const login = await api('POST', '/admin/login', { username: 'operator-test', password: 'operator-test-password-123' });
+    assert.equal(login.status, 200, JSON.stringify(login.data));
+    operator.token = login.data.token;
+  }
+  const created = await api('POST', '/admin/drivers/create', { fullName, phone: number, password, licenseNumber }, operator.token);
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  return created.data.driver;
 }
 
 before(async () => {
   try {
     if (!TEST_DB_NAME.endsWith('_test')) throw new Error(`refusing to run against "${TEST_DB_NAME}": the test database name must end in _test`);
     await ensureTestDatabase();
-    await applySchema(TEST_URL);
-    initPool(TEST_URL);
+    const options = await ensureDatabase();
+    await applySchema(options);
+    initPool(options);
     // A dedicated database: start empty so the assertions below are exact.
-    await getPool().query('TRUNCATE TABLE drivers, passengers RESTART IDENTITY CASCADE');
+    for (const table of ['payment_exceptions', 'rides', 'drivers', 'passengers']) {
+      await getPool().query(`DELETE FROM ${table}`);
+    }
     server = createApp().listen(0, '127.0.0.1');
     await new Promise((resolve) => server.once('listening', resolve));
     ORIGIN = `http://127.0.0.1:${server.address().port}`;
     BASE = `${ORIGIN}/api`;
   } catch (err) {
-    skipReason = `no usable local PostgreSQL for ${TEST_DB_NAME}: ${err.message}`;
+    skipReason = `no usable local MySQL/MariaDB for ${TEST_DB_NAME}: ${err.message}`;
   }
 });
 
@@ -144,16 +149,23 @@ function latestByType(documents) {
   return latest;
 }
 
-test('registration creates an unverified driver whose session can only reach the application routes', async (t) => {
+test('self-registration is closed', async (t) => {
+  if (skipReason) return t.skip(skipReason);
+  const reg = await api('POST', '/drivers/register', { fullName: 'Nobody', phone: phone(), password: 'Driver-pass-123' });
+  assert.equal(reg.status, 403);
+});
+
+test('an operator-created driver is unverified and their session can only reach the application routes', async (t) => {
   if (skipReason) return t.skip(skipReason);
   driver.phone = phone();
-  const reg = await api('POST', '/drivers/register', { fullName: 'Elie Test', phone: driver.phone, password: driver.password, licenseNumber: 'RW-TEST-1' });
-  assert.equal(reg.status, 201, JSON.stringify(reg.data));
-  assert.equal(reg.data.driver.verified, false);
-  driver.id = reg.data.driver.id;
-  const me = await api('GET', '/driver/me', null, reg.data.token);
+  const created = await createDriverAccount({ fullName: 'Elie Test', phone: driver.phone, password: driver.password, licenseNumber: 'RW-TEST-1' });
+  assert.equal(created.verified, false);
+  driver.id = created.id;
+  const first = await api('POST', '/drivers/login', { phone: driver.phone, password: driver.password });
+  assert.equal(first.status, 200, JSON.stringify(first.data));
+  const me = await api('GET', '/driver/me', null, first.data.token);
   assert.equal(me.status, 200);
-  const rides = await api('GET', '/drivers/rides/active', null, reg.data.token);
+  const rides = await api('GET', '/drivers/rides/active', null, first.data.token);
   assert.equal(rides.status, 403);
   assert.equal(rides.data.code, 'PENDING_APPROVAL');
 });
@@ -196,13 +208,14 @@ test('an unverified driver can sign in again and is told to finish the applicati
 test('a suspended driver cannot sign in', async (t) => {
   if (skipReason) return t.skip(skipReason);
   const p = phone();
-  const reg = await api('POST', '/drivers/register', { fullName: 'Suspended Driver', phone: p, password: 'Driver-pass-123' });
-  assert.equal(reg.status, 201);
-  await getPool().query("UPDATE drivers SET status = 'suspended' WHERE id = $1", [reg.data.driver.id]);
+  const created = await createDriverAccount({ fullName: 'Suspended Driver', phone: p, password: 'Driver-pass-123' });
+  const before = await api('POST', '/drivers/login', { phone: p, password: 'Driver-pass-123' });
+  assert.equal(before.status, 200);
+  await getPool().query("UPDATE drivers SET status = 'suspended' WHERE id = $1", [created.id]);
   const login = await api('POST', '/drivers/login', { phone: p, password: 'Driver-pass-123' });
   assert.equal(login.status, 403);
   assert.match(login.data.error, /suspended/i);
-  assert.equal((await api('GET', '/driver/documents', null, reg.data.token)).status, 403, 'the old session is closed too');
+  assert.equal((await api('GET', '/driver/documents', null, before.data.token)).status, 403, 'the old session is closed too');
 });
 
 test('each required document uploaded as a multipart body is stored with its bytes and real type', async (t) => {

@@ -3,27 +3,25 @@
 // (driver_documents.file_data) onto the document store on cPanel, one at a
 // time. Each file is uploaded, read back and compared byte for byte before its
 // database copy is cleared, so an interrupted run loses nothing and can simply
-// be run again. Needs DATABASE_URL, DOCUMENT_STORE_URL and DOCUMENT_STORE_TOKEN.
+// be run again. Needs the MYSQL_* settings, DOCUMENT_STORE_URL and DOCUMENT_STORE_TOKEN.
 //
 //   cd server && npm run docs:move -- --dry-run     # list what would move
 //   cd server && npm run docs:move                  # move everything
 //
-// This frees the rows' space only for reuse; to hand the space back to the
-// database host run "VACUUM FULL driver_documents;" afterwards (it locks the
-// table briefly, so do it when no driver is uploading).
+// To hand the freed space back to the database host run
+// "OPTIMIZE TABLE driver_documents;" afterwards (it locks the table briefly,
+// so do it when no driver is uploading).
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const { config } = require('../src/config');
-const { initPool } = require('../src/db');
+const { ensureDatabase, initPool } = require('../src/db');
 const documentStore = require('../src/services/documentStore');
 
 const dryRun = process.argv.includes('--dry-run');
 
 async function main() {
-  if (!config.databaseUrl) throw new Error('DATABASE_URL is not set.');
   if (!documentStore.isRemote()) throw new Error('Set DOCUMENT_STORE_URL and DOCUMENT_STORE_TOKEN first.');
-  const pool = initPool(config.databaseUrl);
+  const pool = initPool(await ensureDatabase());
 
   const { rows: todo } = await pool.query(
     `SELECT id, doc_type, file_size FROM driver_documents

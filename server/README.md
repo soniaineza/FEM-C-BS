@@ -1,19 +1,29 @@
 # Kimu Transport backend
 
-Node.js + Express + PostgreSQL REST API for the Kimu Transport passenger app.
+Node.js + Express + MySQL/MariaDB REST API for the Kimu Transport apps.
 
-The current routes and schema use PostgreSQL. `MONGODB_URI` is reserved for a
-future migration and is not used by the current API; do not put a MongoDB URI
-in tracked source files. Store it in `server/.env` when the data layer is
-migrated deliberately.
+The data layer is MySQL 8.0.13+ or MariaDB 10.4+ (`src/db.js`). The routes are
+written in PostgreSQL-flavoured SQL (`$1`, `RETURNING`, `ON CONFLICT`, ...) and
+`src/sqlCompat.js` translates it, including emulating `RETURNING`; its header
+lists exactly what is translated and `npm run test:sql-compat` covers it. Write
+new queries in the same style, and port by hand anything the translator
+rejects (it throws instead of guessing).
 
 ## Setup
 
-1. Have a PostgreSQL server running and create a database (or use an existing one).
-2. Copy `.env.example` to `.env` and set `DATABASE_URL`, e.g.:
+1. Have a MySQL or MariaDB server and create an empty database and a user with
+   all privileges on it (on cPanel: MySQL Database Wizard).
+2. Copy `.env.example` to `.env` and set the `MYSQL_*` values, e.g.:
    ```
-   DATABASE_URL=postgres://postgres:postgres@localhost:5432/kimutransport
+   MYSQL_HOST=127.0.0.1
+   MYSQL_DATABASE=kimutransport
+   MYSQL_USER=kimu
+   MYSQL_PASSWORD=...
    ```
+   A remote database (Render to cPanel) must also allow the API server's
+   address under cPanel > Remote Database Access; connections use TLS unless
+   `MYSQL_SSL=off`. Shared hosts cap connections per account, so keep
+   `MYSQL_POOL_SIZE` (default 8) under the limit.
 3. Install dependencies and start:
    ```
    npm install
@@ -21,6 +31,30 @@ migrated deliberately.
    ```
    The schema in `src/schema.sql` (tables + the vehicle catalogue seed) is applied
    automatically on every start — it's idempotent, safe to run repeatedly.
+   Later column additions go in the `MIGRATIONS` list in `src/db.js`.
+   Documents uploaded by drivers can be kept on the cPanel host instead of in
+   the database (see "Document storage" below); without that the database needs
+   `max_allowed_packet` of at least 16 MB.
+
+### Going live on Render with the database on cPanel
+
+1. cPanel > MySQL Database Wizard: create the database and the user, with ALL
+   PRIVILEGES. Note both full names exactly as shown (cPanel prefixes them).
+2. cPanel > Remote Database Access: add Render's outbound IP addresses (Render
+   dashboard > the service > Connect > Outbound), or the API cannot connect.
+3. Render > Environment: set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`,
+   `MYSQL_USER`, `MYSQL_PASSWORD`. Remove `DATABASE_URL` (no longer used).
+4. Check the connection before deploying: `npm run db:check` from the machine
+   that runs the API (or from yours once its address is allowed). It reports
+   reachability, TLS, version, privileges, packet size, connection cap and
+   latency, and what to change for each problem.
+5. Deploy. The first start creates every table; the log shows
+   `[db] schema applied (<server version>)`.
+6. Back up the database from cPanel (Backup Wizard or a cron `mysqldump`):
+   it is now the only copy of rides, wallets and driver accounts.
+
+Every API request makes several queries, so the database server should be as
+close to the API as you can get; `db:check` prints the round-trip time.
 
 The Expo app reads `EXPO_PUBLIC_API_BASE_URL` at build time. The Render
 blueprint builds its web export from the repository root and serves it with
@@ -76,8 +110,8 @@ signup/login). All responses are JSON; errors are `{ "error": "message" }`.
 
 `DEV_REVEAL_CODES` and `DEV_ALLOW_STALE_DRIVERS` are local test switches.
 Driver approval, SMS verification and Paypack transactions cannot be bypassed.
-They take effect only when `DATABASE_URL` points at a local database
-(`localhost`). On any hosted database they are ignored with a warning,
+They take effect only when `MYSQL_HOST` is this machine
+(`localhost` / `127.0.0.1`). On any hosted database they are ignored with a warning,
 whatever `NODE_ENV` is, and with `NODE_ENV=production` the server refuses to
 start if one is even set.
 
@@ -275,7 +309,7 @@ npm run docs:move                 # upload, verify byte for byte, then clear fil
 ```
 
 The script is safe to run again after an interruption. Afterwards run
-`VACUUM FULL driver_documents;` on the database to hand the space back to the
+`OPTIMIZE TABLE driver_documents;` on the database to hand the space back to the
 host. Back up `kimu-documents/` on cPanel with the rest of the account: it now
 holds the only copy of the files.
 
@@ -366,11 +400,11 @@ own npm script (each exits non-zero on failure):
 | `npm run test:wallet` | Same local API as the smoke test. |
 | `npm run test:money` | Same local API and an `ADMIN_API_KEY` (pass the same key to the test). Commission settlements require working Paypack credentials; manual operator settlements and payouts can be tested without them. |
 | `npm run test:maps` | Nothing: provider adapters, routing, geocoding and GPS validation with the provider stubbed. |
-| `npm run test:driver-docs` | The unit part needs nothing (file-type sniffing, the unverified-session gate). The end-to-end part needs a local PostgreSQL: it uses `DATABASE_URL` from `server/.env` with the database name suffixed `_test` (created on first run, emptied each run; or set `TEST_DATABASE_URL`), mounts the real app on a free port and walks a driver from registration through sign-in before approval, four real multipart uploads, the operator list and files, a rejection and re-upload, approval, verification and going online. Without a database those tests are skipped and say so. |
+| `npm run test:driver-docs` | The unit part needs nothing (file-type sniffing, the unverified-session gate). The end-to-end part needs a local MySQL/MariaDB: it uses the `MYSQL_*` settings with the database name suffixed `_test` (created on first run, emptied each run), mounts the real app on a free port and walks a driver from registration through sign-in before approval, four real multipart uploads, the operator list and files, a rejection and re-upload, approval, verification and going online. Without a database those tests are skipped and say so. |
 | `npm run test:unit` | Nothing: every DB-free test above in one run. |
 | `npm run test:otp` | A local database; starts its own server to check SMS delivery failure and local-only OTP reveal behavior. |
 | `npm run test:readiness` | API on `:3000` started with the same Paypack webhook secret and admin key as in `server/.env`. |
-| `npm run test:invariants` | Only PostgreSQL (`INV_DATABASE_URL`). Starts its own production-mode API, fake Paypack and SMS gateway, and a fresh database. Optional args: `-- <seed> <steps>`. |
+| `npm run test:invariants` | A local MySQL/MariaDB whose user may create `kimu_inv_<seed>` databases. Starts its own production-mode API, fake Paypack and SMS gateway, and a fresh database. Optional args: `-- <seed> <steps>`. The scripted scenarios at the end predate the driver-collects-the-fare flow and are out of date; the random walk and its invariants are current. |
 | `npm run test:places` | API on `:3000` and `TYPESAFE_API_KEY`; TypeSafe's Jev judges whether place search returns the place a rider meant. |
 
 The smoke, wallet, money and readiness tests create their own verified drivers through the API, which needs `ADMIN_API_KEY` in `server/.env` (the same value the server runs with) and a local database. Run `node scripts/reset-dev-rides.js` after a crashed run (it cancels stuck rides and clears test commission debt).
