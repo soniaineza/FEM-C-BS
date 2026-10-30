@@ -44,6 +44,9 @@ ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS evidence_reference TEXT;
 ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS file_data BYTEA;
 ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS content_type TEXT;
 ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS file_size INTEGER;
+-- TRUE when the bytes live on the document store (cPanel), keyed by this row's
+-- id, instead of in file_data.
+ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS file_remote BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_driver_documents_driver ON driver_documents(driver_id, doc_type);
 
 -- Driver-specific notifications (separate from passenger notifications).

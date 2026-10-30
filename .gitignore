@@ -64,3 +64,7 @@ server/*.log
 
 # Git worktrees created for parallel agent work
 .claude/worktrees/
+
+# private SSH keys
+kimutransport_key
+port_key

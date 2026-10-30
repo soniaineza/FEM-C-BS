@@ -20,6 +20,7 @@ const {
   isAcceptableDeclaredType,
   safeDownloadName,
 } = require('../services/driverDocuments');
+const documentStore = require('../services/documentStore');
 const { closeDriverAccount } = require('../services/accountClosure');
 const { dispatchEmergency } = require('../services/emergencyDispatch');
 const {
@@ -36,7 +37,7 @@ router.use(requireDriverAuth);
 // The file arrives as one multipart part named "file" (React Native's
 // FormData on the phones, a Blob on the web) next to the docType field. It is
 // held in memory, checked by its bytes (services/driverDocuments.js) and
-// stored in driver_documents.file_data for the operator to open.
+// kept by services/documentStore.js for the operator to open.
 const documentUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: DOCUMENT_MAX_BYTES, files: 1, fields: 4, fieldSize: 200 },
@@ -212,7 +213,7 @@ router.put('/vehicle', asyncHandler(async (req, res) => {
 router.get('/documents', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
     `SELECT id, doc_type, file_name, status, rejection_reason, expires_at, uploaded_at,
-            reviewed_at, (file_data IS NOT NULL) AS has_file, file_size, content_type
+            reviewed_at, ${documentStore.HAS_FILE_SQL} AS has_file, file_size, content_type
        FROM driver_documents WHERE driver_id = $1 ORDER BY uploaded_at DESC`,
     [req.driverId]
   );
@@ -236,16 +237,18 @@ router.get('/documents', asyncHandler(async (req, res) => {
 
 router.get('/documents/:id/file', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
-    'SELECT file_data, content_type, file_name FROM driver_documents WHERE id = $1 AND driver_id = $2',
+    `SELECT id, file_data, file_remote, content_type, file_name FROM driver_documents
+      WHERE id = $1 AND driver_id = $2`,
     [req.params.id, req.driverId]
   );
-  if (!rows[0] || !rows[0].file_data) throw new ApiError(404, 'Document file not found.');
+  if (!rows[0]) throw new ApiError(404, 'Document file not found.');
+  const bytes = await documentStore.read(rows[0]);
   res.set({
     'Cache-Control': 'private, no-store',
     'Content-Disposition': `inline; filename="${safeDownloadName(rows[0].file_name)}"`,
     'X-Content-Type-Options': 'nosniff',
   });
-  res.type(rows[0].content_type).send(rows[0].file_data);
+  res.type(rows[0].content_type).send(bytes);
 }));
 
 // POST /api/driver/documents — persist the actual uploaded file.
@@ -274,12 +277,23 @@ router.post(
 
   const fileName = safeDownloadName(req.file.originalname);
 
-  const { rows } = await getPool().query(
-    `INSERT INTO driver_documents
-       (driver_id, doc_type, file_url, file_name, expires_at, file_data, content_type, file_size)
-     VALUES ($1, $2, NULL, $3, $4, $5, $6, $7) RETURNING *`,
-    [req.driverId, docType, fileName, expiresAt || null, req.file.buffer, contentType, req.file.size]
-  );
+  // The file goes to the store first, under the id the row will have, so a
+  // row never exists without its file; a failed insert removes the file again.
+  const id = crypto.randomUUID();
+  const remote = documentStore.isRemote();
+  if (remote) await documentStore.save(id, req.file.buffer);
+  let rows;
+  try {
+    ({ rows } = await getPool().query(
+      `INSERT INTO driver_documents
+         (id, driver_id, doc_type, file_url, file_name, expires_at, file_data, file_remote, content_type, file_size)
+       VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [id, req.driverId, docType, fileName, expiresAt || null, remote ? null : req.file.buffer, remote, contentType, req.file.size]
+    ));
+  } catch (err) {
+    if (remote) await documentStore.remove([id]);
+    throw err;
+  }
   res.status(201).json({
     document: {
       id: rows[0].id,

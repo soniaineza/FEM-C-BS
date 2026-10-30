@@ -222,7 +222,7 @@ Documents are uploaded as one multipart part named `file` next to `docType`
 `profile_photo`, `vehicle_photo`, `other`) to `POST /api/driver/documents`,
 at most 12 MB each. The server decides the type from the file's bytes (PDF,
 JPEG, PNG, WebP, HEIC) whatever the phone's picker declared, stores the bytes
-in `driver_documents.file_data`, and answers 413 `FILE_TOO_LARGE`, 415
+(see "Document storage" below), and answers 413 `FILE_TOO_LARGE`, 415
 `UNSUPPORTED_FILE_TYPE` or 400 `FILE_MISSING` with a message the app shows.
 Rejecting a document creates a driver notification (and a push, when the app
 registered a device token through `POST /api/driver/device-token` or
@@ -255,6 +255,29 @@ and URLs alone are not evidence. Verified drivers cannot change their vehicle
 details through self service. Operators can use
 `PUT /api/admin/drivers/:id/vehicle` to change those details; this takes the
 driver offline and requires fresh registration and insurance review.
+
+**Document storage.** By default the uploaded bytes sit in
+`driver_documents.file_data`, which counts against the database host's quota.
+With `DOCUMENT_STORE_URL` and `DOCUMENT_STORE_TOKEN` set (both or neither;
+the URL must be `https://`) they are kept on the cPanel host instead, by the
+small PHP service in `doc-store/` (set-up steps in `doc-store/README.md`), and
+the row only records `file_remote = TRUE`. An upload reaches the store first
+and the row is written second, so a row never exists without its file; if the
+store is down the driver gets 503 `DOCUMENT_STORAGE_UNAVAILABLE` and can retry.
+Closing a driver account deletes the files from the store.
+
+To move documents uploaded before the switch:
+
+```
+cd server
+npm run docs:move -- --dry-run    # list what would move
+npm run docs:move                 # upload, verify byte for byte, then clear file_data
+```
+
+The script is safe to run again after an interruption. Afterwards run
+`VACUUM FULL driver_documents;` on the database to hand the space back to the
+host. Back up `kimu-documents/` on cPanel with the rest of the account: it now
+holds the only copy of the files.
 
 Monitor `GET /api/admin/payment-exceptions` for provider charges that arrive
 after a ride was settled another way; these require operator reconciliation

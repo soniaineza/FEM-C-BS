@@ -198,6 +198,13 @@ const config = {
   adminUsername: process.env.ADMIN_USERNAME || '',
   adminPassword: process.env.ADMIN_PASSWORD || '',
 
+  // Where driver document files are kept (services/documentStore.js). Set both
+  // to keep the files on the cPanel host (doc-store/ in this repo) instead of
+  // in the database; leave both empty to store them in driver_documents.
+  documentStoreUrl: process.env.DOCUMENT_STORE_URL || '',
+  documentStoreToken: process.env.DOCUMENT_STORE_TOKEN || '',
+  documentStoreTimeoutMs: Number(process.env.DOCUMENT_STORE_TIMEOUT_MS || 30000),
+
   // Average city speed (km/h) used to estimate trip duration server-side.
   estimateAverageSpeedKmh: Number(process.env.ESTIMATE_AVG_SPEED_KMH || 25),
 
@@ -357,6 +364,14 @@ function ensureConfig() {
     }
     if (process.env.SUPPORT_EMAIL && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.supportEmail)) {
       problems.push('SUPPORT_EMAIL (a valid e-mail address)');
+    }
+
+    // Document storage on cPanel needs both the address and the secret.
+    if (Boolean(config.documentStoreUrl) !== Boolean(config.documentStoreToken)) {
+      problems.push('both DOCUMENT_STORE_URL and DOCUMENT_STORE_TOKEN (set both or neither)');
+    }
+    if (config.documentStoreUrl && !/^https:\/\//i.test(config.documentStoreUrl)) {
+      problems.push('DOCUMENT_STORE_URL (must start with https://)');
     }
 
     // Google sign-in is optional, but half a configuration is a mistake.

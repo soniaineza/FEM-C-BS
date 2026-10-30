@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const { getPool } = require('../db');
 const { ApiError } = require('../utils/asyncHandler');
 const { getDriverBalance } = require('./driverBalance');
+const documentStore = require('./documentStore');
 
 // Closing an account must never erase money records. Rides, payments,
 // receipts, wallet transactions, top-ups, driver earnings, payouts and cash
@@ -61,6 +62,7 @@ async function closePassengerAccount(passengerId) {
 
 async function closeDriverAccount(driverId, { pendingApplicationOnly = false } = {}) {
   const client = await getPool().connect();
+  let storedFileIds = [];
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
@@ -97,7 +99,11 @@ async function closeDriverAccount(driverId, { pendingApplicationOnly = false } =
       [driverId, tombstone(driverId)]
     );
     await client.query('DELETE FROM driver_device_tokens WHERE driver_id = $1', [driverId]);
-    await client.query('DELETE FROM driver_documents WHERE driver_id = $1', [driverId]);
+    const { rows: stored } = await client.query(
+      'DELETE FROM driver_documents WHERE driver_id = $1 RETURNING id, file_remote',
+      [driverId]
+    );
+    storedFileIds = stored.filter((d) => d.file_remote).map((d) => d.id);
     await client.query('DELETE FROM driver_locations WHERE driver_id = $1', [driverId]);
     // Past riders keep the trip, but not a way to reach the person.
     await client.query('UPDATE rides SET driver_phone = NULL WHERE driver_id = $1', [driverId]);
@@ -108,6 +114,8 @@ async function closeDriverAccount(driverId, { pendingApplicationOnly = false } =
   } finally {
     client.release();
   }
+  // Only once the account is really closed: the files are personal documents.
+  await documentStore.remove(storedFileIds);
 }
 
 async function closePendingDriverApplication(driverId) {

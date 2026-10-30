@@ -8,6 +8,8 @@ const { apiLimiter } = require('../middleware/rateLimit');
 const { driverToJson } = require('../utils/serialize');
 const { pushDriverNotification } = require('../services/driverNotify');
 const { missingApprovedDocuments } = require('../services/driverKyc');
+const documentStore = require('../services/documentStore');
+const { HAS_FILE_SQL } = documentStore;
 const { transition } = require('../services/paymentState');
 const { SEED_DRIVER_PHONES } = require('../services/seedAccounts');
 const { confirmCashPayment } = require('../services/payments');
@@ -72,7 +74,7 @@ router.use((req, _res, next) => {
 });
 
 function documentToJson(d) {
-  const hasFile = Boolean(d.file_data ?? d.has_file);
+  const hasFile = d.has_file !== undefined ? Boolean(d.has_file) : Boolean(d.file_data || d.file_remote);
   return {
     id: d.id,
     docType: d.doc_type,
@@ -243,7 +245,7 @@ router.get(
       ? await getPool().query(
         `SELECT id, driver_id, doc_type, file_url, file_name, status, rejection_reason,
                 expires_at, uploaded_at, reviewed_at, reviewed_by, verification_method,
-                evidence_reference, (file_data IS NOT NULL) AS has_file, file_size, content_type
+                evidence_reference, ${HAS_FILE_SQL} AS has_file, file_size, content_type
            FROM driver_documents WHERE driver_id = ANY($1) ORDER BY uploaded_at DESC`,
         [ids]
       )
@@ -272,11 +274,11 @@ router.post(
     )) throw new ApiError(400, 'Approval requires reviewer, method=in_person, and evidenceReference.');
     if (status === 'approved') {
       const { rows: uploaded } = await getPool().query(
-        'SELECT file_data FROM driver_documents WHERE id = $1',
+        `SELECT ${HAS_FILE_SQL} AS has_file FROM driver_documents WHERE id = $1`,
         [req.params.id]
       );
       if (!uploaded[0]) throw new ApiError(404, 'Document not found.');
-      if (!uploaded[0].file_data) throw new ApiError(409, 'A real document file must be uploaded before approval.');
+      if (!uploaded[0].has_file) throw new ApiError(409, 'A real document file must be uploaded before approval.');
     }
     const { rows } = await getPool().query(
       `UPDATE driver_documents SET status = $2, rejection_reason = $3, reviewed_at = now(),
@@ -301,17 +303,18 @@ router.post(
 
 router.get('/documents/:id/file', asyncHandler(async (req, res) => {
   const { rows } = await getPool().query(
-    'SELECT file_data, content_type, file_name FROM driver_documents WHERE id = $1',
+    'SELECT id, file_data, file_remote, content_type, file_name FROM driver_documents WHERE id = $1',
     [req.params.id]
   );
-  if (!rows[0] || !rows[0].file_data) throw new ApiError(404, 'Document file not found.');
+  if (!rows[0]) throw new ApiError(404, 'Document file not found.');
+  const bytes = await documentStore.read(rows[0]);
   const fileName = String(rows[0].file_name || 'driver-document').replace(/[\\/\r\n"]/g, '_').slice(0, 160);
   res.set({
     'Cache-Control': 'private, no-store',
     'Content-Disposition': `inline; filename="${fileName}"`,
     'X-Content-Type-Options': 'nosniff',
   });
-  res.type(rows[0].content_type).send(rows[0].file_data);
+  res.type(rows[0].content_type).send(bytes);
 }));
 
 // POST /api/admin/drivers/:id/verify — approve a driver so they can go online.

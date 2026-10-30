@@ -28,6 +28,11 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # Driver documents kept on the cPanel host (doc-store/ in this repo)
+      - key: DOCUMENT_STORE_URL
+        sync: false
+      - key: DOCUMENT_STORE_TOKEN
+        sync: false
       # OTP SMS: pindo | africastalking | generic
       - key: SMS_PROVIDER
         sync: false

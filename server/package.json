@@ -10,6 +10,8 @@
     "dev": "node src/index.js",
     "db:init": "node src/db.js --init-only",
     "driver": "node scripts/driver-console.js",
+    "docs:move": "node scripts/move-documents-to-store.js",
+    "test:doc-store": "node --test test/document-store.test.js",
     "test": "node test/smoke.js && node test/wallet-flow.js",
     "test:smoke": "node test/smoke.js",
     "test:wallet": "node test/wallet-flow.js",
