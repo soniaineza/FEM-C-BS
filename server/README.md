@@ -53,6 +53,25 @@ rejects (it throws instead of guessing).
 6. Back up the database from cPanel (Backup Wizard or a cron `mysqldump`):
    it is now the only copy of rides, wallets and driver accounts.
 
+### Updating the API that runs on cPanel
+
+The API at `api.kimutransport.com` is a Passenger Node app in
+`/home/unguka/kimu-api/server`. It is updated from this repository, not by
+uploading files:
+
+1. Push your change to `main` on GitHub.
+2. cPanel > **Git Version Control** > **Manage** on the repository >
+   **Pull or Deploy** > **Update from Remote**, then **Deploy HEAD Commit**.
+3. The deploy (`.cpanel.yml` runs `server/scripts/cpanel-deploy.sh`) replaces
+   `src` and `scripts`, runs `npm install` only if `package-lock.json` changed,
+   and restarts the app. It never touches `.env`, `node_modules` or the logs.
+4. Check `deploy.log` (what the deploy did) and `stderr.log` (the app's own
+   messages) in `/home/unguka/kimu-api/server`, then open
+   `https://api.kimutransport.com/api/vehicles`.
+
+Settings (`.env`) are edited on the server only; they are never in Git. Do not
+set `LOCAL_DEVELOPMENT` there.
+
 Every API request makes several queries, so the database server should be as
 close to the API as you can get; `db:check` prints the round-trip time.
 
