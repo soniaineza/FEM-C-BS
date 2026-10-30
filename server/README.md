@@ -110,8 +110,9 @@ signup/login). All responses are JSON; errors are `{ "error": "message" }`.
 
 `DEV_REVEAL_CODES` and `DEV_ALLOW_STALE_DRIVERS` are local test switches.
 Driver approval, SMS verification and Paypack transactions cannot be bypassed.
-They take effect only when `MYSQL_HOST` is this machine
-(`localhost` / `127.0.0.1`). On any hosted database they are ignored with a warning,
+They take effect only on a developer's machine: `MYSQL_HOST` is this machine
+(`localhost` / `127.0.0.1`) **and** `LOCAL_DEVELOPMENT=1` is set. A production
+server whose database is on `localhost` (cPanel) must not set it. On any hosted database they are ignored with a warning,
 whatever `NODE_ENV` is, and with `NODE_ENV=production` the server refuses to
 start if one is even set.
 

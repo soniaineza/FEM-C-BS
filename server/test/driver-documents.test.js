@@ -24,6 +24,7 @@ const TEST_DB_NAME = baseName.endsWith('_test') ? baseName : `${baseName}_test`;
 // Everything the app reads from the environment is pinned before any module
 // loads: the test database, a known secret, and operator credentials.
 process.env.MYSQL_DATABASE = TEST_DB_NAME;
+process.env.LOCAL_DEVELOPMENT = '1';
 process.env.NODE_ENV = 'development';
 process.env.JWT_SECRET = 'driver-documents-test-secret';
 process.env.ADMIN_USERNAME = 'operator-test';

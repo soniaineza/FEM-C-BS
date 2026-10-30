@@ -88,3 +88,19 @@ test('unique-key violations are recognised', () => {
   assert.equal(isUniqueViolation({ code: 'ER_PARSE_ERROR', errno: 1064 }), false);
   assert.equal(isUniqueViolation(null), false);
 });
+
+// A production server whose database is on localhost (cPanel) must not get the
+// developer conveniences; only an explicit LOCAL_DEVELOPMENT=1 does.
+test('development switches need LOCAL_DEVELOPMENT=1, not just a local database host', () => {
+  const { spawnSync } = require('node:child_process');
+  const probe = (env) => {
+    const r = spawnSync(process.execPath, ['-e',
+      "const { config } = require('./src/config'); console.log(JSON.stringify({ local: config.localDatabase, reveal: config.devRevealCodes }));"],
+    { cwd: path.join(__dirname, '..'), encoding: 'utf8', env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot || '', JWT_SECRET: 'x', DEV_REVEAL_CODES: '1', ...env } });
+    return JSON.parse(r.stdout.trim().split('\n').pop());
+  };
+  assert.deepEqual(probe({ MYSQL_HOST: 'localhost' }), { local: false, reveal: false }, 'production server on localhost');
+  assert.deepEqual(probe({ MYSQL_HOST: '127.0.0.1', NODE_ENV: 'production' }), { local: false, reveal: false });
+  assert.deepEqual(probe({ MYSQL_HOST: 'db.example.com', LOCAL_DEVELOPMENT: '1' }), { local: false, reveal: false }, 'a remote database is never local');
+  assert.deepEqual(probe({ MYSQL_HOST: 'localhost', LOCAL_DEVELOPMENT: '1' }), { local: true, reveal: true }, 'a developer machine');
+});

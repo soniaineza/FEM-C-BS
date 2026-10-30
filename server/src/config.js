@@ -1,9 +1,15 @@
 require('dotenv').config();
 const crypto = require('crypto');
 
-/** True when the database host is this machine — a developer's database. */
+/**
+ * True only for a developer's machine: the database is on this machine AND
+ * LOCAL_DEVELOPMENT=1 is set. The host alone is not enough, because a
+ * production server whose database sits on the same machine (cPanel) also
+ * connects to localhost, and must never get the developer conveniences.
+ */
 function isLocalDatabase(host) {
-  return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(String(host || '').toLowerCase());
+  const here = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(String(host || '').toLowerCase());
+  return here && process.env.LOCAL_DEVELOPMENT === '1';
 }
 
 // App-wide server configuration. Every value can be overridden with an
@@ -31,9 +37,9 @@ const config = {
     // Shared hosts cap simultaneous connections per account; stay well under.
     poolSize: Number(process.env.MYSQL_POOL_SIZE || 8),
   },
-  // Development and demo switches are honoured only against a local
-  // database. On any hosted database they are ignored, whatever NODE_ENV
-  // says — see lockDownHostedServer() below.
+  // Development and demo switches are honoured only on a developer's machine
+  // (database on this machine and LOCAL_DEVELOPMENT=1). Anywhere else they are
+  // ignored, whatever NODE_ENV says — see lockDownHostedServer() below.
   localDatabase: isLocalDatabase(process.env.MYSQL_HOST),
 
   // JWT signing secret. In production this MUST be set — no fallback secret.

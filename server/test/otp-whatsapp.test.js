@@ -5,6 +5,7 @@ const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
 process.env.MYSQL_HOST = process.env.MYSQL_HOST || 'localhost';
+process.env.LOCAL_DEVELOPMENT = '1';
 const { config } = require('../src/config');
 const otp = require('../src/services/otpSender');
 

@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const crypto = require('crypto');
 
 process.env.MYSQL_HOST = process.env.MYSQL_HOST || 'localhost';
+process.env.LOCAL_DEVELOPMENT = '1';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'unit-test-secret';
 const { config, corsOrigins } = require('../src/config');
 const google = require('../src/services/googleAuth');

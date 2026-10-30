@@ -1451,6 +1451,7 @@ async function main() {
     PATH: process.env.PATH,
     NODE_ENV: 'production',
     PORT: String(API_PORT),
+    LOCAL_DEVELOPMENT: process.env.LOCAL_DEVELOPMENT || '',
     MYSQL_HOST: process.env.MYSQL_HOST,
     MYSQL_PORT: process.env.MYSQL_PORT || '3306',
     MYSQL_USER: process.env.MYSQL_USER,
